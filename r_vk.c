@@ -331,3 +331,30 @@ VkImageView r_CreateDepthBuffer(VkDevice device)
     //     }
     // }
 }
+
+struct vk_shader_t r_LoadShader(const char *file_name)
+{
+    struct vk_shader_t shader = {};
+    FILE *file;
+
+    file = fopen(file_name, "rb");
+
+    if(file)
+    {
+        fseek(file, 0, SEEK_END);
+        shader.size = ftell(file);
+        rewind(file);
+
+        shader.shader = calloc(1, shader.size + 1);
+
+        fread(shader.shader, 1, shader.size, file);
+        fclose(file);
+    }
+    else
+    {
+        printf("couldn't find file %s!\n", file_name);    
+    }
+    
+
+    return shader;
+}

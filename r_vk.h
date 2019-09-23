@@ -41,6 +41,14 @@ struct vk_image_t
     VkDeviceMemory image_memory;
 };
 
+
+
+struct vk_shader_t
+{
+    uint32_t size;
+    uint32_t *shader;
+};
+
 VkResult r_CreateInstance(VkInstance *instance);
 
 VkResult r_EnumeratePhysicalDevices(VkInstance instance, VkPhysicalDevice **physical_devices, uint32_t *physical_devices_count);
@@ -64,5 +72,7 @@ void r_PrintPresentModes(VkPresentModeKHR *present_modes, uint32_t present_modes
 VkResult r_GetSwapchainImages(VkDevice device, VkSwapchainKHR swapchain, VkImage **images, uint32_t *images_count);
 
 VkImageView r_CreateDepthBuffer(VkDevice device);
+
+struct vk_shader_t r_LoadShader(const char *file_name);
 
 #endif
