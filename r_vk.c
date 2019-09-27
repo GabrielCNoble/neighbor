@@ -43,7 +43,7 @@ VkResult r_EnumeratePhysicalDevices(VkInstance instance, VkPhysicalDevice **phys
     {
         if(devices_count)
         {
-            devices = calloc(sizeof(VkPhysicalDevice), devices_count);
+            devices = calloc(sizeof(VkPhysicalDevice) * 10, devices_count);
             vkEnumeratePhysicalDevices(instance, &devices_count, devices);
         }
     }
@@ -64,7 +64,7 @@ void r_GetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice physical_device, 
 
     if(families_count)
     {
-        families = calloc(sizeof(VkQueueFamilyProperties), families_count);
+        families = calloc(sizeof(VkQueueFamilyProperties) * 10, families_count);
         vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &families_count, families);
     }
 
@@ -169,8 +169,16 @@ VkResult r_GetPhysicalDeviceSurfaceFormats(VkPhysicalDevice physical_device, VkS
     {
         if(format_count)
         {
-            formats = calloc(sizeof(VkSurfaceFormatKHR), format_count);
+            formats = calloc(sizeof(VkSurfaceFormatKHR) * 10, format_count);
             vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, formats);
+
+            // for(uint32_t i = 0; i < format_count; i++)
+            // {
+            //     if(formats[i].format == VK_FORMAT_UNDEFINED)
+            //     {
+            //         formats[i].format = VK_FORMAT_UNDEFINED;
+            //     }
+            // }
         }
     }
 
@@ -192,7 +200,7 @@ VkResult r_GetPhysicalDeviceSurfacePresentModes(VkPhysicalDevice physical_device
     {
         if(modes_count)
         {
-            modes = calloc(sizeof(VkPresentModeKHR), modes_count);
+            modes = calloc(sizeof(VkPresentModeKHR) * 10, modes_count);
             vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &modes_count, modes);
         }
     }
@@ -259,7 +267,7 @@ VkResult r_GetSwapchainImages(VkDevice device, VkSwapchainKHR swapchain, VkImage
     {
         if(count)
         {
-            imgs = calloc(sizeof(VkImage), count);
+            imgs = calloc(sizeof(VkImage) * 10, count);
             vkGetSwapchainImagesKHR(device, swapchain, &count, imgs);
         }
     }
@@ -357,4 +365,23 @@ struct vk_shader_t r_LoadShader(const char *file_name)
     
 
     return shader;
+}
+
+uint32_t r_GetMemoryTypeFromProperties(VkPhysicalDeviceMemoryProperties *memory_properties, uint32_t type_bits, uint32_t mask)
+{
+    for(uint32_t i = 0; i < memory_properties->memoryTypeCount; i++)
+    {
+        if(type_bits & 1)
+        {
+            /* the physical device has this type of memory... */
+            if((memory_properties->memoryTypes[i].propertyFlags & mask) == mask)
+            {
+                return i;
+            }
+        }
+
+        type_bits >>= 1;
+    }
+
+    return 0xffffffff;
 }

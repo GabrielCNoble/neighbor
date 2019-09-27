@@ -75,4 +75,6 @@ VkImageView r_CreateDepthBuffer(VkDevice device);
 
 struct vk_shader_t r_LoadShader(const char *file_name);
 
+uint32_t r_GetMemoryTypeFromProperties(VkPhysicalDeviceMemoryProperties *memory_properties, uint32_t type_bits, uint32_t mask);
+
 #endif
