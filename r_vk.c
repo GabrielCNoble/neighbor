@@ -2,7 +2,258 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+struct rBackend r_backend;
+
+
+void r_InitBackend()
+{
+    r_backend.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, 0);
+
+    r_InitVkBackend();
+}
+
+void r_InitVkDevice()
+{
+    VkInstanceCreateInfo instance_create_info = {};
+    VkWin32SurfaceCreateInfoKHR surface_create_info = {};
+    VkSwapchainCreateInfoKHR swapchain_create_info = {};
+    VkDeviceCreateInfo device_create_info = {};
+    VkDeviceQueueCreateInfo queue_create_info = {};
+    VkPhysicalDevice physical_device;
+    VkImageCreateInfo image_create_info;
+    VkImageViewCreateInfo image_view_create_info;
+
+    uint32_t physical_device_count = 1;
+
+    VkQueueFamilyProperties *queue_families = NULL;
+    uint32_t queue_families_count = 0;
+
+    VkSurfaceCapabilitiesKHR surface_capabilites;
+    VkSurfaceFormatKHR surface_format;
+    uint32_t surface_format_count = 1;
+
+    VkImage *swapchain_images = NULL;
+    VkImageView *swapchain_image_views = NULL;
+    uint32_t swapchain_images_count = 0;
+
+    VkResult result;
+    SDL_SysWMinfo wm_info;
+    const char const *instance_extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
+    const char const *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+    instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instance_create_info.pNext = NULL;
+    instance_create_info.flags = 0;
+    instance_create_info.pApplicationInfo = NULL;
+    instance_create_info.enabledLayerCount = 0;
+    instance_create_info.ppEnabledLayerNames = NULL;
+    instance_create_info.enabledExtensionCount = 2;
+    instance_create_info.ppEnabledExtensionNames = instance_extensions;
+    
+    result = vkCreateInstance(&instance_create_info, NULL, &r_backend.vk_backend.instance);
+
+    if(result != VK_SUCCESS)
+    {
+        printf("error creating instance!\n");
+        return;
+    }   
+
+    SDL_VERSION(&wm_info.version);
+    SDL_GetWindowWMInfo(r_backend.window, &wm_info);
+
+    surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surface_create_info.pNext = NULL;
+    surface_create_info.flags = 0;
+    surface_create_info.hinstance = wm_info.info.win.hinstance;
+    surface_create_info.hwnd = wm_info.info.win.window;
+
+    result = vkCreateWin32SurfaceKHR(r_backend.vk_backend.instance, &surface_create_info, NULL, &r_backend.vk_backend.surface);
+
+    if(result != VK_SUCCESS)
+    {
+        printf("error creating surface!\n");
+        return;
+    }
+
+    /* take the first physical device, as most hosts will have only a single gpu. In case there's more, we assume
+    the main gpu will be the first in the list... */
+    result = vkEnumeratePhysicalDevices(r_backend.vk_backend.instance, &physical_device_count, &physical_device);
+
+    if(result != VK_SUCCESS)
+    {
+        printf("error enumerating physical devices!\n");
+    }
+
+
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_families_count, NULL);
+
+    if(queue_families_count)
+    {
+        /* this could cause problems... */
+        queue_families = alloca(sizeof(VkQueueFamilyProperties) * queue_families_count);
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_families_count, queue_families);
+
+        r_backend.vk_backend.graphics_queue_index = 0xffffffff;
+        r_backend.vk_backend.present_queue_index = 0xffffffff;
+
+        for(uint32_t i = 0; i < queue_families_count; i++)
+        {
+            if((queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && 
+                r_backend.vk_backend.graphics_queue_index == 0xffffffff)
+            {
+                r_backend.vk_backend.graphics_queue_index = i;
+            }
+
+            VkBool32 present_capable = 0;
+
+            if(r_backend.vk_backend.present_queue_index == 0xffffffff)
+            {
+                vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, r_backend.vk_backend.surface, &present_capable);
+                if(present_capable)
+                {
+                    r_backend.vk_backend.present_queue_index = i;
+                }
+            }
+        }
+    }
+
+    float *priorities = alloca(sizeof(float) * queue_families[r_backend.vk_backend.graphics_queue_index].queueCount);
+    /* give all queues the same priority (0.0)... */
+    memset(priorities, 0, sizeof(float) * queue_families[r_backend.vk_backend.graphics_queue_index].queueCount);
+
+    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_create_info.pNext = NULL;
+    queue_create_info.flags = 0;
+    queue_create_info.queueFamilyIndex = r_backend.vk_backend.graphics_queue_index;
+    queue_create_info.queueCount = queue_families[r_backend.vk_backend.graphics_queue_index].queueCount;
+    queue_create_info.pQueuePriorities = priorities;
+
+
+    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_create_info.pNext = NULL;
+    device_create_info.flags = 0;
+    /* this will not always work. If presenting is not supported by the queue
+    being used for graphics operation, we'll need two queues to get things going... */
+    device_create_info.queueCreateInfoCount = 1;
+    device_create_info.pQueueCreateInfos = &queue_create_info;
+    device_create_info.enabledLayerCount = 0;
+    device_create_info.ppEnabledLayerNames = NULL;
+    device_create_info.enabledExtensionCount = 1;
+    device_create_info.ppEnabledExtensionNames = device_extensions;
+    device_create_info.pEnabledFeatures = NULL;
+
+    result = vkCreateDevice(physical_device, &device_create_info, NULL, &r_backend.vk_backend.device);
+
+    if(result != VK_SUCCESS)
+    {
+        printf("error creating device!\n");
+        return;
+    }
+
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, r_backend.vk_backend.surface, &surface_format_count, &surface_format);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, r_backend.vk_backend.surface, &surface_capabilites);
+
+    swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchain_create_info.pNext = NULL;
+    swapchain_create_info.flags = 0;
+    swapchain_create_info.surface = r_backend.vk_backend.surface;
+    swapchain_create_info.minImageCount = surface_capabilites.minImageCount;
+    swapchain_create_info.imageFormat = surface_format.format;
+    swapchain_create_info.imageColorSpace = surface_format.colorSpace;
+    swapchain_create_info.imageExtent = surface_capabilites.currentExtent;
+    swapchain_create_info.imageArrayLayers = 1;
+    swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    swapchain_create_info.queueFamilyIndexCount = 0;
+    swapchain_create_info.pQueueFamilyIndices = NULL;
+    swapchain_create_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    swapchain_create_info.clipped = VK_TRUE;
+    swapchain_create_info.oldSwapchain = VK_NULL_HANDLE;
+
+    result = vkCreateSwapchainKHR(r_backend.vk_backend.device, &swapchain_create_info, NULL, &r_backend.vk_backend.swapchain);
+
+    if(result != VK_SUCCESS)
+    {
+        printf("error creating the swapchain!\n");
+        return;
+    }
+
+    vkGetSwapchainImagesKHR(r_backend.vk_backend.device, r_backend.vk_backend.swapchain, &swapchain_images_count, NULL);
+
+    if(swapchain_images_count)
+    {
+        swapchain_images = alloca(sizeof(VkImage) * swapchain_images_count);
+        vkGetSwapchainImagesKHR(r_backend.vk_backend.device, r_backend.vk_backend.swapchain, &swapchain_images_count, swapchain_images);
+
+        image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        image_view_create_info.pNext = NULL;
+        image_view_create_info.flags = 0;
+        image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        image_view_create_info.format = surface_format.format;
+        
+        image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
+        image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
+        image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
+        image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
+
+        image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        image_view_create_info.subresourceRange.baseMipLevel = 0;
+        image_view_create_info.subresourceRange.levelCount = 1;
+        image_view_create_info.subresourceRange.baseArrayLayer = 0;
+        image_view_create_info.subresourceRange.layerCount = 1;
+
+        swapchain_image_views = alloca(sizeof(VkImageView) * swapchain_images_count);
+
+        for(uint32_t i; i < swapchain_images_count; i++)
+        {
+            image_view_create_info.image = swapchain_images[i];
+            vkCreateImageView(r_backend.vk_backend.device, &image_view_create_info, NULL, swapchain_image_views + i);
+        }
+    }
+}
+
+void r_InitVkBackend()
+{
+    r_InitVkDevice();
+}
+
+
+
+
+
+// void r_GetPhysicalDeviceAggregateProperties(VkPhysicalDevice physical_device, struct rPhysicalDeviceAggregateProperties *properties)
+// {
+//     vkResult result;
+
+//     memset(properties, 0, sizeof(struct rPhysicalDeviceAggregateProperties));
+
+//     vkGetPhysicalDeviceMemoryProperties(physical_device, &properties->memory_properties);
+//     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &properties->queue_families_count, NULL);
+
+//     if(properties->queue_families_count)
+//     {
+//         properties = calloc(sizeof(VkQueueFamilyProperties), properties->queue_families_count);
+//         vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &properties->queue_families_count, properties->queue_families);
+//     }
+// }
+
+// void r_GetPhysicalDeviceSurfaceProperties(VkPhysicalDevice physical_device, VkSurfaceKHR surface, struct rSurfaceProperties *surface_properties)
+// {
+//     memset(surface_properties, 0, sizeof(struct rSurfaceProperties));
+
+//     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &surface_properties->surface_capabilites);
+
+//     vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &surface_properties->present_modes_count, NULL);
+//     if(surface_properties->present_modes_count)
+//     {
+//         surface_properties->present_modes = calloc(sizeof(VkPresentModeKHR), surface_properties->present_modes);
+//         vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, &surface_properties->present)
+//     }
+// }
 
 VkResult r_CreateInstance(VkInstance *instance)
 {

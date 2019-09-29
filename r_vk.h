@@ -3,37 +3,12 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/Include/vulkan/vulkan.h"
+#include "SDL\include\SDL2\SDL.h"
+#include "SDL\include\SDL2\SDL_syswm.h"
 
 #define WIDTH 800
 #define HEIGHT 600
 
-
-/*
-    The workflow to create an image (a texture), is as follows:
-
-    (1). create a VkImage. This represents an image, but no memory has been 
-    allocated for it yet. 
-
-    the next two steps can be swaped, since they are independent.
-
-    (2). create a VkImageView. This contains information about how the texture bytes 
-    will be interpreted (how to 'view' it, hence the name). The view keeps the 
-    image handle.
-
-    (3). alloc memory to back the image, by calling vkAllocateMemory.
-
-    (4). bind the memory to the texture, by calling vkBindImageMemory. 
-
-    allocating memory is only necessary for images that are being created
-    manually. Whenever a swapchain gets created, it also creates the
-    number of images requested (possibily less), allocates and binds 
-    memory for them. However, creating an image view is still necessary.
-    To do that, it's necessary to call vkGetSwapchainImages. This will
-    return an list of handles to images. 
-*/
-
-
-/* just group those fuckers for now... */
 struct vk_image_t
 {
     VkImage image;
@@ -41,13 +16,39 @@ struct vk_image_t
     VkDeviceMemory image_memory;
 };
 
-
-
 struct vk_shader_t
 {
     uint32_t size;
     uint32_t *shader;
+}; 
+
+struct rVkBackend
+{
+    VkInstance instance;
+    VkDevice device;
+    VkSurfaceKHR surface;
+    VkSwapchainKHR swapchain;
+
+    uint32_t graphics_queue_index;
+    uint32_t present_queue_index; 
 };
+
+struct rBackend
+{
+    SDL_Window *window;
+    struct rVkBackend vk_backend;
+};
+
+
+void r_InitBackend();
+
+void r_InitVkBackend();
+
+void r_InitVkDevice();
+
+// void r_GetPhysicalDeviceAggregateProperties(VkPhysicalDevice physical_device, struct rPhysicalDeviceAggregateProperties *properties);
+
+// void r_GetPhysicalDeviceSurfaceProperties(VkPhysicalDevice physical_device, VkSurfaceKHR surface, struct rSurfaceProperties *surface_properties);
 
 VkResult r_CreateInstance(VkInstance *instance);
 

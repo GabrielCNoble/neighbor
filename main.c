@@ -16,7 +16,7 @@ struct vertex_t
 {
     float x, y, z, w;
     float r, g, b, a;
-};
+};  
 
 int main(int argc, char *argv[])
 {
@@ -201,31 +201,37 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    SDL_VERSION(&info.version);
-    window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, 0);
+    // SDL_VERSION(&info.version);
+    // window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, 0);
 
-    SDL_GetWindowWMInfo(window, &info);
-    window_handle = info.info.win.window;
-    h_instance = info.info.win.hinstance;
+    r_InitBackend();
 
-    result = r_CreateInstance(&instance);
 
-    if(result == VK_ERROR_INCOMPATIBLE_DRIVER)
-    {
-        printf("cannot find a compatible Vulkan ICD\n");
-        exit(-1);
-    }
-    else if(result)
-    {
-        printf("unknown error\n");
-        exit(-1);
-    }
-    else
-    {
-        printf("instance create succesfully!\n");
-    }
 
-    r_EnumeratePhysicalDevices(instance, &physical_devices, &physical_devices_count);
+    return 0;
+
+    // SDL_GetWindowWMInfo(window, &info);
+    // window_handle = info.info.win.window;
+    // h_instance = info.info.win.hinstance;
+
+    // result = r_CreateInstance(&instance);
+
+    // if(result == VK_ERROR_INCOMPATIBLE_DRIVER)
+    // {
+    //     printf("cannot find a compatible Vulkan ICD\n");
+    //     exit(-1);
+    // }
+    // else if(result)
+    // {
+    //     printf("unknown error\n");
+    //     exit(-1);
+    // }
+    // else
+    // {
+    //     printf("instance create succesfully!\n");
+    // }
+
+    // r_EnumeratePhysicalDevices(instance, &physical_devices, &physical_devices_count);
 
     if(physical_devices_count > 0)
     {
