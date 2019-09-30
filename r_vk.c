@@ -21,6 +21,7 @@ void r_InitVkDevice()
     VkSwapchainCreateInfoKHR swapchain_create_info = {};
     VkDeviceCreateInfo device_create_info = {};
     VkDeviceQueueCreateInfo queue_create_info = {};
+    VkPhysicalDeviceMemoryProperties memory_properties = {};
     VkPhysicalDevice physical_device;
     VkImageCreateInfo image_create_info;
     VkImageViewCreateInfo image_view_create_info;
@@ -35,6 +36,10 @@ void r_InitVkDevice()
     uint32_t surface_format_count = 1;
 
     VkImage *swapchain_images = NULL;
+    VkImage depth_image;
+    VkDeviceMemory depth_image_memory;
+    VkMemoryRequirements alloc_req;
+    VkMemoryAllocateInfo alloc_info;
     VkImageView *swapchain_image_views = NULL;
     uint32_t swapchain_images_count = 0;
 
@@ -49,6 +54,13 @@ void r_InitVkDevice()
     instance_create_info.pApplicationInfo = NULL;
     instance_create_info.enabledLayerCount = 0;
     instance_create_info.ppEnabledLayerNames = NULL;
+
+    /* I find it a bit odd that surfaces are made available through an
+    extension. If this is a graphics api, wouldn't having support for
+    showing stuff on the screen be something required for it to fulfill
+    its use? If this was a general purpose computing library, and doing
+    graphics related operations was one of the things supported, I guess
+    then it'd make sense. */
     instance_create_info.enabledExtensionCount = 2;
     instance_create_info.ppEnabledExtensionNames = instance_extensions;
     
@@ -77,8 +89,7 @@ void r_InitVkDevice()
         return;
     }
 
-    /* take the first physical device, as most hosts will have only a single gpu. In case there's more, we assume
-    the main gpu will be the first in the list... */
+    /* will the main gpu be the first on the list? I'm assuming it will for now... */
     result = vkEnumeratePhysicalDevices(r_backend.vk_backend.instance, &physical_device_count, &physical_device);
 
     if(result != VK_SUCCESS)
@@ -86,12 +97,11 @@ void r_InitVkDevice()
         printf("error enumerating physical devices!\n");
     }
 
-
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &r_backend.vk_backend.memory_properties);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_families_count, NULL);
 
     if(queue_families_count)
     {
-        /* this could cause problems... */
         queue_families = alloca(sizeof(VkQueueFamilyProperties) * queue_families_count);
         vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_families_count, queue_families);
 
@@ -128,6 +138,11 @@ void r_InitVkDevice()
     queue_create_info.flags = 0;
     queue_create_info.queueFamilyIndex = r_backend.vk_backend.graphics_queue_index;
     queue_create_info.queueCount = queue_families[r_backend.vk_backend.graphics_queue_index].queueCount;
+
+    /* this is a bit odd. The tutorial declares an array with a single float inside,
+    but the spec says this array should contain a value for each queue in the queue family.
+    If there's only a single queue in the family, then it's fine. Otherwise, wouldn't 
+    vulkan read garbage after the first element? */
     queue_create_info.pQueuePriorities = priorities;
 
 
@@ -138,6 +153,7 @@ void r_InitVkDevice()
     being used for graphics operation, we'll need two queues to get things going... */
     device_create_info.queueCreateInfoCount = 1;
     device_create_info.pQueueCreateInfos = &queue_create_info;
+
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = NULL;
     device_create_info.enabledExtensionCount = 1;
@@ -155,6 +171,7 @@ void r_InitVkDevice()
     vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, r_backend.vk_backend.surface, &surface_format_count, &surface_format);
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, r_backend.vk_backend.surface, &surface_capabilites);
 
+    /* this pretty much works as the window backbuffer... */
     swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchain_create_info.pNext = NULL;
     swapchain_create_info.flags = 0;
@@ -168,10 +185,10 @@ void r_InitVkDevice()
     swapchain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     swapchain_create_info.queueFamilyIndexCount = 0;
     swapchain_create_info.pQueueFamilyIndices = NULL;
-    swapchain_create_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    swapchain_create_info.clipped = VK_TRUE;
+    swapchain_create_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; /* present the image as is */
+    swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;   /* consider the image having alpha = 1.0 */
+    swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;               /* queue images, present them during vertical blank */
+    swapchain_create_info.clipped = VK_TRUE;                                    /* allow vulkan to discard pixels outside the visible area*/
     swapchain_create_info.oldSwapchain = VK_NULL_HANDLE;
 
     result = vkCreateSwapchainKHR(r_backend.vk_backend.device, &swapchain_create_info, NULL, &r_backend.vk_backend.swapchain);
@@ -199,7 +216,7 @@ void r_InitVkDevice()
         image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
         image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
         image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
-
+        
         image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         image_view_create_info.subresourceRange.baseMipLevel = 0;
         image_view_create_info.subresourceRange.levelCount = 1;
@@ -213,12 +230,54 @@ void r_InitVkDevice()
             image_view_create_info.image = swapchain_images[i];
             vkCreateImageView(r_backend.vk_backend.device, &image_view_create_info, NULL, swapchain_image_views + i);
         }
+
+        image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image_create_info.pNext = NULL;
+        image_create_info.flags = 0;
+        image_create_info.imageType = VK_IMAGE_TYPE_2D;
+        image_create_info.format = VK_FORMAT_D16_UNORM;
+        image_create_info.extent = surface_capabilites.currentExtent;
+        image_create_info.mipLevels = 1;
+        image_create_info.arrayLayers = 1;
+        image_create_info.samples = 1;
+        image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        image_create_info.queueFamilyIndexCount = 0;
+        image_create_info.pQueueFamilyIndices = NULL;
+        image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        vkCreateImage(r_backend.vk_backend.device, &image_create_info, NULL, &depth_image);
+        vkGetImageMemoryRequirements(device, depth_image, &alloc_req);
+
+        alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.pNext = NULL;
+        alloc_info.allocationSize = alloc_req.size;
+        alloc_info.memoryTypeIndex = r_MemoryTypeFromProperties(alloc_req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     }
 }
 
 void r_InitVkBackend()
 {
     r_InitVkDevice();
+}
+
+uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement)
+{
+    for(uint32_t i = 0; i < r_backend.vk_backend.memory_properties.memoryTypeCount; i++)
+    {
+        if(type_bits & 1)
+        {
+            if((r_backend.vk_backend.memory_properties.memoryTypes[i] & requirement) == requirement)
+            {
+                return i;
+            }
+        }
+
+        type_bits >>= 1;
+    }
+
+    return 0xffffffff;
 }
 
 

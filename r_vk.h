@@ -28,9 +28,10 @@ struct rVkBackend
     VkDevice device;
     VkSurfaceKHR surface;
     VkSwapchainKHR swapchain;
-
     uint32_t graphics_queue_index;
     uint32_t present_queue_index; 
+    VkFramebuffer *framebuffers;
+    VkPhysicalDeviceMemoryProperties memory_properties;
 };
 
 struct rBackend
@@ -45,6 +46,8 @@ void r_InitBackend();
 void r_InitVkBackend();
 
 void r_InitVkDevice();
+
+uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 
 // void r_GetPhysicalDeviceAggregateProperties(VkPhysicalDevice physical_device, struct rPhysicalDeviceAggregateProperties *properties);
 
