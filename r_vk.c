@@ -263,6 +263,9 @@ void r_InitVkRenderer()
 {
     VkResult result;
 
+    r_backend.z_near = 0.01;
+    r_backend.z_far = 100.0;
+
     VkCommandPoolCreateInfo command_pool_create_info = {};
     command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     command_pool_create_info.pNext = NULL;
@@ -798,7 +801,7 @@ void r_InitVkRenderer()
     rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterization_state_create_info.depthBiasEnable = 0;
+    rasterization_state_create_info.depthBiasEnable = VK_TRUE;
     rasterization_state_create_info.depthBiasConstantFactor = 0.0;
     rasterization_state_create_info.depthBiasClamp = 0;
     rasterization_state_create_info.depthBiasSlopeFactor = 0.0;
@@ -861,7 +864,10 @@ void r_InitVkRenderer()
     color_blend_attachment_state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     color_blend_attachment_state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     color_blend_attachment_state.alphaBlendOp = VK_BLEND_OP_ADD;
-    color_blend_attachment_state.colorWriteMask = 0;
+    color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | 
+                                                  VK_COLOR_COMPONENT_G_BIT |
+                                                  VK_COLOR_COMPONENT_B_BIT |
+                                                  VK_COLOR_COMPONENT_A_BIT;
 
 
     VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
@@ -872,10 +878,10 @@ void r_InitVkRenderer()
     color_blend_state_create_info.logicOp = VK_LOGIC_OP_NO_OP;
     color_blend_state_create_info.attachmentCount = 1;
     color_blend_state_create_info.pAttachments = &color_blend_attachment_state;
-    color_blend_state_create_info.blendConstants[0] = 0.0;
-    color_blend_state_create_info.blendConstants[1] = 0.0;
-    color_blend_state_create_info.blendConstants[2] = 0.0;
-    color_blend_state_create_info.blendConstants[3] = 0.0;
+    color_blend_state_create_info.blendConstants[0] = 1.0;
+    color_blend_state_create_info.blendConstants[1] = 1.0;
+    color_blend_state_create_info.blendConstants[2] = 1.0;
+    color_blend_state_create_info.blendConstants[3] = 1.0;
 
     /*
     ======================================================================
@@ -1054,10 +1060,16 @@ void r_UploadData()
 {
     void *memory;
     VkResult result;
+    VkSurfaceCapabilitiesKHR surface_capabilities;
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r_backend.vk_backend.physical_device, r_backend.vk_backend.surface, &surface_capabilities);
+
+    float aspect = (float)surface_capabilities.currentExtent.width / (float)surface_capabilities.currentExtent.height;
+
     float projection_matrix[16] = 
     {
         1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
+        0.0, -1.0, 0.0, 0.0,
         0.0, 0.0, 1.0, 0.0,
         0.0, 0.0, 0.0, 1.0
     };
@@ -1106,11 +1118,17 @@ void r_BeginRenderpass()
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r_backend.vk_backend.physical_device, r_backend.vk_backend.surface, &surface_capabilities);
 
+    static float r = 0.0; 
+
     VkClearValue clear_value[2] = {};
-    clear_value[0].color.float32[0] = 0.5;
+    clear_value[0].color.float32[0] = sin(r * 3.14159265 * 2.0) * 0.5 + 0.5;
     clear_value[0].color.float32[1] = 0.0;
     clear_value[0].color.float32[2] = 0.0;
     clear_value[0].color.float32[3] = 1.0;
+
+    clear_value[1].depthStencil.depth = 1.0;
+
+    r += 0.01;
     
 
     VkRenderPassBeginInfo render_pass_begin_info = {};

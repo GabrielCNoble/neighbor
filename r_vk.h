@@ -62,6 +62,10 @@ struct rVkBackend
 struct rBackend
 {
     SDL_Window *window;
+
+    float z_near;
+    float z_far;
+
     struct rVkBackend vk_backend;
 };
 

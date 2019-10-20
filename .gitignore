@@ -1,0 +1,8 @@
+.vscode
+SDL
+vulkan
+build.bat
+*.exe
+*.o
+*.dll
+*.spv
