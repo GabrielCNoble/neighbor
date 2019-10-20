@@ -16,22 +16,47 @@ struct vk_image_t
     VkDeviceMemory image_memory;
 };
 
-struct vk_shader_t
+struct rVkShader
 {
     uint32_t size;
     uint32_t *shader;
 }; 
 
+struct rVkBuffer
+{
+    VkBuffer buffer;
+    VkDeviceMemory memory;
+};
+
 struct rVkBackend
 {
     VkInstance instance;
+    VkPhysicalDevice physical_device;
     VkDevice device;
-    VkSurfaceKHR surface;
+    VkSurfaceKHR surface; 
     VkSwapchainKHR swapchain;
     uint32_t graphics_queue_index;
     uint32_t present_queue_index; 
     VkFramebuffer *framebuffers;
     VkPhysicalDeviceMemoryProperties memory_properties;
+    VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
+    VkDescriptorSet descriptor_set;
+    VkDescriptorPool descriptor_pool;
+    VkRenderPass render_pass;
+    VkQueue queue;
+    
+    VkShaderModule vertex_shader_module;
+    VkShaderModule fragment_shader_module;
+    struct rVkBuffer uniform_buffer;
+    struct rVkBuffer vertex_buffer;
+    
+    VkPipelineLayout pipeline_layout;
+    VkPipeline graphics_pipeline;
+    VkSemaphore image_aquire_semaphore;
+    VkFence submit_fence;
+
+    uint32_t current_image;
 };
 
 struct rBackend
@@ -40,12 +65,43 @@ struct rBackend
     struct rVkBackend vk_backend;
 };
 
+struct vec4_t
+{
+    float comps[4];
+};
+
+struct vertex_t
+{
+    struct vec4_t position;
+    struct vec4_t color;
+};
+
 
 void r_InitBackend();
 
 void r_InitVkBackend();
 
 void r_InitVkDevice();
+
+void r_InitVkRenderer();
+
+VkResult r_CreateBuffer(struct rVkBuffer *buffer, uint32_t size, uint32_t usage);
+
+VkResult r_BeginCommandBuffer();
+
+VkResult r_EndCommandBuffer();
+
+uint32_t r_AcquireNextImage();
+
+void r_UploadData();
+
+void r_BeginRenderpass();
+
+void r_Draw();
+
+void r_EndRenderpass();
+
+void r_Present();
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 
@@ -77,7 +133,7 @@ VkResult r_GetSwapchainImages(VkDevice device, VkSwapchainKHR swapchain, VkImage
 
 VkImageView r_CreateDepthBuffer(VkDevice device);
 
-struct vk_shader_t r_LoadShader(const char *file_name);
+struct rVkShader r_LoadShader(const char *file_name);
 
 uint32_t r_GetMemoryTypeFromProperties(VkPhysicalDeviceMemoryProperties *memory_properties, uint32_t type_bits, uint32_t mask);
 

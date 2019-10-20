@@ -12,11 +12,11 @@
 #include <string.h>
 
 
-struct vertex_t
-{
-    float x, y, z, w;
-    float r, g, b, a;
-};  
+// struct vertex_t
+// {
+//     float x, y, z, w;
+//     float r, g, b, a;
+// };  
 
 int main(int argc, char *argv[])
 {
@@ -100,8 +100,8 @@ int main(int argc, char *argv[])
     VkShaderModuleCreateInfo shader_module_create_info = {};
     VkShaderModule vertex_shader_module;
     VkShaderModule fragment_shader_module;
-    struct vk_shader_t vertex_shader = {};
-    struct vk_shader_t fragment_shader = {};
+    struct rVkShader vertex_shader = {};
+    struct rVkShader fragment_shader = {};
     VkPipelineShaderStageCreateInfo shader_stage_create_info[2] = {};
     // VkPipelineShaderStageCreateInfo fragment_shader_stage_create_info = {};
     
@@ -205,6 +205,18 @@ int main(int argc, char *argv[])
     // window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, 0);
 
     r_InitBackend();
+    
+
+    while(1)
+    {
+        SDL_PollEvent(NULL);
+        r_UploadData();
+        r_BeginRenderpass();
+        r_Draw();
+        r_EndRenderpass();
+        r_Present();
+        SDL_Delay(16);
+    }
 
 
 
@@ -426,7 +438,7 @@ int main(int argc, char *argv[])
 
                                                         if(result == VK_SUCCESS)
                                                         {
-                                                            printf("image views created successfully!\n");
+                                                            printf("image views created su ccessfully!\n");
 
                                                             image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
                                                             image_create_info.pNext = NULL;
