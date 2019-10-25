@@ -6,3 +6,6 @@ build.bat
 *.o
 *.dll
 *.spv
+*.png
+*.jpg
+*.jpeg

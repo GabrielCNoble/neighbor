@@ -28,6 +28,13 @@ struct rVkBuffer
     VkDeviceMemory memory;
 };
 
+struct rVkImage
+{
+    VkImage image;
+    VkImageView image_view;
+    VkDeviceMemory memory;
+};
+
 struct rVkBackend
 {
     VkInstance instance;
@@ -41,7 +48,7 @@ struct rVkBackend
     VkPhysicalDeviceMemoryProperties memory_properties;
     VkCommandPool command_pool;
     VkCommandBuffer command_buffer;
-    VkDescriptorSet descriptor_set;
+    VkDescriptorSet descriptor_sets[2];
     VkDescriptorPool descriptor_pool;
     VkRenderPass render_pass;
     VkQueue queue;
@@ -55,6 +62,9 @@ struct rVkBackend
     VkPipeline graphics_pipeline;
     VkSemaphore image_aquire_semaphore;
     VkFence submit_fence;
+
+    struct rVkImage texture;
+    VkSampler sampler;
 
     uint32_t current_image;
 };
@@ -78,6 +88,7 @@ struct vertex_t
 {
     struct vec4_t position;
     struct vec4_t color;
+    struct vec4_t tex_coords; 
 };
 
 
@@ -90,6 +101,10 @@ void r_InitVkDevice();
 void r_InitVkRenderer();
 
 VkResult r_CreateBuffer(struct rVkBuffer *buffer, uint32_t size, uint32_t usage);
+
+VkResult r_LoadImage(struct rVkImage *image, const char *file_name);
+
+VkResult r_GenCheckerboardImage(struct rVkImage *image, uint32_t width, uint32_t height);
 
 VkResult r_BeginCommandBuffer();
 
