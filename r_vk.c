@@ -10,13 +10,13 @@ struct rBackend r_backend;
 
 struct vertex_t vertices[] = 
 {
-    {{-0.5, 0.5, 0.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
-    {{-0.5, -0.5, 0.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
-    {{0.5, -0.5, 0.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
+    {{-1.5, 1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
+    {{-1.5, -1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
+    {{1.5, -1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
 
-    {{0.5, -0.5, 0.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
-    {{0.5, 0.5, 0.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
-    {{-0.5, 0.5, 0.0, 1.0}, {1.0, 0.0, 0.0, 1.0}}
+    {{1.5, -1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
+    {{1.5, 1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}},
+    {{-1.5, 1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}}
 };
 
 
@@ -39,8 +39,6 @@ void r_InitVkDevice()
     VkDeviceCreateInfo device_create_info = {};
     VkDeviceQueueCreateInfo queue_create_info = {};
     VkPhysicalDeviceMemoryProperties memory_properties = {};
-    // VkPhysicalDevice physical_device;
-    VkPhysicalDevice *physical_devices = NULL;
 
     VkImageCreateInfo image_create_info;
     VkImageViewCreateInfo image_view_create_info;
@@ -53,23 +51,6 @@ void r_InitVkDevice()
     VkSurfaceCapabilitiesKHR surface_capabilities;
     VkSurfaceFormatKHR surface_format;
     uint32_t surface_format_count = 1;
-
-    VkImage *swapchain_images = NULL;
-    VkImage depth_image;
-    VkImageView depth_image_view;
-    VkDeviceMemory depth_image_memory;
-    VkMemoryRequirements alloc_req;
-    VkMemoryAllocateInfo alloc_info;
-    VkImageView *swapchain_image_views = NULL;
-    uint32_t swapchain_images_count = 0;
-    VkFramebufferCreateInfo framebuffer_create_info = {};
-    VkRenderPassCreateInfo render_pass_create_info = {};
-    VkAttachmentReference color_attachment_reference = {};
-    VkAttachmentReference depth_attachment_reference = {};
-    VkAttachmentDescription attachment_description[2] = {};
-    VkSubpassDescription subpass_description = {};
-    // VkAttachmentDescription depth_attachment_description = {};
-    VkRenderPass render_pass;
 
     VkResult result;
     SDL_SysWMinfo wm_info;
@@ -799,7 +780,7 @@ void r_InitVkRenderer()
     rasterization_state_create_info.depthClampEnable = 0;
     rasterization_state_create_info.rasterizerDiscardEnable = 0;
     rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterization_state_create_info.depthBiasEnable = VK_TRUE;
     rasterization_state_create_info.depthBiasConstantFactor = 0.0;
@@ -1065,13 +1046,16 @@ void r_UploadData()
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r_backend.vk_backend.physical_device, r_backend.vk_backend.surface, &surface_capabilities);
 
     float aspect = (float)surface_capabilities.currentExtent.width / (float)surface_capabilities.currentExtent.height;
+    float fov_y = 0.68;
+    float v = r_backend.z_near * tan(fov_y);
+    float h = v * aspect;
 
     float projection_matrix[16] = 
     {
-        1.0, 0.0, 0.0, 0.0,
-        0.0, -1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0
+        r_backend.z_near / h , 0.0, 0.0, 0.0,
+        0.0, r_backend.z_near / -v, 0.0, 0.0,
+        0.0, 0.0, (-r_backend.z_far + r_backend.z_near) / (r_backend.z_far - r_backend.z_near), -1.0,
+        0.0, 0.0, -(2 * r_backend.z_near * r_backend.z_far) / (r_backend.z_far - r_backend.z_near), 0.0
     };
 
     result = vkMapMemory(r_backend.vk_backend.device, r_backend.vk_backend.uniform_buffer.memory, 0, sizeof(float [16]), 0, &memory);
@@ -1092,6 +1076,21 @@ void r_UploadData()
     {
         printf("couldn't map memory of vertex buffer!\n");
         return;
+    }
+
+    // static float r = 0.0;
+    static float prev_z = 0.0;
+    float s = sin(0.01 * 3.14159265);
+    float c = cos(0.01 * 3.14159295);
+    struct vec4_t pos;
+    
+    for(uint32_t i = 0; i < 6; i++)
+    {
+        vertices[i].position.comps[2] += 5.0;
+        pos = vertices[i].position;
+        vertices[i].position.comps[0] = pos.comps[0] * c + pos.comps[2] * s;
+        vertices[i].position.comps[2] = pos.comps[0] * -s + pos.comps[2] * c;
+        vertices[i].position.comps[2] -= 5.0;
     }
 
     memcpy(memory, vertices, sizeof(vertices));
@@ -1121,9 +1120,9 @@ void r_BeginRenderpass()
     static float r = 0.0; 
 
     VkClearValue clear_value[2] = {};
-    clear_value[0].color.float32[0] = sin(r * 3.14159265 * 2.0) * 0.5 + 0.5;
-    clear_value[0].color.float32[1] = 0.0;
-    clear_value[0].color.float32[2] = 0.0;
+    clear_value[0].color.float32[0] = 0.1;
+    clear_value[0].color.float32[1] = 0.1;
+    clear_value[0].color.float32[2] = 0.1;
     clear_value[0].color.float32[3] = 1.0;
 
     clear_value[1].depthStencil.depth = 1.0;
