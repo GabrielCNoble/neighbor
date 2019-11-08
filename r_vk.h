@@ -3,18 +3,17 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/Include/vulkan/vulkan.h"
-#include "SDL\include\SDL2\SDL.h"
-#include "SDL\include\SDL2\SDL_syswm.h"
+#include "r_common.h"
 
-#define WIDTH 800
-#define HEIGHT 600
+// #define WIDTH 800
+// #define HEIGHT 600
 
-struct vk_image_t
-{
-    VkImage image;
-    VkImageView image_view;
-    VkDeviceMemory image_memory;
-};
+// struct vk_image_t
+// {
+//     VkImage image;
+//     VkImageView image_view;
+//     VkDeviceMemory image_memory;
+// };
 
 struct rVkShader
 {
@@ -22,26 +21,48 @@ struct rVkShader
     uint32_t *shader;
 }; 
 
-struct rVkBuffer
+// struct r_vk_shader_t
+// {
+    
+// };
+
+struct r_vk_buffer_t
 {
     VkBuffer buffer;
     VkDeviceMemory memory;
 };
 
-struct rVkImage
+// struct rVkImage
+// {
+//     VkImage image;
+//     VkImageView image_view;
+//     VkDeviceMemory memory;
+// };
+
+struct r_vk_texture_t
 {
+    struct r_texture_t base;
     VkImage image;
     VkImageView image_view;
     VkDeviceMemory memory;
 };
 
-struct rVkBackend
+struct r_vk_swapchain_t
+{
+    VkSwapchainKHR swapchain;
+    uint32_t image_count;
+    VkImage *images;
+    VkImageView *image_views;
+};
+
+struct r_vk_renderer_t
 {
     VkInstance instance;
     VkPhysicalDevice physical_device;
     VkDevice device;
     VkSurfaceKHR surface; 
-    VkSwapchainKHR swapchain;
+    struct r_vk_swapchain_t swapchain;
+    // VkSwapchainKHR swapchain;
     uint32_t graphics_queue_index;
     uint32_t present_queue_index; 
     VkFramebuffer *framebuffers;
@@ -55,56 +76,86 @@ struct rVkBackend
     
     VkShaderModule vertex_shader_module;
     VkShaderModule fragment_shader_module;
-    struct rVkBuffer uniform_buffer;
-    struct rVkBuffer vertex_buffer;
+    struct r_vk_buffer_t uniform_buffer;
+    // struct rVkBuffer uniform_buffer;
+    struct r_vk_buffer_t vertex_buffer;
+    struct r_vk_buffer_t index_buffer;
     
     VkPipelineLayout pipeline_layout;
     VkPipeline graphics_pipeline;
     VkSemaphore image_aquire_semaphore;
     VkFence submit_fence;
 
-    struct rVkImage texture;
-    VkSampler sampler;
+    // struct rVkImage texture;
+    VkSampler samplers[R_SAMPLER_COUNT];
 
     uint32_t current_image;
+
+    // struct stack_list_t textures;
 };
 
-struct rBackend
+struct r_vk_render_pass_t
 {
-    SDL_Window *window;
-
-    float z_near;
-    float z_far;
-
-    struct rVkBackend vk_backend;
+    VkRenderPass render_pass;
 };
 
-struct vec4_t
-{
-    float comps[4];
-};
+// struct rBackend
+// {
+//     SDL_Window *window;
 
-struct vertex_t
-{
-    struct vec4_t position;
-    struct vec4_t color;
-    struct vec4_t tex_coords; 
-};
+//     float z_near;
+//     float z_far;
+
+//     uint32_t width;
+//     uint32_t height;
+
+//     struct rVkBackend vk_backend;
+// };
 
 
-void r_InitBackend();
+// void r_InitBackend();
 
-void r_InitVkBackend();
-
-void r_InitVkDevice();
+// void r_InitVkBackend();
 
 void r_InitVkRenderer();
 
-VkResult r_CreateBuffer(struct rVkBuffer *buffer, uint32_t size, uint32_t usage);
+void r_InitVkDevice();
 
-VkResult r_LoadImage(struct rVkImage *image, const char *file_name);
+void r_InitVkSwapchain();
 
-VkResult r_GenCheckerboardImage(struct rVkImage *image, uint32_t width, uint32_t height);
+void r_InitVkUniformBuffer();
+
+void r_InitVkHeap();
+
+void r_InitVkDescriptorSets();
+
+void r_InitVkPipeline();
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+VkResult r_vk_CreateBuffer(struct r_vk_buffer_t *buffer, uint32_t size, uint32_t usage);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels);
+
+// VkResult r_LoadImage(struct rVkImage *image, const char *file_name);
+
+void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
 
 VkResult r_BeginCommandBuffer();
 
@@ -124,36 +175,16 @@ void r_Present();
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 
-// void r_GetPhysicalDeviceAggregateProperties(VkPhysicalDevice physical_device, struct rPhysicalDeviceAggregateProperties *properties);
-
-// void r_GetPhysicalDeviceSurfaceProperties(VkPhysicalDevice physical_device, VkSurfaceKHR surface, struct rSurfaceProperties *surface_properties);
-
-VkResult r_CreateInstance(VkInstance *instance);
-
-VkResult r_EnumeratePhysicalDevices(VkInstance instance, VkPhysicalDevice **physical_devices, uint32_t *physical_devices_count);
-
-void r_GetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice physical_device, VkQueueFamilyProperties **queue_families, uint32_t *queue_families_count);
-
-void r_PrintQueueFamiliesProperties(VkQueueFamilyProperties *queue_families, uint32_t queue_families_count);
-
-VkDevice r_CreateDevice(VkPhysicalDevice physical_device);
-
-uint32_t r_GetCapableQueueFamilyIndex(uint32_t capability, VkQueueFamilyProperties *queue_families, uint32_t queue_families_count);
-
-uint32_t r_GetPresentQueueFamilyIndex(VkPhysicalDevice physical_device, VkSurfaceKHR surface);
-
-VkResult r_GetPhysicalDeviceSurfaceFormats(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkSurfaceFormatKHR **surface_formats, uint32_t *surface_formats_count);
-
-VkResult r_GetPhysicalDeviceSurfacePresentModes(VkPhysicalDevice physical_device, VkSurfaceKHR surface, VkPresentModeKHR **present_modes, uint32_t *present_modes_count);
-
-void r_PrintPresentModes(VkPresentModeKHR *present_modes, uint32_t present_modes_count);
-
-VkResult r_GetSwapchainImages(VkDevice device, VkSwapchainKHR swapchain, VkImage **images, uint32_t *images_count);
-
-VkImageView r_CreateDepthBuffer(VkDevice device);
-
 struct rVkShader r_LoadShader(const char *file_name);
 
-uint32_t r_GetMemoryTypeFromProperties(VkPhysicalDeviceMemoryProperties *memory_properties, uint32_t type_bits, uint32_t mask);
+void r_vk_SetProjectionMatrix(mat4_t *projection_matrix);
+
+// void r_vk_BindTexture()
+
+// void r_vk_SetViewMatrix(mat4_t *view_matrix);
+
+// void r_vk_SetModelMatrix(mat4_t *model_matrix);
+
+void r_vk_UpdateModelViewProjectionMatrix(mat4_t *m);
 
 #endif
