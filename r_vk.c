@@ -1239,6 +1239,12 @@ void r_vk_EndFrame()
 =================================================================
 */
 
+uint32_t r_AcquireNextImage()
+{
+    vkAcquireNextImageKHR(r_vk_renderer.device, r_vk_renderer.swapchain.swapchain, UINT64_MAX, r_vk_renderer.image_aquire_semaphore, NULL, &r_vk_renderer.current_image);
+    return r_vk_renderer.current_image;
+}
+
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement)
 {
     for(uint32_t i = 0; i < r_vk_renderer.memory_properties.memoryTypeCount; i++)
@@ -1289,4 +1295,13 @@ void r_vk_SetProjectionMatrix(mat4_t *projection_matrix)
     projection_matrix->mcomps[1][1] *= -1.0;
     projection_matrix->mcomps[2][2] *= 0.5;
     projection_matrix->mcomps[2][3] *= 0.5; 
+}
+
+void r_vk_UpdateModelViewProjectionMatrix(mat4_t *m)
+{
+    // void *memory; 
+
+    // vkMapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory, 0, sizeof(mat4_t), 0, &memory);
+    // memcpy(memory, m, sizeof(mat4_t));
+    // vkUnmapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory);
 }

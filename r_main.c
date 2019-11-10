@@ -12,6 +12,8 @@ void r_InitRenderer()
     struct r_alloc_t free_alloc;
 
     r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, SDL_WINDOW_OPENGL);
+    
+    SDL_GL_SetSwapInterval(1);
 
     r_renderer.allocd_blocks[0] = create_stack_list(sizeof(struct r_alloc_t), 512);
     r_renderer.allocd_blocks[1] = create_stack_list(sizeof(struct r_alloc_t), 512);

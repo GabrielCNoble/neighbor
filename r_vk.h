@@ -185,6 +185,8 @@ void r_vk_EndFrame();
 =================================================================
 */
 
+uint32_t r_AcquireNextImage();
+
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 
 struct rVkShader r_LoadShader(const char *file_name);

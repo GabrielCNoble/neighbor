@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
         draw_things(things, sizeof(things) / sizeof(things[0]));
         r_QueueCmd(R_CMD_TYPE_END_FRAME, NULL, 0);
         r_ExecuteCmds();
-        SDL_Delay(16);
+        // SDL_Delay(16);
     }
 
     return 0;
