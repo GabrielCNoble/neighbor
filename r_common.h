@@ -54,14 +54,19 @@ struct r_alloc_handle_t
 =================================================================
 */
 
-struct r_material_handle_t
+struct r_shader_handle_t
 {
     uint32_t index;
 };
 
-#define R_INVALID_MATERIAL_INDEX 0xffffffff
-#define R_MATERIAL_HANDLE(index) (struct r_material_handle_t){index};
-#define R_INVALID_MATERIAL_HANDLE R_MATERIAL_HANDLE(R_INVALID_MATERIAL_INDEX)
+struct r_shader_t
+{
+    
+};
+
+#define R_INVALID_SHADER_INDEX 0xffffffff
+#define R_SHADER_HANDLE(index) (struct r_shader_handle_t){index}
+#define R_INVALID_SHADER_HANDLE R_SHADER_HANDLE(R_INVALID_SHADER_INDEX)
 
 /*
 =================================================================
@@ -102,6 +107,35 @@ struct r_texture_handle_t
 #define R_TEXTURE_HANDLE(index) (struct r_texture_handle_t){index}
 #define R_INVALID_TEXTURE_HANDLE R_TEXTURE_HANDLE(R_INVALID_TEXTURE_INDEX)
 
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+
+enum R_MATERIAL_FLAGS
+{
+    R_MATERIAL_FLAG_INVALID = 1,
+    R_MATERIAL_FLAG_USE_DIFFUSE_TEXTURE = 1 << 1,
+    R_MATERIAL_FLAG_USE_NORMAL_TEXTURE = 1 << 2,
+};
+
+struct r_material_handle_t
+{
+    uint32_t index;
+};
+
+struct r_material_t
+{
+    uint32_t flags;
+    struct r_texture_handle_t diffuse_texture;
+    struct r_texture_handle_t normal_texture;
+};
+
+#define R_INVALID_MATERIAL_INDEX 0xffffffff
+#define R_MATERIAL_HANDLE(index) (struct r_material_handle_t){index}
+#define R_INVALID_MATERIAL_HANDLE R_MATERIAL_HANDLE(R_INVALID_MATERIAL_INDEX)
 
 /*
 =================================================================
@@ -128,14 +162,18 @@ struct r_cmd_t
     void *data;
 };
 
+struct r_draw_range_t
+{
+    uint32_t start;
+    uint32_t count;
+};
 struct r_draw_cmd_t
 {
     mat4_t model_matrix;
-    uint32_t first_vertex;
-    uint32_t vertex_count;
+    struct r_draw_range_t range;
 };
 
-struct r_draw_batch_t
+struct r_draw_cmd_buffer_t
 {
     mat4_t view_projection_matrix;
     struct r_material_handle_t material;
@@ -160,6 +198,7 @@ struct r_renderer_t
     struct list_t free_blocks[2];
 
     struct stack_list_t textures;
+    struct stack_list_t materials;
 
     SDL_SpinLock cmd_buffer_lock;
     struct ringbuffer_t cmd_buffer;
@@ -172,8 +211,9 @@ struct r_renderer_t
     mat4_t model_view_projection_matrix;
     uint32_t outdated_view_projection_matrix;
 
+    struct r_material_handle_t active_material;
 
-    struct r_draw_batch_t *temp_draw_batch;
+    struct r_draw_cmd_buffer_t *draw_cmd_buffer;
 };
 
 /*

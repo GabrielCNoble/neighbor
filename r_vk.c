@@ -14,21 +14,20 @@
 extern struct r_renderer_t r_renderer;
 struct r_vk_renderer_t r_vk_renderer;
 
-void r_InitVkRenderer()
+void r_vk_InitRenderer()
 {
     r_renderer.textures = create_stack_list(sizeof(struct r_vk_texture_t), 32);
 
-    r_InitVkDevice();
-    r_InitVkSwapchain();
-    r_InitVkUniformBuffer();
-    r_InitVkHeap();
-    r_InitVkDescriptorSets();
-    r_InitVkCommandPool();
-    // r_LoadImage(&r_vk_renderer.texture, "logo_fuck.png");
-    r_InitVkPipeline();
+    r_vk_InitDevice();
+    r_vk_InitSwapchain();
+    r_vk_InitUniformBuffer();
+    r_vk_InitHeap();
+    r_vk_InitDescriptorSets();
+    r_vk_InitCommandPool();
+    r_vk_InitPipeline();
 }
 
-void r_InitVkDevice()
+void r_vk_InitDevice()
 {
     VkInstanceCreateInfo instance_create_info = {};
     VkWin32SurfaceCreateInfoKHR surface_create_info = {};
@@ -192,7 +191,7 @@ void r_InitVkDevice()
     vkGetDeviceQueue(r_vk_renderer.device, r_vk_renderer.graphics_queue_index, 0, &r_vk_renderer.queue);
 }
 
-void r_InitVkSwapchain()
+void r_vk_InitSwapchain()
 {
     VkResult result;
     uint32_t surface_format_count = 1;
@@ -274,18 +273,18 @@ void r_InitVkSwapchain()
 
 }
 
-void r_InitVkUniformBuffer()
+void r_vk_InitUniformBuffer()
 {
     r_vk_CreateBuffer(&r_vk_renderer.uniform_buffer, sizeof(mat4_t), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 }
 
-void r_InitVkHeap()
+void r_vk_InitHeap()
 {
     r_vk_CreateBuffer(&r_vk_renderer.vertex_buffer, R_HEAP_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     r_vk_CreateBuffer(&r_vk_renderer.index_buffer, R_HEAP_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 }
 
-void r_InitVkDescriptorSets()
+void r_vk_InitDescriptorSets()
 {
     VkDescriptorSetLayoutBinding uniform_buffer_binding = {};
     uniform_buffer_binding.binding = 0;
@@ -387,7 +386,7 @@ void r_InitVkDescriptorSets()
     vkUpdateDescriptorSets(r_vk_renderer.device, 1, &uniform_buffer_write, 0, NULL);
 }
 
-void r_InitVkCommandPool()
+void r_vk_InitCommandPool()
 {
     VkResult result;
 
@@ -426,7 +425,7 @@ void r_InitVkCommandPool()
     }
 }
 
-void r_InitVkPipeline()
+void r_vk_InitPipeline()
 {
     VkResult result;
 
@@ -471,7 +470,7 @@ void r_InitVkPipeline()
     image_create_info.pNext = NULL;
     image_create_info.flags = 0;
     image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    image_create_info.format = VK_FORMAT_D16_UNORM;
+    image_create_info.format = VK_FORMAT_D32_SFLOAT;
     image_create_info.extent.width = surface_capabilities.currentExtent.width;        
     image_create_info.extent.height = surface_capabilities.currentExtent.height;
     image_create_info.extent.depth = 1;
@@ -522,7 +521,7 @@ void r_InitVkPipeline()
     image_view_create_info.flags = 0;
     image_view_create_info.image = depth_image;
     image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    image_view_create_info.format = VK_FORMAT_D16_UNORM;
+    image_view_create_info.format = VK_FORMAT_D32_SFLOAT;
     image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
     image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
     image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -555,7 +554,7 @@ void r_InitVkPipeline()
     attachment_description[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     attachment_description[1].flags = 0;
-    attachment_description[1].format = VK_FORMAT_D16_UNORM;
+    attachment_description[1].format = VK_FORMAT_D32_SFLOAT;
     attachment_description[1].samples = 1;
     attachment_description[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachment_description[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1038,6 +1037,7 @@ void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels
     /* TODO: this function needs to be more generic... */
     
     void *pointer; 
+    char *texture_pixels;
     
     VkImageCreateInfo image_create_info = {};
     image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1070,11 +1070,26 @@ void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels
     alloc_info.memoryTypeIndex = r_MemoryTypeFromProperties(memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
     vkAllocateMemory(r_vk_renderer.device, &alloc_info, NULL, &texture->memory);
-
     vkBindImageMemory(r_vk_renderer.device, texture->image, texture->memory, 0);
 
+    VkSubresourceLayout subresource_layout;
+    VkImageSubresource subresource;
+    subresource.arrayLayer = 0;
+    subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresource.mipLevel = 0;
+    vkGetImageSubresourceLayout(r_vk_renderer.device, texture->image, &subresource, &subresource_layout);
+
+
     vkMapMemory(r_vk_renderer.device, texture->memory, 0, memory_reqs.size, 0, &pointer);
-    memcpy(pointer, pixels, texture->base.width * texture->base.height * 4);
+    texture_pixels = pointer;
+
+    for(uint32_t y = 0; y < texture->base.height; y++)
+    {
+        memcpy(texture_pixels, pixels + texture->base.width * 4 * y, 4 * texture->base.width);
+        texture_pixels += subresource_layout.rowPitch;
+    }
+
+    // memcpy(pointer, pixels, texture->base.width * texture->base.height * 4);
     vkUnmapMemory(r_vk_renderer.device, texture->memory);
 
     VkImageViewCreateInfo image_view_create_info = {};
@@ -1116,6 +1131,17 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
     write_descriptor_set.pTexelBufferView = NULL;
 
     vkUpdateDescriptorSets(r_vk_renderer.device, 1, &write_descriptor_set, 0, NULL);
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_SetMaterial(struct r_material_t *material)
+{
+
 }
 
 /*
@@ -1176,24 +1202,38 @@ void r_vk_BeginFrame()
 void r_vk_Draw(struct r_cmd_t *cmd)
 {
     mat4_t model_view_projection_matrix;
-    struct r_draw_batch_t *batch;
+    struct r_draw_cmd_buffer_t *cmd_buffer;
     struct r_alloc_t *alloc;
     struct r_draw_cmd_t *draw_cmd;
     uint32_t command_buffer_count;
+    struct r_material_t *material;
+    struct r_texture_t *texture;
 
-    batch = (struct r_draw_batch_t *)cmd->data;
+    cmd_buffer = (struct r_draw_cmd_buffer_t *)cmd->data;
     // command_buffer_count = ((batch->draw_cmd_count + r_vk_renderer.command_state.max_command_buffer_draw_cmds - 1) & 
     //                             (~(r_vk_renderer.command_state.max_command_buffer_draw_cmds - 1))) / 
     //                                 r_vk_renderer.command_state.max_command_buffer_draw_cmds;
 
     // for(uint32_t command_buffer_index = 0; command_buffer_index < command_buffer_count; command_buffer_index++)
     // {
-    for(uint32_t i = 0; i < batch->draw_cmd_count; i++)
+    material = r_GetMaterialPointer(cmd_buffer->material);
+
+    if(material)
     {
-        draw_cmd = batch->draw_cmds + i;
-        mat4_t_mul(&model_view_projection_matrix, &draw_cmd->model_matrix, &batch->view_projection_matrix);
+        texture = r_GetTexturePointer(material->diffuse_texture);
+        
+        if(texture)
+        {
+            r_vk_SetTexture((struct r_vk_texture_t *)texture, 0);
+        }
+    } 
+    
+    for(uint32_t i = 0; i < cmd_buffer->draw_cmd_count; i++)
+    {
+        draw_cmd = cmd_buffer->draw_cmds + i;
+        mat4_t_mul(&model_view_projection_matrix, &draw_cmd->model_matrix, &cmd_buffer->view_projection_matrix);
         vkCmdPushConstants(r_vk_renderer.command_state.command_buffers[0], r_vk_renderer.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
-        vkCmdDraw(r_vk_renderer.command_state.command_buffers[0], draw_cmd->vertex_count, 1, draw_cmd->first_vertex, 0);
+        vkCmdDraw(r_vk_renderer.command_state.command_buffers[0], draw_cmd->range.count, 1, draw_cmd->range.start, 0);
     }
     // }
 }
@@ -1233,17 +1273,17 @@ void r_vk_EndFrame()
     vkQueuePresentKHR(r_vk_renderer.queue, &present_info);
 }
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
 uint32_t r_AcquireNextImage()
 {
     vkAcquireNextImageKHR(r_vk_renderer.device, r_vk_renderer.swapchain.swapchain, UINT64_MAX, r_vk_renderer.image_aquire_semaphore, NULL, &r_vk_renderer.current_image);
     return r_vk_renderer.current_image;
 }
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement)
 {

@@ -17,5 +17,6 @@ void main()
     // gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
     // gl_FragColor = tex_color;
     // gl_FragColor = tex_coords;
-    gl_FragColor = texture(r_Sampler0, tex_coords.xy) * texture(r_Sampler1, tex_coords.xy);
+    // gl_FragColor = texture(r_Sampler0, tex_coords.xy) * texture(r_Sampler1, tex_coords.xy);
+    gl_FragColor = texture(r_Sampler0, tex_coords.xy);
 }

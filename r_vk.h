@@ -129,21 +129,21 @@ struct r_vk_render_pass_t
 
 // void r_InitVkBackend();
 
-void r_InitVkRenderer();
+void r_vk_InitRenderer();
 
-void r_InitVkDevice();
+void r_vk_InitDevice();
 
-void r_InitVkSwapchain();
+void r_vk_InitSwapchain();
 
-void r_InitVkUniformBuffer();
+void r_vk_InitUniformBuffer();
 
-void r_InitVkHeap();
+void r_vk_InitHeap();
 
-void r_InitVkDescriptorSets();
+void r_vk_InitDescriptorSets();
 
-void r_InitVkCommandPool();
+void r_vk_InitCommandPool();
 
-void r_InitVkPipeline();
+void r_vk_InitPipeline();
 
 /*
 =================================================================
@@ -173,11 +173,7 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index);
 =================================================================
 */
 
-void r_vk_BeginFrame();
-
-void r_vk_Draw(struct r_cmd_t *cmd);
-
-void r_vk_EndFrame();
+void r_vk_SetMaterial(struct r_material_t *material);
 
 /*
 =================================================================
@@ -185,7 +181,19 @@ void r_vk_EndFrame();
 =================================================================
 */
 
+void r_vk_BeginFrame();
+
+void r_vk_Draw(struct r_cmd_t *cmd);
+
+void r_vk_EndFrame();
+
 uint32_t r_AcquireNextImage();
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 

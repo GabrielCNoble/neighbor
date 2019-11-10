@@ -9,3 +9,5 @@ build.bat
 *.png
 *.jpg
 *.jpeg
+*.obj
+*.mtl

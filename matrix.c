@@ -28,6 +28,8 @@ void mat4_t_identity(mat4_t *m)
 
 void mat4_t_mul(mat4_t *result, mat4_t *a, mat4_t *b)
 {
+    /* TODO: SSE */
+
     for(uint32_t i = 0; i < 4; i++)
     {
         result->mcomps[i][0] = a->mcomps[i][0] * b->mcomps[0][0] + 
@@ -123,7 +125,7 @@ void mat4_t_yaw(mat4_t *m, float yaw)
 
 void mat4_t_invvm(mat4_t *m)
 {
-    // mat4_t result;
+    /* TODO: SSE */
     mat4_t_transpose(m);
 
     m->vcomps[3].comps[0] = -m->mcomps[0][3] * m->mcomps[0][0]

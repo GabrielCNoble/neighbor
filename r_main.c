@@ -1,4 +1,5 @@
 #include "r_main.h"
+#include "path.h"
 #include "r_vk.h"
 #include "stack_list.h"
 #include "list.h"
@@ -24,14 +25,16 @@ void r_InitRenderer()
     r_renderer.cmd_buffer = create_ringbuffer(sizeof(struct r_cmd_t), 1024);
     r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 4096); 
 
-    r_renderer.temp_draw_batch = calloc(sizeof(struct r_draw_batch_t) + sizeof(struct r_draw_cmd_t) * (R_MAX_TEMP_DRAW_BATCH_SIZE - 1), 1);
-    r_renderer.temp_draw_batch->material = R_INVALID_MATERIAL_HANDLE;
+    r_renderer.draw_cmd_buffer = calloc(sizeof(struct r_draw_cmd_buffer_t) + sizeof(struct r_draw_cmd_t) * (R_MAX_TEMP_DRAW_BATCH_SIZE - 1), 1);
+    r_renderer.draw_cmd_buffer->material = R_INVALID_MATERIAL_HANDLE;
+
+    r_renderer.materials = create_stack_list(sizeof(struct r_material_t), 32);
 
     free_alloc.start = 0;
     free_alloc.size = R_HEAP_SIZE;
     free_alloc.align = 0;
 
-    r_renderer.z_far = 100.0;
+    r_renderer.z_far = 1000.0;
     r_renderer.z_near = 0.01;
 
     add_list_element(&r_renderer.free_blocks[0], &free_alloc);
@@ -40,7 +43,7 @@ void r_InitRenderer()
     mat4_t_identity(&r_renderer.view_matrix);
     mat4_t_identity(&r_renderer.projection_matrix);
 
-    r_InitVkRenderer();
+    r_vk_InitRenderer();
 }
 
 /*
@@ -121,6 +124,7 @@ struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle)
 
     if(alloc && !alloc->size)
     {
+        /* zero sized allocs are considered invalid */
         alloc = NULL;
     }
 
@@ -134,6 +138,8 @@ void r_Free(struct r_alloc_handle_t handle)
     if(alloc)
     {
         add_list_element(&r_renderer.free_blocks[handle.is_index], alloc);
+        
+        /* zero sized allocs are considered invalid */
         alloc->size = 0;
     }
 }
@@ -155,6 +161,11 @@ void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size)
             size = alloc_size;
         }
 
+        /* backend specific mapping function. It's necessary to pass both
+        the handle and the alloc, as the backend doesn't use any of the
+        interface's functions, and can't get the alloc pointer from the 
+        handle. It also needs the handle to know whether it's an vertex
+        or and index alloc. */
         memory = r_vk_MapAlloc(handle, alloc);
         memcpy(memory, data, size);
         r_vk_UnmapAlloc(handle);
@@ -166,38 +177,6 @@ void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size)
 =================================================================
 =================================================================
 */
-
-// void r_SetProjectionMatrix(mat4_t *projection_matrix)
-// {
-//     memcpy(&r_renderer.projection_matrix, projection_matrix, sizeof(mat4_t));
-//     r_vk_SetProjectionMatrix(&r_renderer.projection_matrix);
-//     r_renderer.outdated_view_projection_matrix = 1;
-// }
-
-// void r_SetViewMatrix(mat4_t *view_matrix)
-// {
-//     memcpy(&r_renderer.view_matrix, view_matrix, sizeof(mat4_t));
-//     mat4_t_invvm(&r_renderer.view_matrix);
-//     r_renderer.outdated_view_projection_matrix = 1;
-// }
-
-// void r_SetModelMatrix(mat4_t *model_matrix)
-// {
-//     memcpy(&r_renderer.model_matrix, model_matrix, sizeof(mat4_t));
-// }
-
-// void r_UpdateMatrices()
-// {
-//     mat4_t model_view_projection_matrix;
-
-//     if(r_renderer.outdated_view_projection_matrix)
-//     {
-//         mat4_t_mul(&r_renderer.view_projection_matrix, &r_renderer.view_matrix, &r_renderer.projection_matrix);
-//         r_renderer.outdated_view_projection_matrix = 0;
-//     }
-
-//     mat4_t_mul(&r_renderer.model_view_projection_matrix, &r_renderer.model_matrix, &r_renderer.view_projection_matrix);
-// }
 
 void r_SetViewProjectionMatrix(mat4_t *view_matrix, mat4_t *projection_matrix)
 {
@@ -254,10 +233,14 @@ struct r_texture_handle_t r_LoadTexture(char *file_name)
     struct r_texture_handle_t handle = R_INVALID_TEXTURE_HANDLE;
     struct r_texture_t *texture;
 
+    file_name = format_path(file_name);
+
     pixels = stbi_load(file_name, &width, &height, &channels, STBI_rgb_alpha);
 
     if(pixels)
     {
+        
+        printf("found texture %s\n", file_name);
         handle = r_AllocTexture();
         texture = r_GetTexturePointer(handle);
 
@@ -301,6 +284,58 @@ void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index)
 =================================================================
 */
 
+struct r_material_handle_t r_AllocMaterial()
+{
+    struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
+    struct r_material_t *material;
+
+    handle.index = add_stack_list_element(&r_renderer.materials, NULL);
+    material = get_stack_list_element(&r_renderer.materials, handle.index);
+    material->flags = 0;
+
+    return handle;
+}
+
+void r_FreeMaterial(struct r_material_handle_t handle)
+{
+    struct r_material_t *material;
+
+    material = r_GetMaterialPointer(handle);
+
+    if(material)
+    {
+        material->flags = R_MATERIAL_FLAG_INVALID;
+        remove_stack_list_element(&r_renderer.materials, handle.index);
+    }
+}
+
+struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle)
+{
+    struct r_material_t *material;
+    material = get_stack_list_element(&r_renderer.materials, handle.index);
+
+    if(material && (material->flags & R_MATERIAL_FLAG_INVALID))
+    {
+        material = NULL;
+    }
+
+    return material;
+}
+
+void r_SetMaterial(struct r_material_handle_t handle)
+{
+    // if(r_GetMaterialPointer(handle))
+    // {
+    //     r_renderer.active_material = handle;
+    // }
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 void *r_AllocCmdData(uint32_t size)
 {
     uint32_t elem_count;
@@ -323,18 +358,44 @@ void *r_AllocCmdData(uint32_t size)
     return data;
 }
 
-void r_QueueDrawCmd(mat4_t *model_matrix, struct r_material_handle_t material, struct r_alloc_handle_t alloc)
+void r_BeginBatch(mat4_t *view_projection_matrix, struct r_material_handle_t material)
 {
-    // if(!r_renderer.temp_draw_batch->draw_cmd_count)
-    // {
-    //     r_renderer.temp_draw_batch->view_projection_matrix = r_renderer.view_projection_matrix;
-    // }
+    r_renderer.draw_cmd_buffer->draw_cmd_count = 0;
+    r_renderer.draw_cmd_buffer->material = material;
+    memcpy(&r_renderer.draw_cmd_buffer->view_projection_matrix, view_projection_matrix, sizeof(mat4_t));
+}
 
-    // struct r_draw_cmd_t *draw_cmd = r_renderer.temp_draw_batch->draw_cmds + r_renderer.temp_draw_batch->draw_cmd_count;
-    // struct r_alloc_t *alloc = r_GetAllocPointer(alloc);
+void r_AddDrawCmd(mat4_t *model_matrix, struct r_alloc_handle_t src)
+{
+    struct r_alloc_t *alloc;
+    struct r_draw_cmd_t *draw_cmd;
 
-    // memcpy(&draw_cmd->model_matrix, model_matrix, sizeof(mat4_t));
-    // draw_cmd->vertex_count = 
+    alloc = r_GetAllocPointer(src);
+    draw_cmd = r_renderer.draw_cmd_buffer->draw_cmds + r_renderer.draw_cmd_buffer->draw_cmd_count;
+
+    draw_cmd->range.start = (alloc->start + alloc->align) / sizeof(struct vertex_t);
+    draw_cmd->range.count = (alloc->size - alloc->align) / sizeof(struct vertex_t);
+
+    memcpy(&draw_cmd->model_matrix, model_matrix, sizeof(mat4_t));
+
+    r_renderer.draw_cmd_buffer->draw_cmd_count++;
+
+    if(r_renderer.draw_cmd_buffer->draw_cmd_count >= R_MAX_TEMP_DRAW_BATCH_SIZE)
+    {
+        r_EndBatch();
+        r_BeginBatch(&r_renderer.draw_cmd_buffer->view_projection_matrix, r_renderer.draw_cmd_buffer->material);
+    }
+}
+
+void r_EndBatch()
+{
+    if(r_renderer.draw_cmd_buffer->draw_cmd_count)
+    {
+        uint32_t size = sizeof(struct r_draw_cmd_buffer_t) + 
+                        sizeof(struct r_draw_cmd_t) * (r_renderer.draw_cmd_buffer->draw_cmd_count - 1);
+
+        r_QueueCmd(R_CMD_TYPE_DRAW, r_renderer.draw_cmd_buffer, size);
+    }
 }
 
 void r_QueueCmd(uint32_t type, void *data, uint32_t data_size)

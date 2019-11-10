@@ -37,11 +37,16 @@ void expand_list(struct list_t *list, uint32_t elem_count)
     uint32_t list_buffer_count;
 
     elem_count = (elem_count + list->buffer_size - 1) & (~(list->buffer_size - 1));
+
+    if(elem_count % list->buffer_size)
+    {
+        elem_count += list->buffer_size - elem_count % list->buffer_size;
+    }
+
     buffer_count = elem_count / list->buffer_size;
     list_buffer_count = list->size / list->buffer_size;
     list->size += elem_count;
     buffers = calloc(list->size, sizeof(void *));
-
     if(list->buffers)
     {
         memcpy(buffers, list->buffers, sizeof(void *) * list_buffer_count);
@@ -76,7 +81,6 @@ uint32_t add_list_element(struct list_t *list, void *element)
     char *buffer;
 
     index = list->cursor++;
-
     if(index >= list->size)
     {
         /* this will add an extra buffer... */
@@ -85,6 +89,7 @@ uint32_t add_list_element(struct list_t *list, void *element)
 
     if(element)
     {
+        // printf("%d\n", index / list->buffer_size);
         buffer = list->buffers[index / list->buffer_size];
         memcpy(buffer + (index % list->buffer_size) * list->elem_size, element, list->elem_size);
     }

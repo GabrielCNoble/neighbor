@@ -27,14 +27,6 @@ void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size);
 =================================================================
 */
 
-// void r_SetProjectionMatrix(mat4_t *projection_matrix);
-
-// void r_SetViewMatrix(mat4_t *view_matrix);
-
-// void r_SetModelMatrix(mat4_t *model_matrix);
-
-// void r_UpdateMatrices();
-
 void r_SetViewProjectionMatrix(mat4_t *view_matrix, mat4_t *projection_matrix);
 
 /*
@@ -60,9 +52,29 @@ void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index);
 =================================================================
 */
 
+struct r_material_handle_t r_AllocMaterial();
+
+void r_FreeMaterial(struct r_material_handle_t handle);
+
+struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle);
+
+void r_SetMaterial(struct r_material_handle_t handle);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 void *r_AllocCmdData(uint32_t size);
 
-void r_QueueDrawCmd(mat4_t *model_matrix, struct r_material_handle_t material, struct r_alloc_handle_t alloc);
+// void r_QueueDrawCmd(mat4_t *model_matrix, struct r_material_handle_t material, struct r_alloc_handle_t alloc);
+
+void r_BeginBatch(mat4_t *view_projection_matrix, struct r_material_handle_t material);
+
+void r_AddDrawCmd(mat4_t *model_matrix, struct r_alloc_handle_t src);
+
+void r_EndBatch();
 
 void r_QueueCmd(uint32_t type, void *data, uint32_t data_size);
 

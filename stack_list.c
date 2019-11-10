@@ -25,6 +25,12 @@ void expand_stack_list(struct stack_list_t *stack_list, uint32_t elem_count)
     uint32_t list_buffer_count;
 
     elem_count = (elem_count + stack_list->buffer_size - 1) & (~(stack_list->buffer_size - 1));
+
+    if(elem_count % stack_list->buffer_size)
+    {
+        elem_count += stack_list->buffer_size - elem_count % stack_list->buffer_size;
+    }
+
     buffer_count = elem_count / stack_list->buffer_size;
     list_buffer_count = stack_list->size / stack_list->buffer_size;
 

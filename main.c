@@ -4,132 +4,103 @@
 // #include "Windows.h"
 
 #include "r_main.h"
+#include "obj.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  
 #include <math.h>
 
-struct vertex_t vertices[] = 
-{
-    {{-1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-    {{-1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-    {{1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+// struct vertex_t vertices[] = 
+// {
+//     {{-1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
+//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
 
-    {{1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-    {{1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-    {{-1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-
-
-
-
-
-    {{1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-    {{1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-    {{-1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-    {{-1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-    {{-1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-    {{1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
 
 
 
 
 
-    {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-    {{-1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-    {{-1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
+//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
 
-    {{-1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-    {{-1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-    {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-
-
-
-
-    {{1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-    {{1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-    {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-    {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-    {{1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-    {{1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{-1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
+//     {{1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
 
 
 
 
-    {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-    {{-1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-    {{1.5, 1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
 
-    {{1.5, 1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-    {{1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-    {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
+//     {{-1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+
+//     {{-1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{-1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
 
 
 
 
-    {{-1.5, -1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-    {{-1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-    {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
+//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
 
-    {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-    {{1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-    {{-1.5, -1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-};
+//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
+//     {{1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+
+
+
+
+//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
+//     {{1.5, 1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+
+//     {{1.5, 1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+
+
+
+
+//     {{-1.5, -1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
+//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+
+//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
+//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
+//     {{-1.5, -1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
+// };
 
 struct thing_t
 {
     mat4_t transform;
     struct r_alloc_handle_t handle;
+    struct r_material_handle_t material;
 };
 
-
 extern struct r_renderer_t r_renderer;
-// struct r_alloc_handle_t quad;
-
-// void draw()
-// {
-//     struct r_draw_cmd_t *draw_cmd;
-//     struct r_alloc_t *alloc;
-
-//     r_renderer.temp_draw_batch->draw_cmd_count = 1;
-//     r_renderer.temp_draw_batch->material = R_INVALID_MATERIAL_HANDLE;
-
-//     alloc = r_GetAllocPointer(quad);
-
-//     draw_cmd = r_renderer.temp_draw_batch->draw_cmds;
-//     draw_cmd->first_vertex = 0;
-//     draw_cmd->vertex_count = 6;
-//     mat4_t_identity(&draw_cmd->model_matrix);
-//     draw_cmd->model_matrix.vcomps[3].comps[2] = -10.0;
-//     memcpy(&r_renderer.temp_draw_batch->view_projection_matrix, &r_renderer.view_projection_matrix, sizeof(mat4_t));
-
-//     r_QueueCmd(R_CMD_TYPE_DRAW, r_renderer.temp_draw_batch, sizeof(struct r_draw_batch_t));
-// }
 
 void draw_things(struct thing_t *things, uint32_t thing_count)
 {
     struct r_draw_cmd_t *draw_cmd;
     struct r_alloc_t *alloc;
 
-    r_renderer.temp_draw_batch->draw_cmd_count = 0;
-    r_renderer.temp_draw_batch->view_projection_matrix = r_renderer.view_projection_matrix;
+    r_BeginBatch(&r_renderer.view_projection_matrix, things[0].material);
 
     for(uint32_t i = 0; i < thing_count; i++)
     {
-        alloc = r_GetAllocPointer(things[i].handle);
-        draw_cmd = r_renderer.temp_draw_batch->draw_cmds + i;
-
-        draw_cmd->model_matrix = things[i].transform;
-        draw_cmd->first_vertex = (alloc->start + alloc->align) / sizeof(struct vertex_t);
-        draw_cmd->vertex_count = (alloc->size - alloc->align) / sizeof(struct vertex_t);
-
-        r_renderer.temp_draw_batch->draw_cmd_count++;
+        r_AddDrawCmd(&things[i].transform, things[i].handle);
     }
 
-    r_QueueCmd(R_CMD_TYPE_DRAW, r_renderer.temp_draw_batch, sizeof(struct r_draw_batch_t) + 
-                                                            sizeof(struct r_draw_cmd_t) * (r_renderer.temp_draw_batch->draw_cmd_count - 1));
+    r_EndBatch();
 }
 
 int main(int argc, char *argv[])
@@ -146,40 +117,76 @@ int main(int argc, char *argv[])
     struct r_texture_handle_t logo2 = r_LoadTexture("logo2.png");
     struct r_texture_handle_t doggo = r_LoadTexture("doggo.png");
     struct r_alloc_handle_t quad;
+    struct r_material_handle_t material_handle;
+    struct r_material_t *material;
+    struct vertex_t *vertices;
+    struct geometry_data_t data;
+    struct batch_data_t *batch;
     mat4_t projection_matrix;
     mat4_t view_matrix;
     mat4_t pitch_matrix;
     mat4_t yaw_matrix;
-    struct thing_t things[3];
+    struct thing_t things[1];
+    vec3_t vec3;
+    vec2_t vec2;
 
-    quad = r_Alloc(sizeof(vertices), sizeof(struct vertex_t), 0);
-    r_Memcpy(quad, vertices, sizeof(vertices));
+    load_wavefront("level0.obj", &data);
+    vertices = calloc(sizeof(struct vertex_t), data.vertices.cursor);
+    for(uint32_t i = 0; i < data.vertices.cursor; i++)
+    {
+        vec3 = *(vec3_t *)get_list_element(&data.vertices, i);
+        vertices[i].position.comps[0] = vec3.comps[0];
+        vertices[i].position.comps[1] = vec3.comps[1];
+        vertices[i].position.comps[2] = vec3.comps[2];
+        vertices[i].position.comps[3] = 1.0;
+
+        vertices[i].color.comps[0] = 1.0;
+        vertices[i].color.comps[1] = 1.0;
+        vertices[i].color.comps[2] = 1.0;
+        vertices[i].color.comps[3] = 1.0;
+
+        vec2 = *(vec2_t *)get_list_element(&data.tex_coords, i);
+        vertices[i].tex_coords.comps[0] = vec2.comps[0];
+        vertices[i].tex_coords.comps[1] = vec2.comps[1];
+        vertices[i].tex_coords.comps[2] = 1.0;
+        vertices[i].tex_coords.comps[3] = 1.0;
+    }
+
+    for(uint32_t i = 0; i < data.batches.cursor; i++)
+    {
+        batch = (struct batch_data_t *)get_list_element(&data.batches, i);
+        material_handle = r_AllocMaterial();
+        material = r_GetMaterialPointer(material_handle);
+        material->diffuse_texture = r_LoadTexture(batch->diffuse_texture);
+        material->normal_texture = R_INVALID_TEXTURE_HANDLE;
+    }
+
+    quad = r_Alloc(sizeof(struct vertex_t) * data.vertices.cursor, sizeof(struct vertex_t), 0);
+    r_Memcpy(quad, vertices, sizeof(struct vertex_t) * data.vertices.cursor);
+    free(vertices);
 
     things[0].handle = quad;
+    things[0].material = R_MATERIAL_HANDLE(0);
     mat4_t_identity(&things[0].transform);
     things[0].transform.vcomps[3].comps[2] = -5.0;
 
-    things[1].handle = quad;
-    mat4_t_identity(&things[1].transform);
-    things[1].transform.vcomps[3].comps[2] = -15.0;
+    // things[1].handle = quad;
+    // mat4_t_identity(&things[1].transform);
+    // things[1].transform.vcomps[3].comps[2] = -15.0;
 
-    things[2].handle = quad;
-    mat4_t_identity(&things[2].transform);
-    mat4_t_yaw(&things[2].transform, 0.2);
-    things[2].transform.vcomps[3].comps[2] = -7.0;
-    things[2].transform.vcomps[3].comps[0] = -6.0;
+    // things[2].handle = quad;
+    // mat4_t_identity(&things[2].transform);
+    // mat4_t_yaw(&things[2].transform, 0.2);
+    // things[2].transform.vcomps[3].comps[2] = -7.0;
+    // things[2].transform.vcomps[3].comps[0] = -6.0;
 
-    mat4_t_persp(&projection_matrix, 0.68, 800.0 / 600.0, 0.01, 100.0);
+    mat4_t_persp(&projection_matrix, 0.68, 800.0 / 600.0, 0.01, 1000.0);
     mat4_t_identity(&view_matrix);
 
-    // r_SetProjectionMatrix(&projection_matrix);
-    // r_SetViewMatrix(&view_matrix);
-    // r_SetModelMatrix(&view_matrix);
     r_SetViewProjectionMatrix(NULL, &projection_matrix);
     r_SetTexture(logo, 0);
-    r_SetTexture(logo2, 1);
+    r_SetTexture(doggo, 1);
 
-    // float f = 0.0;
     float pitch = 0.0;
     float yaw = 0.0;
     float mouse_dx;
