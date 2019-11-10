@@ -15,6 +15,9 @@
 //     VkDeviceMemory image_memory;
 // };
 
+#define R_VK_AVAILABLE_CMD_BUFFERS 128
+// #define R_VK_CMD_BUFFER_MAX_DRAW_CMDS 128
+
 struct rVkShader
 {
     uint32_t size;
@@ -67,8 +70,8 @@ struct r_vk_renderer_t
     uint32_t present_queue_index; 
     VkFramebuffer *framebuffers;
     VkPhysicalDeviceMemoryProperties memory_properties;
-    VkCommandPool command_pool;
-    VkCommandBuffer command_buffer;
+    
+    // VkCommandBuffer command_buffer;
     VkDescriptorSet descriptor_sets[2];
     VkDescriptorPool descriptor_pool;
     VkRenderPass render_pass;
@@ -88,8 +91,17 @@ struct r_vk_renderer_t
 
     // struct rVkImage texture;
     VkSampler samplers[R_SAMPLER_COUNT];
-
     uint32_t current_image;
+
+    struct
+    {
+        VkCommandPool command_pool;
+        VkCommandBuffer *command_buffers;
+        // uint32_t command_buffer_count;
+        uint32_t current_command_buffer;
+        uint32_t current_command_buffer_draw_cmds;
+        uint32_t max_command_buffer_draw_cmds;    
+    }command_state;
 
     // struct stack_list_t textures;
 };
@@ -129,6 +141,8 @@ void r_InitVkHeap();
 
 void r_InitVkDescriptorSets();
 
+void r_InitVkCommandPool();
+
 void r_InitVkPipeline();
 
 /*
@@ -139,6 +153,10 @@ void r_InitVkPipeline();
 
 VkResult r_vk_CreateBuffer(struct r_vk_buffer_t *buffer, uint32_t size, uint32_t usage);
 
+void *r_vk_MapAlloc(struct r_alloc_handle_t handle, struct r_alloc_t *alloc);
+
+void r_vk_UnmapAlloc(struct r_alloc_handle_t handle);
+
 /*
 =================================================================
 =================================================================
@@ -146,8 +164,6 @@ VkResult r_vk_CreateBuffer(struct r_vk_buffer_t *buffer, uint32_t size, uint32_t
 */
 
 void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels);
-
-// VkResult r_LoadImage(struct rVkImage *image, const char *file_name);
 
 void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index);
 
@@ -157,21 +173,17 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index);
 =================================================================
 */
 
-VkResult r_BeginCommandBuffer();
+void r_vk_BeginFrame();
 
-VkResult r_EndCommandBuffer();
+void r_vk_Draw(struct r_cmd_t *cmd);
 
-uint32_t r_AcquireNextImage();
+void r_vk_EndFrame();
 
-void r_UploadData();
-
-void r_BeginRenderpass();
-
-void r_Draw();
-
-void r_EndRenderpass();
-
-void r_Present();
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 
@@ -179,12 +191,5 @@ struct rVkShader r_LoadShader(const char *file_name);
 
 void r_vk_SetProjectionMatrix(mat4_t *projection_matrix);
 
-// void r_vk_BindTexture()
-
-// void r_vk_SetViewMatrix(mat4_t *view_matrix);
-
-// void r_vk_SetModelMatrix(mat4_t *model_matrix);
-
-void r_vk_UpdateModelViewProjectionMatrix(mat4_t *m);
 
 #endif

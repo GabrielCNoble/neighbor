@@ -44,9 +44,24 @@ struct r_alloc_handle_t
 };
 
 #define R_INVALID_ALLOC_INDEX 0x7fffffff
-#define R_ALLOC_HANDLE(alloc_index, is_index_alloc)(struct r_alloc_handle_t){alloc_index, is_index_alloc}
+#define R_ALLOC_HANDLE(alloc_index, is_index_alloc) (struct r_alloc_handle_t){alloc_index, is_index_alloc}
 #define R_INVALID_ALLOC_HANDLE R_ALLOC_HANDLE(R_INVALID_ALLOC_INDEX, 1)
 
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_material_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_MATERIAL_INDEX 0xffffffff
+#define R_MATERIAL_HANDLE(index) (struct r_material_handle_t){index};
+#define R_INVALID_MATERIAL_HANDLE R_MATERIAL_HANDLE(R_INVALID_MATERIAL_INDEX)
 
 /*
 =================================================================
@@ -98,13 +113,14 @@ struct r_texture_handle_t
 #define R_HEAP_SIZE 67108864
 
 #define R_SAMPLER_COUNT 4
+#define R_MAX_TEMP_DRAW_BATCH_SIZE 1024
 
-enum R_CMD_TYPES
+enum R_CMD_TYPE
 {
+    R_CMD_TYPE_BEGIN_FRAME,
     R_CMD_TYPE_DRAW,
-    R_CMD_TYPE_CONTROL,
+    R_CMD_TYPE_END_FRAME,
 };
-
 
 struct r_cmd_t
 {
@@ -112,6 +128,23 @@ struct r_cmd_t
     void *data;
 };
 
+struct r_draw_cmd_t
+{
+    mat4_t model_matrix;
+    uint32_t first_vertex;
+    uint32_t vertex_count;
+};
+
+struct r_draw_batch_t
+{
+    mat4_t view_projection_matrix;
+    struct r_material_handle_t material;
+    uint32_t draw_cmd_count;
+    struct r_draw_cmd_t draw_cmds[1];
+};
+
+
+#define R_CMD_DATA_ELEM_SIZE 8
 
 struct r_renderer_t
 {
@@ -128,8 +161,9 @@ struct r_renderer_t
 
     struct stack_list_t textures;
 
-    SDL_SpinLock draw_cmd_buffer_lock;
-    struct ringbuffer_t draw_cmd_buffer;
+    SDL_SpinLock cmd_buffer_lock;
+    struct ringbuffer_t cmd_buffer;
+    struct ringbuffer_t cmd_buffer_data;
 
     mat4_t projection_matrix;
     mat4_t view_matrix;
@@ -137,6 +171,9 @@ struct r_renderer_t
     mat4_t view_projection_matrix;
     mat4_t model_view_projection_matrix;
     uint32_t outdated_view_projection_matrix;
+
+
+    struct r_draw_batch_t *temp_draw_batch;
 };
 
 /*

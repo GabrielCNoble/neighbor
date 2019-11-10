@@ -1,5 +1,6 @@
 #include "r_vk.h"
-#include "r_common.h"
+// #include "r_common.h"
+#include "r_main.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,37 +8,11 @@
 #include <math.h>
 
 #include "SDL\include\SDL2\SDL.h"
+#include "SDL\include\SDL2\SDL_vulkan.h"
 #include "SDL\include\SDL2\SDL_syswm.h"
-
-
-
-struct vertex_t vertices[] = 
-{
-    {{-1.5, 1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-    {{-1.5, -1.5, -5.0, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-    {{1.5, -1.5, -5.0, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-    {{1.5, -1.5, -5.0, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-    {{1.5, 1.5, -5.0, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-    {{-1.5, 1.5, -5.0, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}}
-};
 
 extern struct r_renderer_t r_renderer;
 struct r_vk_renderer_t r_vk_renderer;
-
-
-// #define UNIFORM_BUFFER_SIZE (sizeof(struct vertex_t) * 900)
-
-
-// void r_InitBackend()
-// {
-//     r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, 0);
-//     r_InitVkBackend();
-// }
-
-
-
-// #define PHYSICAL_DEVICES_ENUMERATION_ORDER
 
 void r_InitVkRenderer()
 {
@@ -48,6 +23,7 @@ void r_InitVkRenderer()
     r_InitVkUniformBuffer();
     r_InitVkHeap();
     r_InitVkDescriptorSets();
+    r_InitVkCommandPool();
     // r_LoadImage(&r_vk_renderer.texture, "logo_fuck.png");
     r_InitVkPipeline();
 }
@@ -76,8 +52,14 @@ void r_InitVkDevice()
     VkResult result;
     SDL_SysWMinfo wm_info;
     const char const *instance_extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
+    // const char **instance_extensions;
+    // uint32_t instance_extensions_count = 0;
     const char const *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     const char const *validation_layers[] = {"VK_LAYER_LUNARG_core_validation"};
+
+    // SDL_Vulkan_GetInstanceExtensions(NULL, &instance_extensions_count, NULL);
+    // instance_extensions = alloca(sizeof(char *) * instance_extensions_count);
+    // SDL_Vulkan_GetInstanceExtensions(NULL, &instance_extensions_count, instance_extensions);
 
     instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_create_info.pNext = NULL;
@@ -92,6 +74,7 @@ void r_InitVkDevice()
     its use? If this was a general purpose computing library, and doing
     graphics related operations was one of the things supported, I guess
     then it'd make sense. */
+    // instance_create_info.enabledExtensionCount = instance_extensions_count;
     instance_create_info.enabledExtensionCount = 2;
     instance_create_info.ppEnabledExtensionNames = instance_extensions;
     
@@ -101,7 +84,14 @@ void r_InitVkDevice()
     {
         printf("error creating instance!\n");
         return;
-    }   
+    }  
+
+    // uint32_t surface_result = SDL_Vulkan_CreateSurface(r_renderer.window, r_vk_renderer.instance, &r_vk_renderer.surface); 
+    // if(!surface_result)
+    // {
+    //     printf("error creating surface!\n");
+    //     return;
+    // }
 
     SDL_VERSION(&wm_info.version);
     SDL_GetWindowWMInfo(r_renderer.window, &wm_info);
@@ -333,14 +323,19 @@ void r_InitVkDescriptorSets()
     vkCreateDescriptorSetLayout(r_vk_renderer.device, &texture_sampler_descriptor_set_layout, NULL, descriptor_set_layouts + 1);
 
 
+    VkPushConstantRange push_constant_range = {};
+    push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_range.size = sizeof(mat4_t);
+    push_constant_range.offset = 0;
+
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.pNext = NULL;
     pipeline_layout_create_info.flags = 0;
     pipeline_layout_create_info.setLayoutCount = 2;
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
-    pipeline_layout_create_info.pushConstantRangeCount = 0;
-    pipeline_layout_create_info.pPushConstantRanges = NULL;
+    pipeline_layout_create_info.pushConstantRangeCount = 1;
+    pipeline_layout_create_info.pPushConstantRanges = &push_constant_range;
 
     vkCreatePipelineLayout(r_vk_renderer.device, &pipeline_layout_create_info, NULL, &r_vk_renderer.pipeline_layout);
 
@@ -392,9 +387,11 @@ void r_InitVkDescriptorSets()
     vkUpdateDescriptorSets(r_vk_renderer.device, 1, &uniform_buffer_write, 0, NULL);
 }
 
-void r_InitVkPipeline()
+void r_InitVkCommandPool()
 {
     VkResult result;
+
+    r_vk_renderer.command_state.max_command_buffer_draw_cmds = 512;
 
     VkCommandPoolCreateInfo command_pool_create_info = {};
     command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -402,86 +399,64 @@ void r_InitVkPipeline()
     command_pool_create_info.queueFamilyIndex = r_vk_renderer.graphics_queue_index;
     command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    result = vkCreateCommandPool(r_vk_renderer.device, &command_pool_create_info, NULL, &r_vk_renderer.command_pool);
+    result = vkCreateCommandPool(r_vk_renderer.device, &command_pool_create_info, NULL, &r_vk_renderer.command_state.command_pool);
 
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create a command pool!\n");
-    //     return;
-    // }
+    if(result != VK_SUCCESS)
+    {
+        printf("couldn't create a command pool!\n");
+        return;
+    }
 
 
-    // /* this pretty much works as the window backbuffer... */
-    // VkSwapchainCreateInfoKHR swapchain_create_info = {};
-    // swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    // swapchain_create_info.pNext = NULL;
-    // swapchain_create_info.flags = 0;
-    // swapchain_create_info.surface = r_vk_renderer.surface;
-    // swapchain_create_info.minImageCount = surface_capabilities.minImageCount;
-    // swapchain_create_info.imageFormat = surface_format.format;
-    // swapchain_create_info.imageColorSpace = surface_format.colorSpace;
-    // swapchain_create_info.imageExtent = surface_capabilities.currentExtent;
-    // swapchain_create_info.imageArrayLayers = 1;
-    // swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    // swapchain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    // swapchain_create_info.queueFamilyIndexCount = 0;
-    // swapchain_create_info.pQueueFamilyIndices = NULL;
-    // swapchain_create_info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; /* present the image as is */
-    // swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;   /* consider the image having alpha = 1.0 */
-    // swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;               /* queue images, present them during vertical blank */
-    // swapchain_create_info.clipped = VK_TRUE;                                    /* allow vulkan to discard pixels outside the visible area*/
-    // swapchain_create_info.oldSwapchain = VK_NULL_HANDLE;
+    r_vk_renderer.command_state.command_buffers = calloc(sizeof(VkCommandBuffer), R_VK_AVAILABLE_CMD_BUFFERS);
 
-    // result = vkCreateSwapchainKHR(r_vk_renderer.device, &swapchain_create_info, NULL, &r_vk_renderer.swapchain);
+    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.pNext = NULL;
+    command_buffer_allocate_info.commandPool = r_vk_renderer.command_state.command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = R_VK_AVAILABLE_CMD_BUFFERS;
 
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("error creating the swapchain!\n");
-    //     return;
-    // }
+    result = vkAllocateCommandBuffers(r_vk_renderer.device, &command_buffer_allocate_info, r_vk_renderer.command_state.command_buffers);
 
-    // uint32_t swapchain_images_count;
-    // VkImage *swapchain_images;
+    if(result != VK_SUCCESS)
+    {
+        printf("couldn't allocate command buffer!\n");
+        return;
+    }
+}
 
-    // vkGetSwapchainImagesKHR(r_vk_renderer.device, r_vk_renderer.swapchain, &swapchain_images_count, NULL);
+void r_InitVkPipeline()
+{
+    VkResult result;
 
-    // if(!swapchain_images_count)
-    // {
-    //     printf("swapchain has no images!\n");
-    //     return;
-    // }
+    VkSemaphoreCreateInfo semaphore_create_info = {};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphore_create_info.pNext = NULL;
+    semaphore_create_info.flags = 0;
 
-    // swapchain_images = alloca(sizeof(VkImage) * swapchain_images_count);
-    // /* get the swapchain's images. Their memory has been allocated and bound by the swapchain */
-    // vkGetSwapchainImagesKHR(r_vk_renderer.device, r_vk_renderer.swapchain, &swapchain_images_count, swapchain_images);
-
-    // /* however, the swapchain didn't create image views, so we do it here */
-    // VkImageViewCreateInfo image_view_create_info = {};
-    // image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    // image_view_create_info.pNext = NULL;
-    // image_view_create_info.flags = 0;
-    // image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    // image_view_create_info.format = surface_format.format;
+    result = vkCreateSemaphore(r_vk_renderer.device, &semaphore_create_info, NULL, &r_vk_renderer.image_aquire_semaphore);
     
-    // image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
-    // image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
-    // image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
-    // image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
-    
-    // image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    // image_view_create_info.subresourceRange.baseMipLevel = 0;
-    // image_view_create_info.subresourceRange.levelCount = 1;
-    // image_view_create_info.subresourceRange.baseArrayLayer = 0;
-    // image_view_create_info.subresourceRange.layerCount = 1;
+    if(result != VK_SUCCESS)
+    {
+        printf("couldn't create the image acquire semaphore!\n");
+        return;
+    }
 
-    // VkImageView *swapchain_image_views;
-    // swapchain_image_views = alloca(sizeof(VkImageView) * swapchain_images_count);
 
-    // for(uint32_t i; i < swapchain_images_count; i++)
-    // {
-    //     image_view_create_info.image = swapchain_images[i];
-    //     vkCreateImageView(r_vk_renderer.device, &image_view_create_info, NULL, swapchain_image_views + i);
-    // }
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_create_info.pNext = NULL;
+    fence_create_info.flags = 0;
+
+    result = vkCreateFence(r_vk_renderer.device, &fence_create_info, NULL, &r_vk_renderer.submit_fence);
+
+    if(result != VK_SUCCESS)
+    {
+        printf("couldn't create queue submit fence!\n");
+        return;
+    }
+
 
     uint32_t surface_format_count = 1;
     VkSurfaceFormatKHR surface_format;
@@ -661,22 +636,6 @@ void r_InitVkPipeline()
         }
     }
 
-    // result = r_vk_CreateBuffer(&r_vk_renderer.vertex_buffer, R_HEAP_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create vertex buffer!\n");
-    //     return;
-    // }
-
-    // result = r_CreateBuffer(&r_vk_renderer.uniform_buffer, sizeof(float [16]), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create uniform buffer!\n");
-    //     return;
-    // }
-
     VkSamplerCreateInfo sampler_create_info = {};
     sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     sampler_create_info.pNext = NULL;
@@ -701,161 +660,7 @@ void r_InitVkPipeline()
     {
         vkCreateSampler(r_vk_renderer.device, &sampler_create_info, NULL, r_vk_renderer.samplers + i);
     }
-    // result = vkCreateSampler(r_vk_renderer.device, &sampler_create_info, NULL, &r_vk_renderer.sampler);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create texture sampler!\n");
-    //     return;
-    // }
-
-    // VkDescriptorSetLayoutBinding uniform_buffer_binding = {};
-    // uniform_buffer_binding.binding = 0;
-    // uniform_buffer_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // uniform_buffer_binding.descriptorCount = 1;
-    // uniform_buffer_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    // uniform_buffer_binding.pImmutableSamplers = NULL;
-    // VkDescriptorSetLayoutCreateInfo uniform_buffer_descriptor_set_layout_create_info = {};
-    // uniform_buffer_descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    // uniform_buffer_descriptor_set_layout_create_info.pNext = NULL;
-    // uniform_buffer_descriptor_set_layout_create_info.flags = 0;
-    // uniform_buffer_descriptor_set_layout_create_info.bindingCount = 1;
-    // uniform_buffer_descriptor_set_layout_create_info.pBindings = &uniform_buffer_binding;
-
-
-
-    // VkDescriptorSetLayoutBinding sampler_2d_binding = {};
-    // sampler_2d_binding.binding = 0;
-    // sampler_2d_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    // sampler_2d_binding.descriptorCount = 1;
-    // sampler_2d_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    // sampler_2d_binding.pImmutableSamplers = NULL;
-    // VkDescriptorSetLayoutCreateInfo sampler_2d_descriptor_set_layout_create_info = {};
-    // sampler_2d_descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    // sampler_2d_descriptor_set_layout_create_info.pNext = NULL;
-    // sampler_2d_descriptor_set_layout_create_info.flags = 0;
-    // sampler_2d_descriptor_set_layout_create_info.bindingCount = 1;
-    // sampler_2d_descriptor_set_layout_create_info.pBindings = &sampler_2d_binding;
-
-    // VkDescriptorSetLayout descriptor_set_layouts[2];
-
-
-    
-    // result = vkCreateDescriptorSetLayout(r_vk_renderer.device, &uniform_buffer_descriptor_set_layout_create_info, NULL, &descriptor_set_layouts[0]);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create uniform buffer descriptor set layout!\n");
-    //     return;
-    // }
-
-    // result = vkCreateDescriptorSetLayout(r_vk_renderer.device, &sampler_2d_descriptor_set_layout_create_info, NULL, &descriptor_set_layouts[1]);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create sampler 2d descriptor set layout!\n");
-    //     return;
-    // }
-
-
-
-
-    // VkDescriptorPoolSize descriptor_pool_size[2] = {};
-    // descriptor_pool_size[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // descriptor_pool_size[0].descriptorCount = 1;
-
-    // descriptor_pool_size[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    // descriptor_pool_size[1].descriptorCount = 1;
-
-    // VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
-    // descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    // descriptor_pool_create_info.pNext = NULL;
-    // descriptor_pool_create_info.flags = 0;
-    // descriptor_pool_create_info.maxSets = 2;
-    // descriptor_pool_create_info.poolSizeCount = 2;
-    // descriptor_pool_create_info.pPoolSizes = descriptor_pool_size;
-
-    // result = vkCreateDescriptorPool(r_vk_renderer.device, &descriptor_pool_create_info, NULL, &r_vk_renderer.descriptor_pool);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create a descriptor pool!\n");
-    //     return;
-    // }
-
-
-    // VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
-    // descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    // descriptor_set_allocate_info.pNext = NULL;
-    // descriptor_set_allocate_info.descriptorPool = r_vk_renderer.descriptor_pool;
-    // descriptor_set_allocate_info.descriptorSetCount = 2;
-    // descriptor_set_allocate_info.pSetLayouts = descriptor_set_layouts;
-    
-    // result = vkAllocateDescriptorSets(r_vk_renderer.device, &descriptor_set_allocate_info, r_vk_renderer.descriptor_sets);
-    
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("coulndn't allocate descriptor sets!\n");
-    //     return;
-    // }
-
-    // VkDescriptorBufferInfo descriptor_buffer_info = {};
-    // descriptor_buffer_info.buffer = r_vk_renderer.uniform_buffer.buffer;
-    // descriptor_buffer_info.offset = 0;
-    // descriptor_buffer_info.range = sizeof(mat4_t);
-
-    // VkDescriptorImageInfo descriptor_image_info = {};
-    // descriptor_image_info.sampler = r_vk_renderer.sampler;
-    // descriptor_image_info.imageView = r_vk_renderer.texture.image_view;
-    // descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    // VkWriteDescriptorSet write_descriptor_set[2] = {};
-    // write_descriptor_set[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    // write_descriptor_set[0].pNext = NULL;
-    // write_descriptor_set[0].dstSet = r_vk_renderer.descriptor_sets[0];
-    // write_descriptor_set[0].dstBinding = 0;
-    // write_descriptor_set[0].dstArrayElement = 0;
-    // write_descriptor_set[0].descriptorCount = 1;
-    // write_descriptor_set[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // write_descriptor_set[0].pImageInfo = NULL;
-    // write_descriptor_set[0].pBufferInfo = &descriptor_buffer_info;
-    // write_descriptor_set[0].pTexelBufferView = NULL;
-
-    // write_descriptor_set[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    // write_descriptor_set[0].pNext = NULL;
-    // write_descriptor_set[0].dstSet = r_vk_renderer.descriptor_sets[1];
-    // write_descriptor_set[0].dstBinding = 0;
-    // write_descriptor_set[0].dstArrayElement = 0;
-    // write_descriptor_set[0].descriptorCount = 1;
-    // write_descriptor_set[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    // write_descriptor_set[0].pImageInfo = &descriptor_image_info;
-    // write_descriptor_set[0].pBufferInfo = NULL;
-    // write_descriptor_set[0].pTexelBufferView = NULL;
-
-
-    // vkUpdateDescriptorSets(r_vk_renderer.device, 1, write_descriptor_set, 0, NULL);
-
-
-
-    // VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
-    // pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    // pipeline_layout_create_info.pNext = NULL;
-    // pipeline_layout_create_info.flags = 0;
-    // pipeline_layout_create_info.setLayoutCount = 2;
-    // pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
-    // pipeline_layout_create_info.pushConstantRangeCount = 0;
-    // pipeline_layout_create_info.pPushConstantRanges = NULL;
-
-    // // VkPipelineLayout pipeline_layout;
-
-    // result = vkCreatePipelineLayout(r_vk_renderer.device, &pipeline_layout_create_info, NULL, &r_vk_renderer.pipeline_layout);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't create pipeline layout!\n");
-    //     return;
-    // }
-
+  
     struct rVkShader vertex_shader;
     struct rVkShader fragment_shader;
 
@@ -1014,7 +819,7 @@ void r_InitVkPipeline()
     rasterization_state_create_info.depthClampEnable = 0;
     rasterization_state_create_info.rasterizerDiscardEnable = 0;
     rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
+    rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterization_state_create_info.depthBiasEnable = VK_TRUE;
     rasterization_state_create_info.depthBiasConstantFactor = 0.0;
@@ -1147,48 +952,7 @@ void r_InitVkPipeline()
         return;
     }
 
-    VkSemaphoreCreateInfo semaphore_create_info = {};
-    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphore_create_info.pNext = NULL;
-    semaphore_create_info.flags = 0;
-
-    result = vkCreateSemaphore(r_vk_renderer.device, &semaphore_create_info, NULL, &r_vk_renderer.image_aquire_semaphore);
     
-    if(result != VK_SUCCESS)
-    {
-        printf("couldn't create the image acquire semaphore!\n");
-        return;
-    }
-
-
-    VkFenceCreateInfo fence_create_info = {};
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_create_info.pNext = NULL;
-    fence_create_info.flags = 0;
-
-    result = vkCreateFence(r_vk_renderer.device, &fence_create_info, NULL, &r_vk_renderer.submit_fence);
-
-    if(result != VK_SUCCESS)
-    {
-        printf("couldn't create queue submit fence!\n");
-        return;
-    }
-
-
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.pNext = NULL;
-    command_buffer_allocate_info.commandPool = r_vk_renderer.command_pool;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    command_buffer_allocate_info.commandBufferCount = 1;
-
-    result = vkAllocateCommandBuffers(r_vk_renderer.device, &command_buffer_allocate_info, &r_vk_renderer.command_buffer);
-
-    if(result != VK_SUCCESS)
-    {
-        printf("couldn't allocate command buffer!\n");
-        return;
-    }
 }
 
 /*
@@ -1247,6 +1011,22 @@ VkResult r_vk_CreateBuffer(struct r_vk_buffer_t *buffer, uint32_t size, uint32_t
     return result;
 }
 
+void *r_vk_MapAlloc(struct r_alloc_handle_t handle, struct r_alloc_t *alloc)
+{
+    VkDeviceMemory device_memory;
+    void *memory;
+    device_memory = handle.is_index ? r_vk_renderer.index_buffer.memory : r_vk_renderer.vertex_buffer.memory;
+    
+    vkMapMemory(r_vk_renderer.device, device_memory, alloc->start + alloc->align, alloc->size - alloc->align, 0, &memory);
+    return memory;
+}
+
+void r_vk_UnmapAlloc(struct r_alloc_handle_t handle)
+{
+    VkDeviceMemory device_memory;
+    device_memory = handle.is_index ? r_vk_renderer.index_buffer.memory : r_vk_renderer.vertex_buffer.memory;
+    vkUnmapMemory(r_vk_renderer.device, device_memory);
+}
 /*
 =================================================================
 =================================================================
@@ -1317,107 +1097,6 @@ void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels
     vkCreateImageView(r_vk_renderer.device, &image_view_create_info, NULL, &texture->image_view);
 }
 
-// VkResult r_LoadImage(struct rVkImage *image, const char *file_name)
-// {
-//     VkResult result;
-
-//     unsigned char *pixels;
-//     void *pointer;
-//     int width;
-//     int height;
-//     int channels;
-
-//     pixels = stbi_load(file_name, &width, &height, &channels, STBI_rgb_alpha);
-
-//     if(pixels)
-//     {
-//         VkImageCreateInfo image_create_info = {};
-//         image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-//         image_create_info.pNext = NULL;
-//         image_create_info.flags = 0;
-//         image_create_info.imageType = VK_IMAGE_TYPE_2D;
-//         image_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-//         image_create_info.extent.width = width;
-//         image_create_info.extent.height = height;
-//         image_create_info.extent.depth = 1;
-//         image_create_info.mipLevels = 1;
-//         image_create_info.arrayLayers = 1;
-//         image_create_info.samples = 1;
-//         image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-//         image_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-//         image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//         image_create_info.queueFamilyIndexCount = 0;
-//         image_create_info.pQueueFamilyIndices = NULL;
-//         image_create_info.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-//         result = vkCreateImage(r_vk_renderer.device, &image_create_info, NULL, &image->image);
-
-//         if(result != VK_SUCCESS)
-//         {
-//             printf("couldn't create image for texture %s\n", file_name);
-//             return result;
-//         }
-
-//         VkMemoryRequirements memory_reqs;
-//         vkGetImageMemoryRequirements(r_vk_renderer.device, image->image, &memory_reqs);
-
-//         VkMemoryAllocateInfo alloc_info;
-//         alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-//         alloc_info.pNext = NULL;
-//         alloc_info.allocationSize = memory_reqs.size;
-//         alloc_info.memoryTypeIndex = r_MemoryTypeFromProperties(memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-//         result = vkAllocateMemory(r_vk_renderer.device, &alloc_info, NULL, &image->memory);
-
-//         if(result != VK_SUCCESS)
-//         {
-//             printf("couldn't allocate memory for texture %s\n", file_name);
-//             return result;
-//         }
-
-
-//         result = vkBindImageMemory(r_vk_renderer.device, image->image, image->memory, 0);
-
-//         if(result != VK_SUCCESS)
-//         {
-//             printf("coulnd't bind memory for texture %s\n", file_name);
-//             return result;
-//         }
-
-
-//         vkMapMemory(r_vk_renderer.device, image->memory, 0, memory_reqs.size, 0, &pointer);
-//         memcpy(pointer, pixels, width * height * 4);
-//         vkUnmapMemory(r_vk_renderer.device, image->memory);
-
-
-//         VkImageViewCreateInfo image_view_create_info = {};
-//         image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-//         image_view_create_info.pNext = NULL;
-//         image_view_create_info.flags = 0;
-//         image_view_create_info.image = image->image;
-//         image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-//         image_view_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-//         image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
-//         image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
-//         image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
-//         image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
-//         image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//         image_view_create_info.subresourceRange.baseArrayLayer = 0;
-//         image_view_create_info.subresourceRange.baseMipLevel = 0;
-//         image_view_create_info.subresourceRange.layerCount = 1;
-//         image_view_create_info.subresourceRange.levelCount = 1;
-
-//         result = vkCreateImageView(r_vk_renderer.device, &image_view_create_info, NULL, &image->image_view);
-
-//         if(result != VK_SUCCESS)
-//         {
-//             printf("couldn't create image view for texture %s\n", file_name);
-//         }
-
-//         return result;
-//     }
-// }
-
 void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
 {
     VkDescriptorImageInfo image_info = {};
@@ -1445,187 +1124,103 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
 =================================================================
 */
 
-VkResult r_BeginCommandBuffer()
+
+void r_vk_BeginFrame()
 {
-    VkCommandBufferBeginInfo begin_info = {};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.pNext = NULL;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    begin_info.pInheritanceInfo = NULL;
+    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.pNext = NULL;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    command_buffer_begin_info.pInheritanceInfo = NULL;
 
-    vkResetCommandBuffer(r_vk_renderer.command_buffer, 0);    
-    return vkBeginCommandBuffer(r_vk_renderer.command_buffer, &begin_info);
-}
+    vkResetCommandBuffer(r_vk_renderer.command_state.command_buffers[0], 0);
+    vkBeginCommandBuffer(r_vk_renderer.command_state.command_buffers[0], &command_buffer_begin_info);
 
-VkResult r_EndCommandBuffer()
-{
-    return vkEndCommandBuffer(r_vk_renderer.command_buffer);
-}
-
-uint32_t r_AcquireNextImage()
-{
-    vkAcquireNextImageKHR(r_vk_renderer.device, r_vk_renderer.swapchain.swapchain, UINT64_MAX, r_vk_renderer.image_aquire_semaphore, NULL, &r_vk_renderer.current_image);
-    return r_vk_renderer.current_image;
-}
-
-void r_UploadData()
-{
-    void *memory;
-    VkResult result;
-    // VkSurfaceCapabilitiesKHR surface_capabilities;
-
-    // vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r_vk_renderer.physical_device, r_vk_renderer.surface, &surface_capabilities);
-
-    // float r_z_near = r_renderer.z_near;
-    // float r_z_far = r_renderer.z_far;
-    // float aspect = (float)surface_capabilities.currentExtent.width / (float)surface_capabilities.currentExtent.height;
-    // float fov_y = 0.68;
-    // float v = r_z_near * tan(fov_y);
-    // float h = v * aspect;
-
-    // float projection_matrix[16] = 
-    // {
-    //     r_z_near / h , 0.0, 0.0, 0.0,
-    //     0.0, r_z_near / -v, 0.0, 0.0,
-    //     0.0, 0.0, (-r_z_far + r_z_near) / (r_z_far - r_z_near) * 0.5, -0.5,
-    //     0.0, 0.0, -(2 * r_z_near * r_z_far) / (r_z_far - r_z_near), 0.0
-    // };
-
-    // result = vkMapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory, 0, sizeof(float [16]), 0, &memory);
-
-    // if(result != VK_SUCCESS)
-    // {
-    //     printf("couldn't map memory of uniform buffer!\n");
-    //     return;
-    // }
-
-    // memcpy(memory, projection_matrix, sizeof(projection_matrix));
-    // vkUnmapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory);
-
-
-    result = vkMapMemory(r_vk_renderer.device, r_vk_renderer.vertex_buffer.memory, 0, R_HEAP_SIZE, 0, &memory);
-
-    if(result != VK_SUCCESS)
-    {
-        printf("couldn't map memory of vertex buffer!\n");
-        return;
-    }
-
-    // static float r = 0.0;
-    static float prev_z = 0.0;
-    float s = sin(0.01 * 3.14159265);
-    float c = cos(0.01 * 3.14159295);
-    vec4_t pos;
-    
-    for(uint32_t i = 0; i < 6; i++)
-    {
-        // vertices[i].position.comps[2] += 5.0;
-        // pos = vertices[i].position;
-        // vertices[i].position.comps[0] = pos.comps[0] * c + pos.comps[2] * s;
-        // vertices[i].position.comps[2] = pos.comps[0] * -s + pos.comps[2] * c;
-        // vertices[i].position.comps[2] -= 5.0;
-    }
-
-    memcpy(memory, vertices, sizeof(vertices));
-    vkUnmapMemory(r_vk_renderer.device, r_vk_renderer.vertex_buffer.memory);
-}
-
-void r_BeginRenderpass()
-{
-    VkResult result;
-
-    result = r_BeginCommandBuffer();
-
-    if(result != VK_SUCCESS)
-    {
-        printf("couldn't begin command buffer!\n");
-        return;
-    }
-
-    uint32_t next_image;
-
-    next_image = r_AcquireNextImage();
+    r_AcquireNextImage();
 
     VkSurfaceCapabilitiesKHR surface_capabilities;
-
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r_vk_renderer.physical_device, r_vk_renderer.surface, &surface_capabilities);
 
-    static float r = 0.0; 
+    VkClearValue clear_values[2];
+    clear_values[0].color.float32[0] = 0.1;
+    clear_values[0].color.float32[1] = 0.1;
+    clear_values[0].color.float32[2] = 0.1;
+    clear_values[0].color.float32[3] = 1.0;
 
-    VkClearValue clear_value[2] = {};
-    clear_value[0].color.float32[0] = 0.1;
-    clear_value[0].color.float32[1] = 0.1;
-    clear_value[0].color.float32[2] = 0.1;
-    clear_value[0].color.float32[3] = 1.0;
-
-    clear_value[1].depthStencil.depth = 1.0;
-
-    r += 0.01;
-    
+    clear_values[1].depthStencil.depth = 1.0;
 
     VkRenderPassBeginInfo render_pass_begin_info = {};
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.pNext = NULL;
     render_pass_begin_info.renderPass = r_vk_renderer.render_pass;
-    render_pass_begin_info.framebuffer = r_vk_renderer.framebuffers[next_image];
+    render_pass_begin_info.framebuffer = r_vk_renderer.framebuffers[r_vk_renderer.current_image];
+    render_pass_begin_info.renderArea.extent.width = surface_capabilities.currentExtent.width;
+    render_pass_begin_info.renderArea.extent.height = surface_capabilities.currentExtent.height;
     render_pass_begin_info.renderArea.offset.x = 0;
     render_pass_begin_info.renderArea.offset.y = 0;
-    render_pass_begin_info.renderArea.extent = surface_capabilities.currentExtent;
     render_pass_begin_info.clearValueCount = 2;
-    render_pass_begin_info.pClearValues = clear_value;
+    render_pass_begin_info.pClearValues = clear_values;
 
-    VkDeviceSize offsets = 0;
+    VkDeviceSize offset = 0;
 
-    /* bind the pipeline, vertex buffer and descriptor set */
-    vkCmdBeginRenderPass(r_vk_renderer.command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindVertexBuffers(r_vk_renderer.command_buffer, 0, 1, &r_vk_renderer.vertex_buffer.buffer, &offsets);
-    vkCmdBindDescriptorSets(r_vk_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, r_vk_renderer.pipeline_layout, 0, 2, r_vk_renderer.descriptor_sets, 0, NULL);
-    vkCmdBindPipeline(r_vk_renderer.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, r_vk_renderer.graphics_pipeline);
+    vkCmdBeginRenderPass(r_vk_renderer.command_state.command_buffers[0], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindVertexBuffers(r_vk_renderer.command_state.command_buffers[0], 0, 1, &r_vk_renderer.vertex_buffer.buffer, &offset);
+    vkCmdBindDescriptorSets(r_vk_renderer.command_state.command_buffers[0], 
+                            VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                            r_vk_renderer.pipeline_layout, 0, 2, 
+                            r_vk_renderer.descriptor_sets, 0, NULL);
+
+    vkCmdBindPipeline(r_vk_renderer.command_state.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, r_vk_renderer.graphics_pipeline);
 }
 
-void r_Draw()
+void r_vk_Draw(struct r_cmd_t *cmd)
 {
-    vkCmdDraw(r_vk_renderer.command_buffer, 6, 1, 0, 0);
+    mat4_t model_view_projection_matrix;
+    struct r_draw_batch_t *batch;
+    struct r_alloc_t *alloc;
+    struct r_draw_cmd_t *draw_cmd;
+    uint32_t command_buffer_count;
+
+    batch = (struct r_draw_batch_t *)cmd->data;
+    // command_buffer_count = ((batch->draw_cmd_count + r_vk_renderer.command_state.max_command_buffer_draw_cmds - 1) & 
+    //                             (~(r_vk_renderer.command_state.max_command_buffer_draw_cmds - 1))) / 
+    //                                 r_vk_renderer.command_state.max_command_buffer_draw_cmds;
+
+    // for(uint32_t command_buffer_index = 0; command_buffer_index < command_buffer_count; command_buffer_index++)
+    // {
+    for(uint32_t i = 0; i < batch->draw_cmd_count; i++)
+    {
+        draw_cmd = batch->draw_cmds + i;
+        mat4_t_mul(&model_view_projection_matrix, &draw_cmd->model_matrix, &batch->view_projection_matrix);
+        vkCmdPushConstants(r_vk_renderer.command_state.command_buffers[0], r_vk_renderer.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
+        vkCmdDraw(r_vk_renderer.command_state.command_buffers[0], draw_cmd->vertex_count, 1, draw_cmd->first_vertex, 0);
+    }
+    // }
 }
 
-void r_EndRenderpass()
-{   
-    VkResult result;
-    VkSubmitInfo submit_info;
-    VkPipelineStageFlags wait_stage_flags;
+void r_vk_EndFrame()
+{
+    vkCmdEndRenderPass(r_vk_renderer.command_state.command_buffers[0]);
+    vkEndCommandBuffer(r_vk_renderer.command_state.command_buffers[0]);
 
-    vkCmdEndRenderPass(r_vk_renderer.command_buffer);
+    VkPipelineStageFlags stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    result = r_EndCommandBuffer();
-
-    if(result != VK_SUCCESS)
-    {
-        printf("couldn't end command buffer!\n");
-        return;
-    }
-
-    wait_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
+    VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = NULL;
     submit_info.waitSemaphoreCount = 1;
     submit_info.pWaitSemaphores = &r_vk_renderer.image_aquire_semaphore;
-    submit_info.pWaitDstStageMask = &wait_stage_flags;
+    submit_info.pWaitDstStageMask = &stage_mask;
     submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &r_vk_renderer.command_buffer;
+    submit_info.pCommandBuffers = r_vk_renderer.command_state.command_buffers;
     submit_info.signalSemaphoreCount = 0;
     submit_info.pSignalSemaphores = NULL;
 
     vkResetFences(r_vk_renderer.device, 1, &r_vk_renderer.submit_fence);
-    result = vkQueueSubmit(r_vk_renderer.queue, 1, &submit_info, r_vk_renderer.submit_fence);
+    vkQueueSubmit(r_vk_renderer.queue, 1, &submit_info, r_vk_renderer.submit_fence);
     while(vkWaitForFences(r_vk_renderer.device, 1, &r_vk_renderer.submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT);
-}
 
-void r_Present()
-{
-    VkResult result;
-
-    VkPresentInfoKHR present_info;
+    VkPresentInfoKHR present_info = {};
     present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present_info.pNext = NULL;
     present_info.waitSemaphoreCount = 0;
@@ -1635,14 +1230,14 @@ void r_Present()
     present_info.pImageIndices = &r_vk_renderer.current_image;
     present_info.pResults = NULL;
 
-    result = vkQueuePresentKHR(r_vk_renderer.queue, &present_info);
-
-    if(result != VK_SUCCESS)
-    {
-        printf("couldn't present the shit!\n");
-        return;
-    }
+    vkQueuePresentKHR(r_vk_renderer.queue, &present_info);
 }
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement)
 {
@@ -1694,13 +1289,4 @@ void r_vk_SetProjectionMatrix(mat4_t *projection_matrix)
     projection_matrix->mcomps[1][1] *= -1.0;
     projection_matrix->mcomps[2][2] *= 0.5;
     projection_matrix->mcomps[2][3] *= 0.5; 
-}
-
-void r_vk_UpdateModelViewProjectionMatrix(mat4_t *m)
-{
-    void *memory; 
-
-    vkMapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory, 0, sizeof(mat4_t), 0, &memory);
-    memcpy(memory, m, sizeof(mat4_t));
-    vkUnmapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory);
 }

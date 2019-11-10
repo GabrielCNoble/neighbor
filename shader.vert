@@ -10,12 +10,10 @@ layout (location = 2) in vec4 r_VertexTexCoords;
 layout (location = 0) out vec4 tex_coords;
 layout (location = 1) out vec4 tex_color;
 
-
-layout(set = 0, binding = 0) uniform r_Input
+layout(push_constant) uniform r_Input
 {
-    mat4 r_ModelViewProjectionMatrix;
+    layout(offset = 0) mat4 r_ModelViewProjectionMatrix;
 };
-
 
 void main()
 {
