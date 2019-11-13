@@ -4,103 +4,37 @@
 // #include "Windows.h"
 
 #include "r_main.h"
-#include "obj.h"
+#include "mdl.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  
 #include <math.h>
 
-// struct vertex_t vertices[] = 
-// {
-//     {{-1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-//     {{1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-
-
-
-
-
-//     {{1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-//     {{-1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-//     {{1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-
-
-
-
-
-//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-//     {{-1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-//     {{-1.5, -1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-//     {{-1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-
-
-
-
-//     {{1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-//     {{1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-//     {{1.5, 1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-
-
-
-
-//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, 1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-//     {{1.5, 1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-//     {{1.5, 1.5, 1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-//     {{1.5, 1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, 1.5, -1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-
-
-
-
-//     {{-1.5, -1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, -1.5, -1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {0.0, 1.0, 0.0, 0.0}},
-//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-
-//     {{1.5, -1.5, -1.5, 1.0}, {0.0, 0.0, 1.0, 1.0}, {1.0, 1.0, 0.0, 0.0}},
-//     {{1.5, -1.5, 1.5, 1.0}, {0.0, 1.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}},
-//     {{-1.5, -1.5, 1.5, 1.0}, {1.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 0.0, 0.0}},
-// };
 
 struct thing_t
 {
     mat4_t transform;
-    struct r_alloc_handle_t handle;
-    struct r_material_handle_t material;
+    struct model_handle_t model;
+    // struct r_alloc_handle_t handle;
+    // struct r_material_handle_t material;
 };
 
 extern struct r_renderer_t r_renderer;
 
 void draw_things(struct thing_t *things, uint32_t thing_count)
 {
-    struct r_draw_cmd_t *draw_cmd;
-    struct r_alloc_t *alloc;
+    // struct r_draw_cmd_t *draw_cmd;
+    // struct r_alloc_t *alloc;
 
-    r_BeginBatch(&r_renderer.view_projection_matrix, things[0].material);
+    // r_BeginBatch(&r_renderer.view_projection_matrix, things[0].material);
 
-    for(uint32_t i = 0; i < thing_count; i++)
-    {
-        r_AddDrawCmd(&things[i].transform, things[i].handle);
-    }
+    // for(uint32_t i = 0; i < thing_count; i++)
+    // {
+    //     r_AddDrawCmd(&things[i].transform, things[i].handle);
+    // }
 
-    r_EndBatch();
+    // r_EndBatch();
 }
 
 int main(int argc, char *argv[])
@@ -112,16 +46,18 @@ int main(int argc, char *argv[])
     }
 
     r_InitRenderer();
+    mdl_Init();
 
-    struct r_texture_handle_t logo = r_LoadTexture("logo_fuck.png");
-    struct r_texture_handle_t logo2 = r_LoadTexture("logo2.png");
-    struct r_texture_handle_t doggo = r_LoadTexture("doggo.png");
-    struct r_alloc_handle_t quad;
-    struct r_material_handle_t material_handle;
+    struct r_texture_handle_t logo = r_LoadTexture("logo_fuck.png", "logo_fuck");
+    struct r_texture_handle_t logo2 = r_LoadTexture("logo2.png", "logo2");
+    struct r_texture_handle_t doggo = r_LoadTexture("doggo.png", "doggo");
+    // struct r_alloc_handle_t quad;
+    // struct r_material_handle_t material_handle;
     struct r_material_t *material;
-    struct vertex_t *vertices;
-    struct geometry_data_t data;
-    struct batch_data_t *batch;
+    // struct vertex_t *vertices;
+    // struct geometry_data_t data;
+    // struct batch_data_t *batch;
+    struct model_handle_t model;
     mat4_t projection_matrix;
     mat4_t view_matrix;
     mat4_t pitch_matrix;
@@ -130,43 +66,46 @@ int main(int argc, char *argv[])
     vec3_t vec3;
     vec2_t vec2;
 
-    load_wavefront("level0.obj", &data);
-    vertices = calloc(sizeof(struct vertex_t), data.vertices.cursor);
-    for(uint32_t i = 0; i < data.vertices.cursor; i++)
-    {
-        vec3 = *(vec3_t *)get_list_element(&data.vertices, i);
-        vertices[i].position.comps[0] = vec3.comps[0];
-        vertices[i].position.comps[1] = vec3.comps[1];
-        vertices[i].position.comps[2] = vec3.comps[2];
-        vertices[i].position.comps[3] = 1.0;
+    // load_wavefront("level0.obj", &data);
+    // vertices = calloc(sizeof(struct vertex_t), data.vertices.cursor);
+    // for(uint32_t i = 0; i < data.vertices.cursor; i++)
+    // {
+    //     vec3 = *(vec3_t *)get_list_element(&data.vertices, i);
+    //     vertices[i].position.comps[0] = vec3.comps[0];
+    //     vertices[i].position.comps[1] = vec3.comps[1];
+    //     vertices[i].position.comps[2] = vec3.comps[2];
+    //     vertices[i].position.comps[3] = 1.0;
 
-        vertices[i].color.comps[0] = 1.0;
-        vertices[i].color.comps[1] = 1.0;
-        vertices[i].color.comps[2] = 1.0;
-        vertices[i].color.comps[3] = 1.0;
+    //     vertices[i].color.comps[0] = 1.0;
+    //     vertices[i].color.comps[1] = 1.0;
+    //     vertices[i].color.comps[2] = 1.0;
+    //     vertices[i].color.comps[3] = 1.0;
 
-        vec2 = *(vec2_t *)get_list_element(&data.tex_coords, i);
-        vertices[i].tex_coords.comps[0] = vec2.comps[0];
-        vertices[i].tex_coords.comps[1] = vec2.comps[1];
-        vertices[i].tex_coords.comps[2] = 1.0;
-        vertices[i].tex_coords.comps[3] = 1.0;
-    }
+    //     vec2 = *(vec2_t *)get_list_element(&data.tex_coords, i);
+    //     vertices[i].tex_coords.comps[0] = vec2.comps[0];
+    //     vertices[i].tex_coords.comps[1] = vec2.comps[1];
+    //     vertices[i].tex_coords.comps[2] = 1.0;
+    //     vertices[i].tex_coords.comps[3] = 1.0;
+    // }
 
-    for(uint32_t i = 0; i < data.batches.cursor; i++)
-    {
-        batch = (struct batch_data_t *)get_list_element(&data.batches, i);
-        material_handle = r_AllocMaterial();
-        material = r_GetMaterialPointer(material_handle);
-        material->diffuse_texture = r_LoadTexture(batch->diffuse_texture);
-        material->normal_texture = R_INVALID_TEXTURE_HANDLE;
-    }
+    // for(uint32_t i = 0; i < data.batches.cursor; i++)
+    // {
+    //     batch = (struct batch_data_t *)get_list_element(&data.batches, i);
+    //     material_handle = r_AllocMaterial();
+    //     material = r_GetMaterialPointer(material_handle);
+    //     material->diffuse_texture = r_LoadTexture(batch->diffuse_texture);
+    //     material->normal_texture = R_INVALID_TEXTURE_HANDLE;
+    // }
 
-    quad = r_Alloc(sizeof(struct vertex_t) * data.vertices.cursor, sizeof(struct vertex_t), 0);
-    r_Memcpy(quad, vertices, sizeof(struct vertex_t) * data.vertices.cursor);
-    free(vertices);
+    // quad = r_Alloc(sizeof(struct vertex_t) * data.vertices.cursor, sizeof(struct vertex_t), 0);
+    // r_Memcpy(quad, vertices, sizeof(struct vertex_t) * data.vertices.cursor);
+    // free(vertices);
 
-    things[0].handle = quad;
-    things[0].material = R_MATERIAL_HANDLE(0);
+    model = mdl_LoadModel("cube.obj");
+
+    // things[0].handle = quad;
+    things[0].model = model;
+    // things[0].material = R_MATERIAL_HANDLE(0);
     mat4_t_identity(&things[0].transform);
     things[0].transform.vcomps[3].comps[2] = -5.0;
 

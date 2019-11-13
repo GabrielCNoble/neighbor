@@ -1,7 +1,9 @@
 .vscode
 SDL
 vulkan
+dstuff
 build.bat
+obj
 *.exe
 *.o
 *.dll

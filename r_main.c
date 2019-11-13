@@ -1,8 +1,10 @@
 #include "r_main.h"
-#include "path.h"
+#include "dstuff/file/path.h"
 #include "r_vk.h"
-#include "stack_list.h"
-#include "list.h"
+#include "dstuff/containers/stack_list.h"
+#include "dstuff/containers/list.h"
+#include <stdlib.h>
+#include <string.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
@@ -224,7 +226,7 @@ void r_FreeTexture(struct r_texture_handle_t handle)
     }
 }
 
-struct r_texture_handle_t r_LoadTexture(char *file_name)
+struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name)
 {
     unsigned char *pixels;
     int width;
@@ -239,8 +241,6 @@ struct r_texture_handle_t r_LoadTexture(char *file_name)
 
     if(pixels)
     {
-        
-        printf("found texture %s\n", file_name);
         handle = r_AllocTexture();
         texture = r_GetTexturePointer(handle);
 
@@ -249,6 +249,16 @@ struct r_texture_handle_t r_LoadTexture(char *file_name)
         texture->height = height;
         texture->depth = 1;
         texture->type = R_TEXTURE_TYPE_2D;
+
+        if(texture_name)
+        {
+            texture->name = strdup(texture_name);
+        }
+        else
+        {
+            texture->name = strdup(file_name);
+        }
+        
 
         r_vk_InitalizeTexture((struct r_vk_texture_t *)texture, pixels);
     }
@@ -267,6 +277,25 @@ struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle)
     }
 
     return texture;
+}
+
+struct r_texture_handle_t r_GetTextureHandle(char *name)
+{
+    struct r_texture_handle_t handle = R_INVALID_TEXTURE_HANDLE;
+    struct r_texture_t *texture;
+
+    for(uint32_t i = 0; i < r_renderer.textures.cursor; i++)
+    {
+        texture = r_GetTexturePointer(R_TEXTURE_HANDLE(i));
+
+        if(texture && !strcmp(texture->name, name))
+        {
+            handle = R_TEXTURE_HANDLE(i);
+            break;
+        }
+    }
+
+    return handle;
 }
 
 void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index)
@@ -305,6 +334,7 @@ void r_FreeMaterial(struct r_material_handle_t handle)
     if(material)
     {
         material->flags = R_MATERIAL_FLAG_INVALID;
+        free(material->name);
         remove_stack_list_element(&r_renderer.materials, handle.index);
     }
 }
@@ -320,6 +350,25 @@ struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle)
     }
 
     return material;
+}
+
+struct r_material_handle_t r_GetMaterialHandle(char *name)
+{
+    struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
+    struct r_material_t *material;
+    
+    for(uint32_t i = 0; i < r_renderer.materials.cursor; i++)
+    {
+        material = r_GetMaterialPointer(R_MATERIAL_HANDLE(i));
+
+        if(material && !strcmp(name, material->name))
+        {
+            handle = R_MATERIAL_HANDLE(i);
+            break;
+        }
+    }
+
+    return handle;
 }
 
 void r_SetMaterial(struct r_material_handle_t handle)
@@ -452,4 +501,9 @@ void r_ExecuteCmds()
 
         r_AdvanceCmd();
     }
+}
+
+void r_WaitEmptyQueue()
+{
+    while(r_renderer.cmd_buffer.next_in != r_renderer.cmd_buffer.next_out);
 }

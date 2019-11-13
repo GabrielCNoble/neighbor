@@ -3,11 +3,11 @@
 
 #include <stdint.h>
 #include "SDL/include/SDL2/SDL.h"
-#include "stack_list.h"
-#include "ringbuffer.h"
-#include "list.h"
-#include "vector.h"
-#include "matrix.h"
+#include "dstuff/containers/stack_list.h"
+#include "dstuff/containers/list.h"
+#include "dstuff/containers/ringbuffer.h"
+#include "dstuff/math/vector.h"
+#include "dstuff/math/matrix.h"
 
 
 struct vertex_t
@@ -90,6 +90,7 @@ enum R_TEXTURE_TYPE
 
 struct r_texture_t
 {
+    char *name;
     uint16_t width;
     uint16_t height;
     uint16_t depth;
@@ -129,6 +130,8 @@ struct r_material_handle_t
 struct r_material_t
 {
     uint32_t flags;
+    char *name;
+    vec4_t base_color;
     struct r_texture_handle_t diffuse_texture;
     struct r_texture_handle_t normal_texture;
 };

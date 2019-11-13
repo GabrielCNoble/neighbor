@@ -39,9 +39,11 @@ struct r_texture_handle_t r_AllocTexture();
 
 void r_FreeTexture(struct r_texture_handle_t handle);
 
-struct r_texture_handle_t r_LoadTexture(char *file_name);
+struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
 
 struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
+
+struct r_texture_handle_t r_GetTextureHandle(char *name);
 
 void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index);
 
@@ -57,6 +59,8 @@ struct r_material_handle_t r_AllocMaterial();
 void r_FreeMaterial(struct r_material_handle_t handle);
 
 struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle);
+
+struct r_material_handle_t r_GetMaterialHandle(char *name);
 
 void r_SetMaterial(struct r_material_handle_t handle);
 
@@ -83,6 +87,8 @@ struct r_cmd_t *r_NextCmd();
 void r_AdvanceCmd();
 
 void r_ExecuteCmds();
+
+void r_WaitEmptyQueue();
 
 /*
 =================================================================================
