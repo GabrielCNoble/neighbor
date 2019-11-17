@@ -132,8 +132,10 @@ struct r_material_t
     uint32_t flags;
     char *name;
     vec4_t base_color;
-    struct r_texture_handle_t diffuse_texture;
-    struct r_texture_handle_t normal_texture;
+    struct r_texture_t *diffuse_texture;
+    struct r_texture_t *normal_texture;
+    // struct r_texture_handle_t diffuse_texture;
+    // struct r_texture_handle_t normal_texture;
 };
 
 #define R_INVALID_MATERIAL_INDEX 0xffffffff
@@ -150,12 +152,14 @@ struct r_material_t
 #define R_HEAP_SIZE 67108864
 
 #define R_SAMPLER_COUNT 4
-#define R_MAX_TEMP_DRAW_BATCH_SIZE 1024
+#define R_MAX_DRAW_CMDS 64
+#define R_MAX_UNORDERED_DRAW_CMDS 1024
 
 enum R_CMD_TYPE
 {
     R_CMD_TYPE_BEGIN_FRAME,
     R_CMD_TYPE_DRAW,
+    R_CMD_TYPE_SORT_DRAW_CMDS,
     R_CMD_TYPE_END_FRAME,
 };
 
@@ -164,12 +168,29 @@ struct r_cmd_t
     uint32_t cmd_type;
     void *data;
 };
-
 struct r_draw_range_t
 {
     uint32_t start;
     uint32_t count;
 };
+
+/* unordered draw cmds */
+struct r_udraw_cmd_t
+{
+    mat4_t model_matrix;
+    // struct r_material_handle_t material;
+    struct r_material_t *material;
+    struct r_draw_range_t range;
+};
+struct r_udraw_cmd_buffer_t
+{
+    mat4_t view_projection_matrix;
+    uint32_t draw_cmd_count;
+    struct r_udraw_cmd_t draw_cmds[1];
+};
+
+
+/* ordered draw cmds, ready for consumption by the renderer */
 struct r_draw_cmd_t
 {
     mat4_t model_matrix;
@@ -179,13 +200,20 @@ struct r_draw_cmd_t
 struct r_draw_cmd_buffer_t
 {
     mat4_t view_projection_matrix;
-    struct r_material_handle_t material;
+    // struct r_material_handle_t material;
+    struct r_material_t *material;
     uint32_t draw_cmd_count;
     struct r_draw_cmd_t draw_cmds[1];
 };
 
+// struct r_draw_batch_t
+// {
+//     struct r_material_handle_t material;
+//     struct r_draw_cmd_buffer_t draw_cmd_buffer;
+// }
 
-#define R_CMD_DATA_ELEM_SIZE 8
+
+#define R_CMD_DATA_ELEM_SIZE 64
 
 struct r_renderer_t
 {
@@ -215,8 +243,7 @@ struct r_renderer_t
     uint32_t outdated_view_projection_matrix;
 
     struct r_material_handle_t active_material;
-
-    struct r_draw_cmd_buffer_t *draw_cmd_buffer;
+    struct r_udraw_cmd_buffer_t *draw_cmd_buffer;
 };
 
 /*

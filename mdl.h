@@ -5,7 +5,7 @@
 
 struct model_batch_t
 {
-    struct r_material_handle_t material;
+    struct r_material_t *material;
     struct r_draw_range_t range;
 };
 struct model_t

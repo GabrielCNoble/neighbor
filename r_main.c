@@ -14,7 +14,7 @@ void r_InitRenderer()
 {
     struct r_alloc_t free_alloc;
 
-    r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, SDL_WINDOW_OPENGL);
+    r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1366, 768, SDL_WINDOW_OPENGL);
     
     SDL_GL_SetSwapInterval(1);
 
@@ -24,13 +24,12 @@ void r_InitRenderer()
     r_renderer.free_blocks[0] = create_list(sizeof(struct r_alloc_t), 512);
     r_renderer.free_blocks[1] = create_list(sizeof(struct r_alloc_t), 512);
 
-    r_renderer.cmd_buffer = create_ringbuffer(sizeof(struct r_cmd_t), 1024);
-    r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 4096); 
+    r_renderer.cmd_buffer = create_ringbuffer(sizeof(struct r_cmd_t), 8192);
+    r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 8192 * 10); 
 
-    r_renderer.draw_cmd_buffer = calloc(sizeof(struct r_draw_cmd_buffer_t) + sizeof(struct r_draw_cmd_t) * (R_MAX_TEMP_DRAW_BATCH_SIZE - 1), 1);
-    r_renderer.draw_cmd_buffer->material = R_INVALID_MATERIAL_HANDLE;
+    r_renderer.draw_cmd_buffer = calloc(sizeof(struct r_udraw_cmd_buffer_t) + sizeof(struct r_udraw_cmd_t) * (R_MAX_UNORDERED_DRAW_CMDS - 1), 1);
 
-    r_renderer.materials = create_stack_list(sizeof(struct r_material_t), 32);
+    r_renderer.materials = create_stack_list(sizeof(struct r_material_t), 256);
 
     free_alloc.start = 0;
     free_alloc.size = R_HEAP_SIZE;
@@ -64,7 +63,7 @@ struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_al
     struct list_t *free_blocks;
 
     index_alloc = index_alloc && 1;
-    align--;
+    // align--;
 
     free_blocks = &r_renderer.free_blocks[index_alloc];
 
@@ -72,7 +71,15 @@ struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_al
     {
         alloc = get_list_element(free_blocks, i);
         /* align the start of the allocation to the desired alignment */
-        start = (alloc->start + align) & (~align);
+        // start = (alloc->start + align) & (~align);
+
+        start = alloc->start;
+
+        while(start % align)
+        {
+            start += align - (start % align);
+        }
+
         /* subtract the bytes before the aligned start from
         the total size */
         block_size = alloc->size - (start - alloc->start);
@@ -88,7 +95,7 @@ struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_al
                 the allocation required, so just move this allocation header from the 
                 free list to the allocation list*/
                 alloc->align = align;
-                add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], alloc);
+                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], alloc);
                 remove_list_element(free_blocks, i);
             }
             else
@@ -103,14 +110,14 @@ struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_al
                 new_alloc.size = block_size;
                 new_alloc.align = align;
 
-                add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], &new_alloc);
+                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], &new_alloc);
 
                 /* chop a chunk of this free block */
                 alloc->start += block_size;
                 alloc->size -= block_size;
             }
             
-            handle.alloc_index = i;
+            // handle.alloc_index = i;
             handle.is_index = index_alloc;
             break;
         }
@@ -241,6 +248,7 @@ struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name)
 
     if(pixels)
     {
+        printf("texture %s loaded!\n", file_name);
         handle = r_AllocTexture();
         texture = r_GetTexturePointer(handle);
 
@@ -300,11 +308,14 @@ struct r_texture_handle_t r_GetTextureHandle(char *name)
 
 void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index)
 {
-    struct r_texture_t *texture = r_GetTexturePointer(handle);
-    if(texture && sampler_index < R_SAMPLER_COUNT)
-    {
-        r_vk_SetTexture((struct r_vk_texture_t *)texture, sampler_index);
-    }
+    // struct r_texture_t *texture = r_GetTexturePointer(handle);
+
+    // if(texture && sampler_index < R_SAMPLER_COUNT)
+    // {
+    //     // r_vk_SetTexture((struct r_vk_texture_t *)texture, sampler_index);
+    //     r_renderer.material_state.textures[sampler_index] = texture;
+    //     r_renderer.material_state.outdated_textures = 1;
+    // }
 }
 
 /*
@@ -321,6 +332,8 @@ struct r_material_handle_t r_AllocMaterial()
     handle.index = add_stack_list_element(&r_renderer.materials, NULL);
     material = get_stack_list_element(&r_renderer.materials, handle.index);
     material->flags = 0;
+    material->diffuse_texture = NULL;
+    material->normal_texture = NULL;
 
     return handle;
 }
@@ -371,13 +384,16 @@ struct r_material_handle_t r_GetMaterialHandle(char *name)
     return handle;
 }
 
-void r_SetMaterial(struct r_material_handle_t handle)
-{
-    // if(r_GetMaterialPointer(handle))
-    // {
-    //     r_renderer.active_material = handle;
-    // }
-}
+// void r_SetMaterial(struct r_material_handle_t handle)
+// {
+//     struct r_material_t *material;
+//     material = r_GetMaterialPointer(handle);
+
+//     if(material)
+//     {
+//         r_vk_SetMaterial(material);
+//     }
+// }
 
 /*
 =================================================================
@@ -390,6 +406,7 @@ void *r_AllocCmdData(uint32_t size)
     uint32_t elem_count;
     void *data;
     elem_count = ((size + R_CMD_DATA_ELEM_SIZE - 1) & (~(R_CMD_DATA_ELEM_SIZE - 1))) / R_CMD_DATA_ELEM_SIZE;
+    // printf("size: %d     elem_count: %d\n", size, elem_count);
 
     /* this is not a safe allocation scheme, and it doesn't have to. Data 
     WILL be overwritten if the producer end is queueing stuff too fast and 
@@ -404,46 +421,116 @@ void *r_AllocCmdData(uint32_t size)
     r_renderer.cmd_buffer_data.next_in += elem_count;
     r_renderer.cmd_buffer_data.next_out = r_renderer.cmd_buffer_data.next_in;
 
+    // printf("%d\n", r_renderer.cmd_buffer_data.next_in);
+
     return data;
 }
 
-void r_BeginBatch(mat4_t *view_projection_matrix, struct r_material_handle_t material)
+void *r_AtomicAllocCmdData(uint32_t size)
 {
-    r_renderer.draw_cmd_buffer->draw_cmd_count = 0;
-    r_renderer.draw_cmd_buffer->material = material;
-    memcpy(&r_renderer.draw_cmd_buffer->view_projection_matrix, view_projection_matrix, sizeof(mat4_t));
+    void *data;
+
+    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
+    data = r_AllocCmdData(size);
+    SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
+
+    return data;
 }
 
-void r_AddDrawCmd(mat4_t *model_matrix, struct r_alloc_handle_t src)
+void r_BeginSubmission(mat4_t *view_projection_matrix)
 {
-    struct r_alloc_t *alloc;
-    struct r_draw_cmd_t *draw_cmd;
+    r_renderer.draw_cmd_buffer->draw_cmd_count = 0;
+    memcpy(&r_renderer.draw_cmd_buffer->view_projection_matrix, view_projection_matrix, sizeof(mat4_t));
+    // printf("begin submission...\n");
+}
 
-    alloc = r_GetAllocPointer(src);
+void r_SubmitDrawCmd(mat4_t *model_matrix, struct r_material_t *material, uint32_t start, uint32_t count)
+{
+    struct r_udraw_cmd_t *draw_cmd;
+
+    if(r_renderer.draw_cmd_buffer->draw_cmd_count >= R_MAX_UNORDERED_DRAW_CMDS)
+    {
+        r_SortDrawCmds(r_renderer.draw_cmd_buffer);
+        r_renderer.draw_cmd_buffer->draw_cmd_count = 0;
+    }
+
     draw_cmd = r_renderer.draw_cmd_buffer->draw_cmds + r_renderer.draw_cmd_buffer->draw_cmd_count;
 
-    draw_cmd->range.start = (alloc->start + alloc->align) / sizeof(struct vertex_t);
-    draw_cmd->range.count = (alloc->size - alloc->align) / sizeof(struct vertex_t);
-
+    draw_cmd->material = material;
+    draw_cmd->range.start = start;
+    draw_cmd->range.count = count;
     memcpy(&draw_cmd->model_matrix, model_matrix, sizeof(mat4_t));
 
     r_renderer.draw_cmd_buffer->draw_cmd_count++;
-
-    if(r_renderer.draw_cmd_buffer->draw_cmd_count >= R_MAX_TEMP_DRAW_BATCH_SIZE)
-    {
-        r_EndBatch();
-        r_BeginBatch(&r_renderer.draw_cmd_buffer->view_projection_matrix, r_renderer.draw_cmd_buffer->material);
-    }
+    // printf("submitted draw cmd with material %s\n", material->name);
 }
 
-void r_EndBatch()
+void r_EndSubmission()
 {
     if(r_renderer.draw_cmd_buffer->draw_cmd_count)
     {
-        uint32_t size = sizeof(struct r_draw_cmd_buffer_t) + 
-                        sizeof(struct r_draw_cmd_t) * (r_renderer.draw_cmd_buffer->draw_cmd_count - 1);
+        r_SortDrawCmds(r_renderer.draw_cmd_buffer);
+        r_renderer.draw_cmd_buffer->draw_cmd_count = 0;
+    }
 
-        r_QueueCmd(R_CMD_TYPE_DRAW, r_renderer.draw_cmd_buffer, size);
+    // printf("end submission\n");
+}
+
+int r_CmpDrawCmd(const void *a, const void *b)
+{
+    return (int)((struct r_udraw_cmd_t *)a)->material - (int)((struct r_udraw_cmd_t *)b)->material; 
+}
+
+void r_SortDrawCmds(struct r_udraw_cmd_buffer_t *udraw_cmd_buffer)
+{
+    // struct r_udraw_cmd_buffer_t *udraw_cmd_buffer;
+    struct r_udraw_cmd_t *udraw_cmd;
+    struct r_draw_cmd_t *draw_cmd;
+    struct r_draw_cmd_buffer_t *draw_cmd_buffer = NULL;
+    struct r_material_t *current_material = NULL;
+
+    // udraw_cmd_buffer = (struct r_udraw_cmd_buffer_t *)cmd->data;
+    qsort(udraw_cmd_buffer->draw_cmds, udraw_cmd_buffer->draw_cmd_count, sizeof(struct r_udraw_cmd_t), r_CmpDrawCmd);
+
+    // for(uint32_t i = 0; i < udraw_cmd_buffer->draw_cmd_count; i++)
+    // {
+    //     printf("material %s\n", udraw_cmd_buffer->draw_cmds[i].material->name);
+    // }
+
+    draw_cmd_buffer = r_AtomicAllocCmdData(sizeof(struct r_draw_cmd_buffer_t) + sizeof(struct r_draw_cmd_t) * (R_MAX_DRAW_CMDS - 1));
+    draw_cmd_buffer->draw_cmd_count = 0;
+    draw_cmd_buffer->view_projection_matrix = udraw_cmd_buffer->view_projection_matrix;
+    draw_cmd_buffer->material = udraw_cmd_buffer->draw_cmds[0].material;
+    current_material = draw_cmd_buffer->material;
+
+    for(uint32_t i = 0; i < udraw_cmd_buffer->draw_cmd_count; i++)
+    {
+        udraw_cmd = udraw_cmd_buffer->draw_cmds + i;
+
+        if(udraw_cmd->material != current_material || 
+            draw_cmd_buffer->draw_cmd_count >= R_MAX_DRAW_CMDS)
+        {
+            // printf("material %s\n", draw_cmd_buffer->material->name);
+            // printf("went over the limit...\n");
+            // printf("dispatch draw cmd buffer with material %s\n", draw_cmd_buffer->material->name);
+            current_material = udraw_cmd->material;
+            r_QueueCmd(R_CMD_TYPE_DRAW, draw_cmd_buffer, 0);
+
+            draw_cmd_buffer = r_AtomicAllocCmdData(sizeof(struct r_draw_cmd_buffer_t) + sizeof(struct r_draw_cmd_t) * (R_MAX_DRAW_CMDS - 1));
+            draw_cmd_buffer->material = current_material;
+            draw_cmd_buffer->view_projection_matrix = udraw_cmd_buffer->view_projection_matrix;
+            draw_cmd_buffer->draw_cmd_count = 0;
+        }
+        
+        draw_cmd = draw_cmd_buffer->draw_cmds + draw_cmd_buffer->draw_cmd_count;
+        draw_cmd->model_matrix = udraw_cmd->model_matrix;
+        draw_cmd->range = udraw_cmd->range;
+        draw_cmd_buffer->draw_cmd_count++;
+    }
+
+    if(draw_cmd_buffer->draw_cmd_count)
+    {
+        r_QueueCmd(R_CMD_TYPE_DRAW, draw_cmd_buffer, 0);
     }
 }
 
@@ -453,17 +540,22 @@ void r_QueueCmd(uint32_t type, void *data, uint32_t data_size)
 
     cmd.cmd_type = type;
 
+    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
+
     if(data && data_size)
     {
         cmd.data = r_AllocCmdData(data_size);
         memcpy(cmd.data, data, data_size);
     }
+    else
+    {
+        cmd.data = data;
+    }
 
-    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
     add_ringbuffer_element(&r_renderer.cmd_buffer, &cmd);
+
     SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
 }
-
 struct r_cmd_t *r_NextCmd()
 {
     return (struct r_cmd_t *)peek_ringbuffer_element(&r_renderer.cmd_buffer);
@@ -487,6 +579,7 @@ void r_ExecuteCmds()
         switch(cmd->cmd_type)
         {
             case R_CMD_TYPE_BEGIN_FRAME:
+                // printf("begin frame ================================\n");
                 r_vk_BeginFrame();
             break;
 
@@ -495,6 +588,7 @@ void r_ExecuteCmds()
             break;
 
             case R_CMD_TYPE_END_FRAME:
+                // printf("end frame ================================\n\n");
                 r_vk_EndFrame();
             break;
         }

@@ -102,8 +102,6 @@ struct r_vk_renderer_t
         uint32_t current_command_buffer_draw_cmds;
         uint32_t max_command_buffer_draw_cmds;    
     }command_state;
-
-    // struct stack_list_t textures;
 };
 
 struct r_vk_render_pass_t
@@ -111,23 +109,6 @@ struct r_vk_render_pass_t
     VkRenderPass render_pass;
 };
 
-// struct rBackend
-// {
-//     SDL_Window *window;
-
-//     float z_near;
-//     float z_far;
-
-//     uint32_t width;
-//     uint32_t height;
-
-//     struct rVkBackend vk_backend;
-// };
-
-
-// void r_InitBackend();
-
-// void r_InitVkBackend();
 
 void r_vk_InitRenderer();
 
@@ -144,6 +125,8 @@ void r_vk_InitDescriptorSets();
 void r_vk_InitCommandPool();
 
 void r_vk_InitPipeline();
+
+// void r_vk_InitExtensions();
 
 /*
 =================================================================

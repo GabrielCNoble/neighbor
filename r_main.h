@@ -45,7 +45,7 @@ struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
 
 struct r_texture_handle_t r_GetTextureHandle(char *name);
 
-void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index);
+// void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index);
 
 
 /*
@@ -62,7 +62,7 @@ struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle);
 
 struct r_material_handle_t r_GetMaterialHandle(char *name);
 
-void r_SetMaterial(struct r_material_handle_t handle);
+// void r_SetMaterial(struct r_material_handle_t handle);
 
 /*
 =================================================================
@@ -72,13 +72,15 @@ void r_SetMaterial(struct r_material_handle_t handle);
 
 void *r_AllocCmdData(uint32_t size);
 
-// void r_QueueDrawCmd(mat4_t *model_matrix, struct r_material_handle_t material, struct r_alloc_handle_t alloc);
+void *r_AtomicAllocCmdData(uint32_t size);
 
-void r_BeginBatch(mat4_t *view_projection_matrix, struct r_material_handle_t material);
+void r_BeginSubmission(mat4_t *view_projection_matrix);
 
-void r_AddDrawCmd(mat4_t *model_matrix, struct r_alloc_handle_t src);
+void r_SubmitDrawCmd(mat4_t *model_matrix, struct r_material_t *material, uint32_t start, uint32_t count);
 
-void r_EndBatch();
+void r_EndSubmission();
+
+void r_SortDrawCmds(struct r_udraw_cmd_buffer_t *udraw_cmd_buffer);
 
 void r_QueueCmd(uint32_t type, void *data, uint32_t data_size);
 

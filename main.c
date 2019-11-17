@@ -5,6 +5,7 @@
 
 #include "r_main.h"
 #include "mdl.h"
+#include "dstuff/loaders/bsp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,18 +25,30 @@ extern struct r_renderer_t r_renderer;
 
 void draw_things(struct thing_t *things, uint32_t thing_count)
 {
-    // struct r_draw_cmd_t *draw_cmd;
-    // struct r_alloc_t *alloc;
+    struct model_t *model;
+    struct model_batch_t *batch;
+    struct r_material_t *material;
 
-    // r_BeginBatch(&r_renderer.view_projection_matrix, things[0].material);
+    // printf("\n\nstart\n");
 
-    // for(uint32_t i = 0; i < thing_count; i++)
-    // {
-    //     r_AddDrawCmd(&things[i].transform, things[i].handle);
-    // }
-
-    // r_EndBatch();
+    r_BeginSubmission(&r_renderer.view_projection_matrix);
+    for(uint32_t i = 0; i < thing_count; i++)
+    {
+        model = mdl_GetModelPointer(things[i].model);
+    
+        for(uint32_t j = 0; j < model->batch_count; j++)
+        {
+            // if(j == 13)
+            {
+                batch = model->batches + j;
+                r_SubmitDrawCmd(&things[i].transform, batch->material, batch->range.start, batch->range.count);
+            }
+        }
+    }
+    r_EndSubmission();
 }
+
+#define CAMERA_SPEED 1.0
 
 int main(int argc, char *argv[])
 {
@@ -101,13 +114,17 @@ int main(int argc, char *argv[])
     // r_Memcpy(quad, vertices, sizeof(struct vertex_t) * data.vertices.cursor);
     // free(vertices);
 
-    model = mdl_LoadModel("cube.obj");
+    // load_bsp("q3ctf1.bsp");
 
-    // things[0].handle = quad;
-    things[0].model = model;
-    // things[0].material = R_MATERIAL_HANDLE(0);
+    // things[0].model = mdl_LoadModel("level0.obj");
+    things[0].model = mdl_LoadModel("q3dm0.bsp");
     mat4_t_identity(&things[0].transform);
-    things[0].transform.vcomps[3].comps[2] = -5.0;
+    // things[0].transform.vcomps[3].comps[2] = -5.0;
+
+    // things[1].model = mdl_LoadModel("cube2.obj");
+    // mat4_t_identity(&things[1].transform);
+    // things[1].transform.vcomps[3].comps[1] = 5.0;
+
 
     // things[1].handle = quad;
     // mat4_t_identity(&things[1].transform);
@@ -123,8 +140,8 @@ int main(int argc, char *argv[])
     mat4_t_identity(&view_matrix);
 
     r_SetViewProjectionMatrix(NULL, &projection_matrix);
-    r_SetTexture(logo, 0);
-    r_SetTexture(doggo, 1);
+    // r_SetTexture(logo, 0);
+    // r_SetTexture(doggo, 1);
 
     float pitch = 0.0;
     float yaw = 0.0;
@@ -147,11 +164,11 @@ int main(int argc, char *argv[])
     while(1)
     {
 
-        mat4_t_yaw(&things[1].transform, r);
-        things[1].transform.vcomps[3].comps[2] = -15.0;
+        // mat4_t_yaw(&things[1].transform, r);
+        // things[1].transform.vcomps[3].comps[1] = 2.0;
 
-        r += 0.06;
-        things[2].transform.vcomps[3].comps[1] = sin(r * 3.14159265) * 1.5;
+        // r += 0.01;
+        // things[2].transform.vcomps[3].comps[1] = sin(r * 3.14159265) * 1.5;
 
         SDL_PollEvent(NULL);
         SDL_GetMouseState(&mouse_x, &mouse_y);
@@ -175,20 +192,20 @@ int main(int argc, char *argv[])
 
         if(keys[SDL_SCANCODE_W])
         {
-            translation.comps[2] = -0.2;
+            translation.comps[2] = -CAMERA_SPEED;
         }
         if(keys[SDL_SCANCODE_S])
         {
-            translation.comps[2] = 0.2;
+            translation.comps[2] = CAMERA_SPEED;
         }
 
         if(keys[SDL_SCANCODE_A])
         {
-            translation.comps[0] = -0.2;
+            translation.comps[0] = -CAMERA_SPEED;
         }
         if(keys[SDL_SCANCODE_D])
         {
-            translation.comps[0] = 0.2;
+            translation.comps[0] = CAMERA_SPEED;
         }
 
         vec4_t_mul(&forward_vec, translation.comps[2]);

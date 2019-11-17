@@ -4,6 +4,9 @@ vulkan
 dstuff
 build.bat
 obj
+textures
+models
+*.bsp
 *.exe
 *.o
 *.dll

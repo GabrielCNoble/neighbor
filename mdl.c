@@ -4,6 +4,7 @@
 #include "dstuff/file/path.h"
 #include "dstuff/loaders/xchg.h"
 #include "dstuff/loaders/obj.h"
+#include "dstuff/loaders/bsp.h"
 #include "dstuff/math/vector.h"
 #include "r_main.h"
 #include <stdlib.h>
@@ -81,6 +82,7 @@ struct model_handle_t mdl_LoadModel(char *file_name)
     struct batch_data_t *batch;
     struct vertex_t *vertices;
     struct r_material_handle_t material_handle;
+    struct r_texture_handle_t texture_handle;
     struct r_material_t *material;
     struct model_handle_t handle = MDL_INVALID_MODEL_HANDLE;
     struct model_t *model;
@@ -90,7 +92,16 @@ struct model_handle_t mdl_LoadModel(char *file_name)
     vec2_t vec2;
     uint32_t model_start;
 
-    load_wavefront(file_name, &data);
+    if(strstr(file_name, ".bsp"))
+    {
+        load_bsp(file_name, &data);
+    }
+    else
+    {
+        load_wavefront(file_name, &data);
+    }
+
+    // printf("%s\n", file_name);
 
     if(data.vertices.cursor)
     {
@@ -98,15 +109,15 @@ struct model_handle_t mdl_LoadModel(char *file_name)
         model = mdl_GetModelPointer(handle);
         model->batches = calloc(sizeof(struct model_batch_t), data.batches.cursor);
         model->lod_count = 1;
+        model->batch_count = data.batches.cursor;
 
         for(uint32_t i = 0; i < data.batches.cursor; i++)
         {
             batch = get_list_element(&data.batches, i);
             material_handle = r_GetMaterialHandle(batch->material);
             material = r_GetMaterialPointer(material_handle);
-
-            printf("%s\n", batch->material);
-
+            
+            // printf("%s\n", batch->material);
             if(!material)
             {
                 material_handle = r_AllocMaterial();
@@ -115,32 +126,43 @@ struct model_handle_t mdl_LoadModel(char *file_name)
                 material->name = strdup(batch->material);
                 material->base_color = batch->base_color;
 
+                // printf("%s\n", material->name);
+
                 if(batch->diffuse_texture[0] != '\0')
                 {
-                    material->diffuse_texture = r_GetTextureHandle(batch->diffuse_texture);
-
-                    if(material->diffuse_texture.index != R_INVALID_TEXTURE_INDEX)
+                    texture_handle = r_GetTextureHandle(batch->diffuse_texture);
+                    
+                    if(texture_handle.index == R_INVALID_TEXTURE_INDEX)
                     {
                         texture_name = get_file_name_no_ext(get_file_from_path(batch->diffuse_texture));
-                        printf("diffuse texture: %s\n", texture_name);
-                        material->diffuse_texture = r_LoadTexture(batch->diffuse_texture, texture_name);
+                        texture_handle = r_LoadTexture(batch->diffuse_texture, texture_name);
+                    }
+
+                    material->diffuse_texture = r_GetTexturePointer(texture_handle);
+
+                    if(!material->diffuse_texture)
+                    {
+                        texture_handle = r_GetTextureHandle("doggo");
+                        material->diffuse_texture = r_GetTexturePointer(texture_handle);
+                        printf("material %s will use doggo texture...\n", material->name);
                     }
                 }
 
                 if(batch->normal_texture[0] != '\0')
                 {
-                    material->normal_texture = r_GetTextureHandle(batch->normal_texture);
+                    texture_handle = r_GetTextureHandle(batch->normal_texture);
 
-                    if(material->normal_texture.index != R_INVALID_TEXTURE_INDEX)
+                    if(texture_handle.index == R_INVALID_TEXTURE_INDEX)
                     {
-                        texture_name = get_file_name_no_ext(get_file_from_path(batch->diffuse_texture));
-                        printf("normal texture: %s\n", texture_name);
-                        material->normal_texture = r_LoadTexture(batch->normal_texture, texture_name);
+                        texture_name = get_file_name_no_ext(get_file_from_path(batch->normal_texture));
+                        texture_handle = r_LoadTexture(batch->normal_texture, texture_name);
                     }
+
+                    material->normal_texture = r_GetTexturePointer(texture_handle);
                 }
             }
 
-            model->batches[i].material = material_handle;
+            model->batches[i].material = material;
             model->batches[i].range.start = batch->start;
             model->batches[i].range.count = batch->count;
         }
@@ -169,7 +191,7 @@ struct model_handle_t mdl_LoadModel(char *file_name)
         model->alloc = r_Alloc(sizeof(struct vertex_t) * data.vertices.cursor, sizeof(struct vertex_t), 0);
         r_Memcpy(model->alloc, vertices, sizeof(struct vertex_t) * data.vertices.cursor);
         alloc = r_GetAllocPointer(model->alloc);
-        model_start = alloc->start + alloc->align;
+        model_start = (alloc->start + alloc->align) / sizeof(struct vertex_t);
 
         for(uint32_t i = 0; i < model->batch_count; i++)
         {

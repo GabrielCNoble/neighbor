@@ -14,6 +14,8 @@
 extern struct r_renderer_t r_renderer;
 struct r_vk_renderer_t r_vk_renderer;
 
+PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSet;
+
 void r_vk_InitRenderer()
 {
     r_renderer.textures = create_stack_list(sizeof(struct r_vk_texture_t), 32);
@@ -25,6 +27,8 @@ void r_vk_InitRenderer()
     r_vk_InitDescriptorSets();
     r_vk_InitCommandPool();
     r_vk_InitPipeline();
+
+    vkCmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(r_vk_renderer.device, "vkCmdPushDescriptorSetKHR");
 }
 
 void r_vk_InitDevice()
@@ -53,18 +57,27 @@ void r_vk_InitDevice()
     const char const *instance_extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
     // const char **instance_extensions;
     // uint32_t instance_extensions_count = 0;
-    const char const *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-    const char const *validation_layers[] = {"VK_LAYER_LUNARG_core_validation"};
+    const char const *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
+    const char const *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
 
     // SDL_Vulkan_GetInstanceExtensions(NULL, &instance_extensions_count, NULL);
     // instance_extensions = alloca(sizeof(char *) * instance_extensions_count);
     // SDL_Vulkan_GetInstanceExtensions(NULL, &instance_extensions_count, instance_extensions);
 
+    VkApplicationInfo application_info = {};
+    application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    application_info.pNext = NULL;
+    application_info.pApplicationName = "NO ONE IS HERE";
+    application_info.applicationVersion = 0;
+    application_info.pEngineName = "MAYHEM";
+    application_info.engineVersion = 0;
+    application_info.apiVersion = VK_API_VERSION_1_1;
+
     instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_create_info.pNext = NULL;
     instance_create_info.flags = 0;
-    instance_create_info.pApplicationInfo = NULL;
-    instance_create_info.enabledLayerCount = 1;
+    instance_create_info.pApplicationInfo = &application_info;
+    instance_create_info.enabledLayerCount = sizeof(validation_layers) / sizeof(validation_layers[0]);
     instance_create_info.ppEnabledLayerNames = validation_layers;
 
     /* I find it a bit odd that surfaces are made available through an
@@ -81,6 +94,7 @@ void r_vk_InitDevice()
 
     if(result != VK_SUCCESS)
     {
+        printf("%d\n", result);
         printf("error creating instance!\n");
         return;
     }  
@@ -176,7 +190,7 @@ void r_vk_InitDevice()
 
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = NULL;
-    device_create_info.enabledExtensionCount = 1;
+    device_create_info.enabledExtensionCount = sizeof(device_extensions) / sizeof(device_extensions[0]);
     device_create_info.ppEnabledExtensionNames = device_extensions;
     device_create_info.pEnabledFeatures = NULL;
 
@@ -286,12 +300,12 @@ void r_vk_InitHeap()
 
 void r_vk_InitDescriptorSets()
 {
-    VkDescriptorSetLayoutBinding uniform_buffer_binding = {};
-    uniform_buffer_binding.binding = 0;
-    uniform_buffer_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniform_buffer_binding.descriptorCount = 1;
-    uniform_buffer_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    uniform_buffer_binding.pImmutableSamplers = NULL;
+    // VkDescriptorSetLayoutBinding uniform_buffer_binding = {};
+    // uniform_buffer_binding.binding = 0;
+    // uniform_buffer_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // uniform_buffer_binding.descriptorCount = 1;
+    // uniform_buffer_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    // uniform_buffer_binding.pImmutableSamplers = NULL;
 
     VkDescriptorSetLayoutBinding texture_sampler_bindings[R_SAMPLER_COUNT] = {};
     for(uint32_t i = 0; i < R_SAMPLER_COUNT; i++)
@@ -303,23 +317,23 @@ void r_vk_InitDescriptorSets()
         texture_sampler_bindings[i].pImmutableSamplers = NULL;
     }
 
-    VkDescriptorSetLayoutCreateInfo uniform_buffer_descriptor_set_layout = {};
-    uniform_buffer_descriptor_set_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    uniform_buffer_descriptor_set_layout.pNext = NULL;
-    uniform_buffer_descriptor_set_layout.flags = 0;
-    uniform_buffer_descriptor_set_layout.bindingCount = 1;
-    uniform_buffer_descriptor_set_layout.pBindings = &uniform_buffer_binding;
+    // VkDescriptorSetLayoutCreateInfo uniform_buffer_descriptor_set_layout = {};
+    // uniform_buffer_descriptor_set_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    // uniform_buffer_descriptor_set_layout.pNext = NULL;
+    // uniform_buffer_descriptor_set_layout.flags = 0;
+    // uniform_buffer_descriptor_set_layout.bindingCount = 1;
+    // uniform_buffer_descriptor_set_layout.pBindings = &uniform_buffer_binding;
 
     VkDescriptorSetLayoutCreateInfo texture_sampler_descriptor_set_layout = {};
     texture_sampler_descriptor_set_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     texture_sampler_descriptor_set_layout.pNext = NULL;
-    texture_sampler_descriptor_set_layout.flags = 0;
+    texture_sampler_descriptor_set_layout.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
     texture_sampler_descriptor_set_layout.bindingCount = 4;
     texture_sampler_descriptor_set_layout.pBindings = texture_sampler_bindings;
 
     VkDescriptorSetLayout descriptor_set_layouts[2];
-    vkCreateDescriptorSetLayout(r_vk_renderer.device, &uniform_buffer_descriptor_set_layout, NULL, descriptor_set_layouts);
-    vkCreateDescriptorSetLayout(r_vk_renderer.device, &texture_sampler_descriptor_set_layout, NULL, descriptor_set_layouts + 1);
+    // vkCreateDescriptorSetLayout(r_vk_renderer.device, &uniform_buffer_descriptor_set_layout, NULL, descriptor_set_layouts);
+    vkCreateDescriptorSetLayout(r_vk_renderer.device, &texture_sampler_descriptor_set_layout, NULL, descriptor_set_layouts);
 
 
     VkPushConstantRange push_constant_range = {};
@@ -331,7 +345,7 @@ void r_vk_InitDescriptorSets()
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.pNext = NULL;
     pipeline_layout_create_info.flags = 0;
-    pipeline_layout_create_info.setLayoutCount = 2;
+    pipeline_layout_create_info.setLayoutCount = 1;
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
     pipeline_layout_create_info.pushConstantRangeCount = 1;
     pipeline_layout_create_info.pPushConstantRanges = &push_constant_range;
@@ -340,50 +354,50 @@ void r_vk_InitDescriptorSets()
 
 
     VkDescriptorPoolSize descriptor_pool_sizes[2];
-    descriptor_pool_sizes[0].descriptorCount = 1;
-    descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptor_pool_sizes[1].descriptorCount = 4;
-    descriptor_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // descriptor_pool_sizes[0].descriptorCount = 1;
+    // descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_pool_sizes[0].descriptorCount = 4;
+    descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
 
     VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
     descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descriptor_pool_create_info.pNext = NULL;
     descriptor_pool_create_info.flags = 0;
-    descriptor_pool_create_info.maxSets = 2;
-    descriptor_pool_create_info.poolSizeCount = 2;
+    descriptor_pool_create_info.maxSets = 1;
+    descriptor_pool_create_info.poolSizeCount = 1;
     descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes;
     
     vkCreateDescriptorPool(r_vk_renderer.device, &descriptor_pool_create_info, NULL, &r_vk_renderer.descriptor_pool);
 
 
-    VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
-    descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_set_allocate_info.pNext = NULL;
-    descriptor_set_allocate_info.descriptorPool = r_vk_renderer.descriptor_pool;
-    descriptor_set_allocate_info.descriptorSetCount = 2;
-    descriptor_set_allocate_info.pSetLayouts = descriptor_set_layouts;
+    // VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
+    // descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    // descriptor_set_allocate_info.pNext = NULL;
+    // descriptor_set_allocate_info.descriptorPool = r_vk_renderer.descriptor_pool;
+    // descriptor_set_allocate_info.descriptorSetCount = 1;
+    // descriptor_set_allocate_info.pSetLayouts = descriptor_set_layouts;
 
-    vkAllocateDescriptorSets(r_vk_renderer.device, &descriptor_set_allocate_info, r_vk_renderer.descriptor_sets);
+    // vkAllocateDescriptorSets(r_vk_renderer.device, &descriptor_set_allocate_info, r_vk_renderer.descriptor_sets);
 
-    VkDescriptorBufferInfo buffer_info = {};
-    buffer_info.buffer = r_vk_renderer.uniform_buffer.buffer;
-    buffer_info.offset = 0;
-    buffer_info.range = sizeof(mat4_t);
+    // VkDescriptorBufferInfo buffer_info = {};
+    // buffer_info.buffer = r_vk_renderer.uniform_buffer.buffer;
+    // buffer_info.offset = 0;
+    // buffer_info.range = sizeof(mat4_t);
 
-    VkWriteDescriptorSet uniform_buffer_write;
-    uniform_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    uniform_buffer_write.pNext = NULL;
-    uniform_buffer_write.dstSet = r_vk_renderer.descriptor_sets[0];
-    uniform_buffer_write.dstBinding = 0;
-    uniform_buffer_write.dstArrayElement = 0;
-    uniform_buffer_write.descriptorCount = 1;
-    uniform_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniform_buffer_write.pImageInfo = NULL;
-    uniform_buffer_write.pBufferInfo = &buffer_info;
-    uniform_buffer_write.pTexelBufferView = NULL;
+    // VkWriteDescriptorSet uniform_buffer_write;
+    // uniform_buffer_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // uniform_buffer_write.pNext = NULL;
+    // uniform_buffer_write.dstSet = r_vk_renderer.descriptor_sets[0];
+    // uniform_buffer_write.dstBinding = 0;
+    // uniform_buffer_write.dstArrayElement = 0;
+    // uniform_buffer_write.descriptorCount = 1;
+    // uniform_buffer_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // uniform_buffer_write.pImageInfo = NULL;
+    // uniform_buffer_write.pBufferInfo = &buffer_info;
+    // uniform_buffer_write.pTexelBufferView = NULL;
 
-    vkUpdateDescriptorSets(r_vk_renderer.device, 1, &uniform_buffer_write, 0, NULL);
+    // vkUpdateDescriptorSets(r_vk_renderer.device, 1, &uniform_buffer_write, 0, NULL);
 }
 
 void r_vk_InitCommandPool()
@@ -642,9 +656,9 @@ void r_vk_InitPipeline()
     sampler_create_info.magFilter = VK_FILTER_LINEAR;
     sampler_create_info.minFilter = VK_FILTER_LINEAR;
     sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     sampler_create_info.mipLodBias = 0.0;
     sampler_create_info.anisotropyEnable = VK_FALSE;
     sampler_create_info.maxAnisotropy = 8.0;
@@ -954,6 +968,11 @@ void r_vk_InitPipeline()
     
 }
 
+void r_vk_InitExtensions()
+{
+    // vkCmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(r_vk_renderer.device, "vkCmdPushDescriptorSetKHR");
+}
+
 /*
 =================================================================
 =================================================================
@@ -1015,7 +1034,6 @@ void *r_vk_MapAlloc(struct r_alloc_handle_t handle, struct r_alloc_t *alloc)
     VkDeviceMemory device_memory;
     void *memory;
     device_memory = handle.is_index ? r_vk_renderer.index_buffer.memory : r_vk_renderer.vertex_buffer.memory;
-    
     vkMapMemory(r_vk_renderer.device, device_memory, alloc->start + alloc->align, alloc->size - alloc->align, 0, &memory);
     return memory;
 }
@@ -1056,7 +1074,7 @@ void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels
     image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_create_info.queueFamilyIndexCount = 0;
     image_create_info.pQueueFamilyIndices = NULL;
-    image_create_info.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     vkCreateImage(r_vk_renderer.device, &image_create_info, NULL, &texture->image);
 
@@ -1122,7 +1140,7 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
     VkWriteDescriptorSet write_descriptor_set = {};
     write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_descriptor_set.pNext = NULL;
-    write_descriptor_set.dstSet = r_vk_renderer.descriptor_sets[1];
+    // write_descriptor_set.dstSet = r_vk_renderer.descriptor_sets[0];
     write_descriptor_set.dstBinding = sampler_index;
     write_descriptor_set.descriptorCount = 1;
     write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1130,7 +1148,12 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
     write_descriptor_set.pBufferInfo = NULL;
     write_descriptor_set.pTexelBufferView = NULL;
 
-    vkUpdateDescriptorSets(r_vk_renderer.device, 1, &write_descriptor_set, 0, NULL);
+    // printf("set texture %s\n", texture->base.name); 
+
+    vkCmdPushDescriptorSet(r_vk_renderer.command_state.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS,
+        r_vk_renderer.pipeline_layout, 0, 1, &write_descriptor_set);
+
+    // vkUpdateDescriptorSets(r_vk_renderer.device, 1, &write_descriptor_set, 0, NULL);
 }
 
 /*
@@ -1139,10 +1162,11 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
 =================================================================
 */
 
-void r_vk_SetMaterial(struct r_material_t *material)
-{
+// void r_vk_SetMaterial(struct r_material_t *material)
+// {
+//     struct r_vk_texture_t *texture;
 
-}
+// }
 
 /*
 =================================================================
@@ -1191,11 +1215,6 @@ void r_vk_BeginFrame()
 
     vkCmdBeginRenderPass(r_vk_renderer.command_state.command_buffers[0], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindVertexBuffers(r_vk_renderer.command_state.command_buffers[0], 0, 1, &r_vk_renderer.vertex_buffer.buffer, &offset);
-    vkCmdBindDescriptorSets(r_vk_renderer.command_state.command_buffers[0], 
-                            VK_PIPELINE_BIND_POINT_GRAPHICS, 
-                            r_vk_renderer.pipeline_layout, 0, 2, 
-                            r_vk_renderer.descriptor_sets, 0, NULL);
-
     vkCmdBindPipeline(r_vk_renderer.command_state.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, r_vk_renderer.graphics_pipeline);
 }
 
@@ -1203,29 +1222,27 @@ void r_vk_Draw(struct r_cmd_t *cmd)
 {
     mat4_t model_view_projection_matrix;
     struct r_draw_cmd_buffer_t *cmd_buffer;
-    struct r_alloc_t *alloc;
     struct r_draw_cmd_t *draw_cmd;
     uint32_t command_buffer_count;
     struct r_material_t *material;
     struct r_texture_t *texture;
 
     cmd_buffer = (struct r_draw_cmd_buffer_t *)cmd->data;
-    // command_buffer_count = ((batch->draw_cmd_count + r_vk_renderer.command_state.max_command_buffer_draw_cmds - 1) & 
-    //                             (~(r_vk_renderer.command_state.max_command_buffer_draw_cmds - 1))) / 
-    //                                 r_vk_renderer.command_state.max_command_buffer_draw_cmds;
-
-    // for(uint32_t command_buffer_index = 0; command_buffer_index < command_buffer_count; command_buffer_index++)
-    // {
-    material = r_GetMaterialPointer(cmd_buffer->material);
-
+    material = cmd_buffer->material;
+    // printf("draw with material %s ...", cmd_buffer->material->name);
     if(material)
     {
-        texture = r_GetTexturePointer(material->diffuse_texture);
-        
+        texture = material->diffuse_texture;
         if(texture)
         {
+            // printf("using texture %s\n", material->diffuse_texture->name);
             r_vk_SetTexture((struct r_vk_texture_t *)texture, 0);
-        }
+        }   
+        // else
+        // {
+        //     printf("\n");
+        // }
+        
     } 
     
     for(uint32_t i = 0; i < cmd_buffer->draw_cmd_count; i++)
@@ -1235,7 +1252,6 @@ void r_vk_Draw(struct r_cmd_t *cmd)
         vkCmdPushConstants(r_vk_renderer.command_state.command_buffers[0], r_vk_renderer.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
         vkCmdDraw(r_vk_renderer.command_state.command_buffers[0], draw_cmd->range.count, 1, draw_cmd->range.start, 0);
     }
-    // }
 }
 
 void r_vk_EndFrame()
