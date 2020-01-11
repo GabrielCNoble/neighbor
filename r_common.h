@@ -13,7 +13,7 @@
 struct vertex_t
 {
     vec4_t position;
-    vec4_t color;
+    vec4_t normal;
     vec4_t tex_coords; 
 };
 
@@ -85,7 +85,46 @@ enum R_TEXTURE_TYPE
     R_TEXTURE_TYPE_3D,
     R_TEXTURE_TYPE_3D_ARRAY,
     R_TEXTURE_TYPE_CUBEMAP,
-    R_TEXTYRE_TYPE_CUBEMAP_ARRAY
+    R_TEXTURE_TYPE_CUBEMAP_ARRAY,
+    R_TEXTURE_TYPE_LAST
+};
+
+enum R_TEXTURE_FILTER
+{
+    R_TEXTURE_FILTER_NEAREST,
+    R_TEXTURE_FILTER_LINEAR,
+    R_TEXTURE_FILTER_LAST
+};
+
+enum R_TEXTURE_ADDRESS_MODE
+{
+    R_TEXTURE_ADDRESS_MODE_CLAMP_TO_EDGE,
+    R_TEXTURE_ADDRESS_MODE_CLAMP_TO_BORDER,
+    R_TEXTURE_ADDRESS_MODE_REPEAT,
+    // R_TEXTURE_ADDRESS_MODE_MIRROR,
+    R_TEXTURE_ADDRESS_MODE_LAST,
+    // R_TEXTURE_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
+};
+
+enum R_TEXTURE_ANISOTROPY
+{
+    R_TEXTURE_ANISOTROPY_OFF,
+    R_TEXTURE_ANISOTROPY_1X,
+    R_TEXTURE_ANISOTROPY_2X,
+    R_TEXTURE_ANISOTROPY_4X,
+    R_TEXTURE_ANISOTROPY_8X,
+};
+
+
+struct r_texture_sampler_params_t
+{
+    unsigned min_filter : 1;
+    unsigned mag_filter : 1;
+    unsigned mip_filter : 1;
+    unsigned addr_mode_u : 2;
+    unsigned addr_mode_v : 2;
+    unsigned addr_mode_w : 2;
+    // unsigned anisotropy : 3;
 };
 
 struct r_texture_t
@@ -95,6 +134,9 @@ struct r_texture_t
     uint16_t height;
     uint16_t depth;
     uint16_t type;
+    
+    struct r_texture_sampler_params_t sampler_params;
+
     /* NOTE: add texture format here? Creating an enum for it will be an 
     awful amount of work... */
 };
@@ -104,9 +146,13 @@ struct r_texture_handle_t
     uint32_t index;
 };
 
+#define R_DEFAULT_TEXTURE_INDEX 0x00000000
+#define R_MISSING_TEXTURE_INDEX 0x00000001
 #define R_INVALID_TEXTURE_INDEX 0xffffffff
 #define R_TEXTURE_HANDLE(index) (struct r_texture_handle_t){index}
 #define R_INVALID_TEXTURE_HANDLE R_TEXTURE_HANDLE(R_INVALID_TEXTURE_INDEX)
+#define R_DIFFUSE_TEXTURE_BINDING 0
+#define R_NORMAL_TEXTURE_BINDING 1
 
 /*
 =================================================================
@@ -148,12 +194,34 @@ struct r_material_t
 =================================================================
 */
 
+struct r_light_handle_t
+{
+    uint32_t index;
+};
+struct r_light_t
+{
+    vec4_t pos_radius;
+    vec4_t color;
+};
+
+#define R_INVALID_LIGHT_INDEX 0xffffffff
+#define R_LIGHT_HANDLE(index) (struct r_light_handle_t){index}
+#define R_INVALID_LIGHT_HANDLE R_LIGHT_HANDLE(R_INVALID_LIGHT_INDEX)
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 /* 64 MB */
 #define R_HEAP_SIZE 67108864
 
 #define R_SAMPLER_COUNT 4
-#define R_MAX_DRAW_CMDS 64
-#define R_MAX_UNORDERED_DRAW_CMDS 1024
+// #define R_MAX_DRAW_CMDS 64
+// #define R_MAX_UNORDERED_DRAW_CMDS 1024
+#define R_DRAW_CMD_BUFFER_DRAW_CMDS 1024
+#define R_CMD_DATA_ELEM_SIZE 64
 
 enum R_CMD_TYPE
 {
@@ -175,45 +243,40 @@ struct r_draw_range_t
 };
 
 /* unordered draw cmds */
-struct r_udraw_cmd_t
-{
-    mat4_t model_matrix;
-    // struct r_material_handle_t material;
-    struct r_material_t *material;
-    struct r_draw_range_t range;
-};
-struct r_udraw_cmd_buffer_t
-{
-    mat4_t view_projection_matrix;
-    uint32_t draw_cmd_count;
-    struct r_udraw_cmd_t draw_cmds[1];
-};
+// struct r_udraw_cmd_t
+// {
+//     mat4_t model_matrix;
+//     struct r_material_t *material;
+//     struct r_draw_range_t range;
+// };
+// struct r_udraw_cmd_buffer_t
+// {
+//     mat4_t view_projection_matrix;
+//     mat4_t view_matrix;
+//     uint32_t draw_cmd_count;
+//     struct r_udraw_cmd_t draw_cmds[1];
+// };
 
 
 /* ordered draw cmds, ready for consumption by the renderer */
 struct r_draw_cmd_t
 {
     mat4_t model_matrix;
+    struct r_material_t *material;  /* necessary for sorting... */
     struct r_draw_range_t range;
 };
 
 struct r_draw_cmd_buffer_t
 {
     mat4_t view_projection_matrix;
-    // struct r_material_handle_t material;
-    struct r_material_t *material;
+    mat4_t view_matrix;
     uint32_t draw_cmd_count;
-    struct r_draw_cmd_t draw_cmds[1];
+    struct r_draw_cmd_t draw_cmds[R_DRAW_CMD_BUFFER_DRAW_CMDS];
 };
 
-// struct r_draw_batch_t
-// {
-//     struct r_material_handle_t material;
-//     struct r_draw_cmd_buffer_t draw_cmd_buffer;
-// }
 
 
-#define R_CMD_DATA_ELEM_SIZE 64
+
 
 struct r_renderer_t
 {
@@ -221,6 +284,7 @@ struct r_renderer_t
 
     float z_near;
     float z_far;
+    float fov_y;
 
     uint32_t width;
     uint32_t height;
@@ -230,6 +294,7 @@ struct r_renderer_t
 
     struct stack_list_t textures;
     struct stack_list_t materials;
+    struct stack_list_t lights;
 
     SDL_SpinLock cmd_buffer_lock;
     struct ringbuffer_t cmd_buffer;
@@ -242,8 +307,8 @@ struct r_renderer_t
     mat4_t model_view_projection_matrix;
     uint32_t outdated_view_projection_matrix;
 
-    struct r_material_handle_t active_material;
-    struct r_udraw_cmd_buffer_t *draw_cmd_buffer;
+    struct r_draw_cmd_buffer_t *submiting_draw_cmd_buffer;
+    // struct r_udraw_cmd_buffer_t *draw_cmd_buffer;
 };
 
 /*

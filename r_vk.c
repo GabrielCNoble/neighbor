@@ -16,17 +16,39 @@ struct r_vk_renderer_t r_vk_renderer;
 
 PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSet;
 
+
+VkFilter filter_map[R_TEXTURE_FILTER_LAST] = {(VkFilter)R_TEXTURE_FILTER_LAST};
+VkSamplerMipmapMode mipmap_mode_map[R_TEXTURE_FILTER_LAST] = {(VkSamplerMipmapMode)R_TEXTURE_FILTER_LAST};
+VkSamplerAddressMode address_mode_map[R_TEXTURE_ADDRESS_MODE_LAST] = {(VkSamplerAddressMode)R_TEXTURE_ADDRESS_MODE_LAST};
+
 void r_vk_InitRenderer()
 {
     r_renderer.textures = create_stack_list(sizeof(struct r_vk_texture_t), 32);
+    r_vk_renderer.samplers = create_list(sizeof(struct r_vk_sampler_t), 16);
+
+    filter_map[R_TEXTURE_FILTER_NEAREST] = VK_FILTER_NEAREST;
+    filter_map[R_TEXTURE_FILTER_LINEAR] = VK_FILTER_LINEAR;
+    mipmap_mode_map[R_TEXTURE_FILTER_NEAREST] = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    mipmap_mode_map[R_TEXTURE_FILTER_LINEAR] = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    address_mode_map[R_TEXTURE_ADDRESS_MODE_REPEAT] = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    address_mode_map[R_TEXTURE_ADDRESS_MODE_CLAMP_TO_EDGE] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    address_mode_map[R_TEXTURE_ADDRESS_MODE_CLAMP_TO_BORDER] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    // address_mode_map[R_TEXTURE_ADDRESS_MODE_MIRROR] = VK_SAMPLER_ADDRESS_MODE_MIRROR
 
     r_vk_InitDevice();
+    // printf("device ok!\n");
     r_vk_InitSwapchain();
+    // printf("swapchain ok!\n");
     r_vk_InitUniformBuffer();
+    // printf("uniform buffer ok!\n");
     r_vk_InitHeap();
+    // printf("heap ok!\n");
     r_vk_InitDescriptorSets();
+    // printf("descriptor sets ok!\n");
     r_vk_InitCommandPool();
+    // printf("command pool ok!\n");
     r_vk_InitPipeline();
+    // printf("pipeline ok!\n");
 
     vkCmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(r_vk_renderer.device, "vkCmdPushDescriptorSetKHR");
 }
@@ -54,11 +76,11 @@ void r_vk_InitDevice()
 
     VkResult result;
     SDL_SysWMinfo wm_info;
-    const char const *instance_extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
+    const char *instance_extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
     // const char **instance_extensions;
     // uint32_t instance_extensions_count = 0;
-    const char const *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
-    const char const *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
+    const char *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
+    const char *validation_layers[] = {"VK_LAYER_KHRONOS_validation"};
 
     // SDL_Vulkan_GetInstanceExtensions(NULL, &instance_extensions_count, NULL);
     // instance_extensions = alloca(sizeof(char *) * instance_extensions_count);
@@ -77,7 +99,8 @@ void r_vk_InitDevice()
     instance_create_info.pNext = NULL;
     instance_create_info.flags = 0;
     instance_create_info.pApplicationInfo = &application_info;
-    instance_create_info.enabledLayerCount = sizeof(validation_layers) / sizeof(validation_layers[0]);
+    // instance_create_info.enabledLayerCount = sizeof(validation_layers) / sizeof(validation_layers[0]);
+    instance_create_info.enabledLayerCount = 1;
     instance_create_info.ppEnabledLayerNames = validation_layers;
 
     /* I find it a bit odd that surfaces are made available through an
@@ -94,7 +117,7 @@ void r_vk_InitDevice()
 
     if(result != VK_SUCCESS)
     {
-        printf("%d\n", result);
+        printf("%s\n", r_vk_ResultString(result));
         printf("error creating instance!\n");
         return;
     }  
@@ -128,7 +151,7 @@ void r_vk_InitDevice()
 
     if(result != VK_SUCCESS)
     {
-        printf("error enumerating physical devices!\n");
+        printf("error enumerating physical devices: %s!\n", r_vk_ResultString(result));
     }
 
     vkGetPhysicalDeviceMemoryProperties(r_vk_renderer.physical_device, &r_vk_renderer.memory_properties);
@@ -136,9 +159,8 @@ void r_vk_InitDevice()
 
     if(queue_families_count)
     {
-        queue_families = alloca(sizeof(VkQueueFamilyProperties) * queue_families_count);
+        queue_families = (VkQueueFamilyProperties *)alloca(sizeof(VkQueueFamilyProperties) * queue_families_count);
         vkGetPhysicalDeviceQueueFamilyProperties(r_vk_renderer.physical_device, &queue_families_count, queue_families);
-
         r_vk_renderer.graphics_queue_index = 0xffffffff;
         r_vk_renderer.present_queue_index = 0xffffffff;
 
@@ -154,7 +176,12 @@ void r_vk_InitDevice()
 
             if(r_vk_renderer.present_queue_index == 0xffffffff)
             {
-                vkGetPhysicalDeviceSurfaceSupportKHR(r_vk_renderer.physical_device, i, r_vk_renderer.surface, &present_capable);
+                result = vkGetPhysicalDeviceSurfaceSupportKHR(r_vk_renderer.physical_device, i, r_vk_renderer.surface, &present_capable);
+                if(result != VK_SUCCESS)
+                {
+                    printf("result %s for queue family %d\n", r_vk_ResultString(result), i);
+                }
+                
                 if(present_capable)
                 {
                     r_vk_renderer.present_queue_index = i;
@@ -162,8 +189,7 @@ void r_vk_InitDevice()
             }
         }
     }
-
-    float *priorities = alloca(sizeof(float) * queue_families[r_vk_renderer.graphics_queue_index].queueCount);
+    float *priorities = (float *)alloca(sizeof(float) * queue_families[r_vk_renderer.graphics_queue_index].queueCount);
     /* give all queues the same priority (0.0)... */
     memset(priorities, 0, sizeof(float) * queue_families[r_vk_renderer.graphics_queue_index].queueCount);
 
@@ -254,7 +280,7 @@ void r_vk_InitSwapchain()
         return;
     }
 
-    r_vk_renderer.swapchain.images = calloc(r_vk_renderer.swapchain.image_count, sizeof(VkImage));
+    r_vk_renderer.swapchain.images = (VkImage *)calloc(r_vk_renderer.swapchain.image_count, sizeof(VkImage));
     /* get the swapchain's images. Their memory has been allocated and bound by the swapchain */
     vkGetSwapchainImagesKHR(r_vk_renderer.device, r_vk_renderer.swapchain.swapchain, &r_vk_renderer.swapchain.image_count, r_vk_renderer.swapchain.images);
 
@@ -277,7 +303,7 @@ void r_vk_InitSwapchain()
     image_view_create_info.subresourceRange.baseArrayLayer = 0;
     image_view_create_info.subresourceRange.layerCount = 1;
 
-    r_vk_renderer.swapchain.image_views = calloc(r_vk_renderer.swapchain.image_count, sizeof(VkImageView));
+    r_vk_renderer.swapchain.image_views = (VkImageView *)calloc(r_vk_renderer.swapchain.image_count, sizeof(VkImageView));
     
     for(uint32_t i; i < r_vk_renderer.swapchain.image_count; i++)
     {
@@ -336,10 +362,10 @@ void r_vk_InitDescriptorSets()
     vkCreateDescriptorSetLayout(r_vk_renderer.device, &texture_sampler_descriptor_set_layout, NULL, descriptor_set_layouts);
 
 
-    VkPushConstantRange push_constant_range = {};
-    push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    push_constant_range.size = sizeof(mat4_t);
-    push_constant_range.offset = 0;
+    VkPushConstantRange push_constant_ranges[2] = {};
+    push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_ranges[0].size = sizeof(mat4_t) * 2;
+    push_constant_ranges[0].offset = 0;
 
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -348,7 +374,7 @@ void r_vk_InitDescriptorSets()
     pipeline_layout_create_info.setLayoutCount = 1;
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
     pipeline_layout_create_info.pushConstantRangeCount = 1;
-    pipeline_layout_create_info.pPushConstantRanges = &push_constant_range;
+    pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges;
 
     vkCreatePipelineLayout(r_vk_renderer.device, &pipeline_layout_create_info, NULL, &r_vk_renderer.pipeline_layout);
 
@@ -421,7 +447,7 @@ void r_vk_InitCommandPool()
     }
 
 
-    r_vk_renderer.command_state.command_buffers = calloc(sizeof(VkCommandBuffer), R_VK_AVAILABLE_CMD_BUFFERS);
+    r_vk_renderer.command_state.command_buffers = (VkCommandBuffer *)calloc(sizeof(VkCommandBuffer), R_VK_AVAILABLE_CMD_BUFFERS);
 
     VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
     command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -490,7 +516,7 @@ void r_vk_InitPipeline()
     image_create_info.extent.depth = 1;
     image_create_info.mipLevels = 1;
     image_create_info.arrayLayers = 1;
-    image_create_info.samples = 1;
+    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
     image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -499,9 +525,9 @@ void r_vk_InitPipeline()
     image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VkImage depth_image;
-    vkCreateImage(r_vk_renderer.device, &image_create_info, NULL, &depth_image);
+    result = vkCreateImage(r_vk_renderer.device, &image_create_info, NULL, &depth_image);
 
-    VkMemoryRequirements alloc_req;
+    VkMemoryRequirements alloc_req = {};
     /* find out how much memory the depth image will require */
     vkGetImageMemoryRequirements(r_vk_renderer.device, depth_image, &alloc_req);
 
@@ -509,8 +535,7 @@ void r_vk_InitPipeline()
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.pNext = NULL;
     alloc_info.allocationSize = alloc_req.size;
-    alloc_info.memoryTypeIndex = r_MemoryTypeFromProperties(alloc_req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
+    alloc_info.memoryTypeIndex = r_MemoryTypeFromProperties(alloc_req.memoryTypeBits, 0);
     VkDeviceMemory depth_image_memory;
     result = vkAllocateMemory(r_vk_renderer.device, &alloc_info, NULL, &depth_image_memory);
 
@@ -557,7 +582,7 @@ void r_vk_InitPipeline()
     VkAttachmentDescription attachment_description[2] = {};
     attachment_description[0].flags = 0;
     attachment_description[0].format = surface_format.format;
-    attachment_description[0].samples = 1;
+    attachment_description[0].samples = VK_SAMPLE_COUNT_1_BIT;
     attachment_description[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachment_description[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment_description[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -569,7 +594,7 @@ void r_vk_InitPipeline()
 
     attachment_description[1].flags = 0;
     attachment_description[1].format = VK_FORMAT_D32_SFLOAT;
-    attachment_description[1].samples = 1;
+    attachment_description[1].samples = VK_SAMPLE_COUNT_1_BIT;
     attachment_description[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachment_description[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment_description[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -620,7 +645,7 @@ void r_vk_InitPipeline()
 
     /* a framebuffer defines a set of attachments on which operations are made. We need one 
     for each swapchain image */
-    r_vk_renderer.framebuffers = calloc(sizeof(VkFramebuffer), r_vk_renderer.swapchain.image_count);
+    r_vk_renderer.framebuffers = (VkFramebuffer *)calloc(sizeof(VkFramebuffer), r_vk_renderer.swapchain.image_count);
 
     VkImageView framebuffer_attachments[2] = {};
     VkFramebufferCreateInfo framebuffer_create_info = {};
@@ -649,30 +674,30 @@ void r_vk_InitPipeline()
         }
     }
 
-    VkSamplerCreateInfo sampler_create_info = {};
-    sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler_create_info.pNext = NULL;
-    sampler_create_info.flags = 0;
-    sampler_create_info.magFilter = VK_FILTER_LINEAR;
-    sampler_create_info.minFilter = VK_FILTER_LINEAR;
-    sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_create_info.mipLodBias = 0.0;
-    sampler_create_info.anisotropyEnable = VK_FALSE;
-    sampler_create_info.maxAnisotropy = 8.0;
-    sampler_create_info.compareEnable = VK_FALSE;
-    sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
-    sampler_create_info.minLod = 0;
-    sampler_create_info.maxLod = 0;
-    sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+    // VkSamplerCreateInfo sampler_create_info = {};
+    // sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    // sampler_create_info.pNext = NULL;
+    // sampler_create_info.flags = 0;
+    // sampler_create_info.magFilter = VK_FILTER_LINEAR;
+    // sampler_create_info.minFilter = VK_FILTER_LINEAR;
+    // sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    // sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // sampler_create_info.mipLodBias = 0.0;
+    // sampler_create_info.anisotropyEnable = VK_FALSE;
+    // sampler_create_info.maxAnisotropy = 8.0;
+    // sampler_create_info.compareEnable = VK_FALSE;
+    // sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
+    // sampler_create_info.minLod = 0;
+    // sampler_create_info.maxLod = 0;
+    // sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    // sampler_create_info.unnormalizedCoordinates = VK_FALSE;
 
-    for(uint32_t i = 0; i < R_SAMPLER_COUNT; i++)
-    {
-        vkCreateSampler(r_vk_renderer.device, &sampler_create_info, NULL, r_vk_renderer.samplers + i);
-    }
+    // for(uint32_t i = 0; i < R_SAMPLER_COUNT; i++)
+    // {
+    //     vkCreateSampler(r_vk_renderer.device, &sampler_create_info, NULL, r_vk_renderer.samplers + i);
+    // }
   
     struct rVkShader vertex_shader;
     struct rVkShader fragment_shader;
@@ -746,17 +771,17 @@ void r_vk_InitPipeline()
     vertex_input_attribute_description[0].location = 0;
     vertex_input_attribute_description[0].binding = 0;
     vertex_input_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    vertex_input_attribute_description[0].offset = 0;
+    vertex_input_attribute_description[0].offset = offsetof(struct vertex_t, position);
 
     vertex_input_attribute_description[1].location = 1;
     vertex_input_attribute_description[1].binding = 0;
     vertex_input_attribute_description[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    vertex_input_attribute_description[1].offset = (uint32_t)&((struct vertex_t *)0)->color;
-
+    vertex_input_attribute_description[1].offset = offsetof(struct vertex_t, normal);
+    
     vertex_input_attribute_description[2].location = 2;
     vertex_input_attribute_description[2].binding = 0;
     vertex_input_attribute_description[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    vertex_input_attribute_description[2].offset = (uint32_t)&((struct vertex_t *)0)->tex_coords;
+    vertex_input_attribute_description[2].offset = offsetof(struct vertex_t, tex_coords);
 
     /*
     ======================================================================
@@ -850,7 +875,7 @@ void r_vk_InitPipeline()
     multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisample_state_create_info.pNext = NULL;
     multisample_state_create_info.flags = 0;
-    multisample_state_create_info.rasterizationSamples = 1;
+    multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     multisample_state_create_info.sampleShadingEnable = VK_FALSE;
     multisample_state_create_info.minSampleShading = 0.0;
     multisample_state_create_info.pSampleMask = NULL;
@@ -1044,13 +1069,24 @@ void r_vk_UnmapAlloc(struct r_alloc_handle_t handle)
     device_memory = handle.is_index ? r_vk_renderer.index_buffer.memory : r_vk_renderer.vertex_buffer.memory;
     vkUnmapMemory(r_vk_renderer.device, device_memory);
 }
+
 /*
 =================================================================
 =================================================================
 =================================================================
 */
 
-void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels)
+void r_vk_InitWithDefaultTexture(struct r_vk_texture_t *texture)
+{
+    struct r_vk_texture_t *default_texture;
+    default_texture = (struct r_vk_texture_t *)r_GetTexturePointer(R_TEXTURE_HANDLE(R_DEFAULT_TEXTURE_INDEX));
+    texture->image = default_texture->image;
+    texture->image_view = default_texture->image_view;
+    texture->memory = default_texture->memory;
+    texture->sampler_index = default_texture->sampler_index;
+}
+
+void r_vk_LoadTextureData(struct r_vk_texture_t *texture, unsigned char *pixels)
 {
     /* TODO: this function needs to be more generic... */
     
@@ -1068,7 +1104,7 @@ void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels
     image_create_info.extent.depth = texture->base.depth;
     image_create_info.mipLevels = 1;
     image_create_info.arrayLayers = 1;
-    image_create_info.samples = 1;
+    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
     image_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
     image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -1087,28 +1123,35 @@ void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels
     alloc_info.allocationSize = memory_reqs.size;
     alloc_info.memoryTypeIndex = r_MemoryTypeFromProperties(memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-    vkAllocateMemory(r_vk_renderer.device, &alloc_info, NULL, &texture->memory);
-    vkBindImageMemory(r_vk_renderer.device, texture->image, texture->memory, 0);
-
-    VkSubresourceLayout subresource_layout;
-    VkImageSubresource subresource;
-    subresource.arrayLayer = 0;
-    subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    subresource.mipLevel = 0;
-    vkGetImageSubresourceLayout(r_vk_renderer.device, texture->image, &subresource, &subresource_layout);
-
-
-    vkMapMemory(r_vk_renderer.device, texture->memory, 0, memory_reqs.size, 0, &pointer);
-    texture_pixels = pointer;
-
-    for(uint32_t y = 0; y < texture->base.height; y++)
+    // if(alloc_info.memoryTypeIndex == 0xffffffff)
     {
-        memcpy(texture_pixels, pixels + texture->base.width * 4 * y, 4 * texture->base.width);
-        texture_pixels += subresource_layout.rowPitch;
+        /* this memory can't be mapped, so we'll need to take
+         the long route to copy the image */
     }
+    // else
+    {
+        vkAllocateMemory(r_vk_renderer.device, &alloc_info, NULL, &texture->memory);
+        vkBindImageMemory(r_vk_renderer.device, texture->image, texture->memory, 0);
 
-    // memcpy(pointer, pixels, texture->base.width * texture->base.height * 4);
-    vkUnmapMemory(r_vk_renderer.device, texture->memory);
+        VkSubresourceLayout subresource_layout;
+        VkImageSubresource subresource;
+        subresource.arrayLayer = 0;
+        subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        subresource.mipLevel = 0;
+        vkGetImageSubresourceLayout(r_vk_renderer.device, texture->image, &subresource, &subresource_layout);
+
+
+        vkMapMemory(r_vk_renderer.device, texture->memory, 0, memory_reqs.size, 0, &pointer);
+        texture_pixels = (char *)pointer;
+
+        for(uint32_t y = 0; y < texture->base.height; y++)
+        {
+            memcpy(texture_pixels, pixels + texture->base.width * 4 * y, 4 * texture->base.width);
+            texture_pixels += subresource_layout.rowPitch;
+        }
+
+        vkUnmapMemory(r_vk_renderer.device, texture->memory);
+    }
 
     VkImageViewCreateInfo image_view_create_info = {};
     image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1128,32 +1171,89 @@ void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels
     image_view_create_info.subresourceRange.levelCount = 1;
 
     vkCreateImageView(r_vk_renderer.device, &image_view_create_info, NULL, &texture->image_view);
+
+    r_vk_TextureSamplerIndex(texture);
 }
 
-void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
+// void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t binding_index)
+// {
+//     struct r_vk_sampler_t *sampler;
+
+//     sampler = get_list_element(&r_vk_renderer.samplers, texture->sampler_index);
+
+//     VkDescriptorImageInfo image_info = {};
+//     image_info.sampler = sampler->sampler;
+//     image_info.imageView = texture->image_view;
+//     image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+//     VkWriteDescriptorSet write_descriptor_set = {};
+//     write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+//     write_descriptor_set.pNext = NULL;
+//     // write_descriptor_set.dstSet = r_vk_renderer.descriptor_sets[0];
+//     write_descriptor_set.dstBinding = binding_index;
+//     write_descriptor_set.descriptorCount = 1;
+//     write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+//     write_descriptor_set.pImageInfo = &image_info;
+//     write_descriptor_set.pBufferInfo = NULL;
+//     write_descriptor_set.pTexelBufferView = NULL;
+
+//     // printf("set texture %s\n", texture->base.name); 
+
+//     vkCmdPushDescriptorSet(r_vk_renderer.command_state.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS,
+//         r_vk_renderer.pipeline_layout, 0, 1, &write_descriptor_set);
+
+//     // vkUpdateDescriptorSets(r_vk_renderer.device, 1, &write_descriptor_set, 0, NULL);
+// }
+
+void r_vk_TextureSamplerIndex(struct r_vk_texture_t *texture)
 {
-    VkDescriptorImageInfo image_info = {};
-    image_info.sampler = r_vk_renderer.samplers[sampler_index];
-    image_info.imageView = texture->image_view;
-    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    struct r_vk_sampler_t *sampler;
+    union r_vk_sampler_tag_t tag;
+    uint32_t sampler_index;
 
-    VkWriteDescriptorSet write_descriptor_set = {};
-    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set.pNext = NULL;
-    // write_descriptor_set.dstSet = r_vk_renderer.descriptor_sets[0];
-    write_descriptor_set.dstBinding = sampler_index;
-    write_descriptor_set.descriptorCount = 1;
-    write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write_descriptor_set.pImageInfo = &image_info;
-    write_descriptor_set.pBufferInfo = NULL;
-    write_descriptor_set.pTexelBufferView = NULL;
+    tag.params = texture->base.sampler_params;
 
-    // printf("set texture %s\n", texture->base.name); 
+    for(sampler_index = 0; sampler_index < r_vk_renderer.samplers.cursor; sampler_index++)
+    {
+        sampler = (struct r_vk_sampler_t *)get_list_element(&r_vk_renderer.samplers, sampler_index);
 
-    vkCmdPushDescriptorSet(r_vk_renderer.command_state.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS,
-        r_vk_renderer.pipeline_layout, 0, 1, &write_descriptor_set);
+        if(sampler->tag.tag == tag.tag)
+        {
+            break;
+        }
+    }
 
-    // vkUpdateDescriptorSets(r_vk_renderer.device, 1, &write_descriptor_set, 0, NULL);
+    if(sampler_index >= r_vk_renderer.samplers.cursor)
+    {
+        /* didn't find a suitable sampler for this texture, so create one */
+        VkSamplerCreateInfo sampler_create_info = {};
+        sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler_create_info.pNext = NULL;
+        sampler_create_info.flags = 0;
+        sampler_create_info.magFilter = filter_map[texture->base.sampler_params.mag_filter];
+        sampler_create_info.minFilter = filter_map[texture->base.sampler_params.min_filter];
+        sampler_create_info.mipmapMode = mipmap_mode_map[texture->base.sampler_params.mip_filter];
+        sampler_create_info.addressModeU = address_mode_map[texture->base.sampler_params.addr_mode_u];
+        sampler_create_info.addressModeV = address_mode_map[texture->base.sampler_params.addr_mode_v];
+        sampler_create_info.addressModeW = address_mode_map[texture->base.sampler_params.addr_mode_w];
+        sampler_create_info.mipLodBias = 0.0;
+        sampler_create_info.anisotropyEnable = VK_FALSE;
+        sampler_create_info.maxAnisotropy = 2.0;
+        sampler_create_info.compareEnable = VK_FALSE;
+        sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
+        sampler_create_info.minLod = 0.0;
+        sampler_create_info.maxLod = 0.0;
+        sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+
+        sampler_index = add_list_element(&r_vk_renderer.samplers, NULL);
+        sampler = (struct r_vk_sampler_t *)get_list_element(&r_vk_renderer.samplers, sampler_index);
+        
+        vkCreateSampler(r_vk_renderer.device, &sampler_create_info, NULL, &sampler->sampler);
+        sampler->tag.params = texture->base.sampler_params;
+    }
+
+    texture->sampler_index = sampler_index;
 }
 
 /*
@@ -1162,11 +1262,33 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index)
 =================================================================
 */
 
-// void r_vk_SetMaterial(struct r_material_t *material)
-// {
-//     struct r_vk_texture_t *texture;
+void r_vk_SetMaterial(struct r_material_t *material)
+{
+    struct r_vk_texture_t *texture;
+    struct r_vk_sampler_t *sampler;
 
-// }
+    texture = (struct r_vk_texture_t *)material->diffuse_texture;
+    sampler = (struct r_vk_sampler_t *)get_list_element(&r_vk_renderer.samplers, texture->sampler_index);
+
+    VkDescriptorImageInfo image_info = {};
+    image_info.sampler = sampler->sampler;
+    image_info.imageView = texture->image_view;
+    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    /* TODO: pre-fill most of this struct elsewhere */
+    VkWriteDescriptorSet write_descriptor_set = {};
+    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set.pNext = NULL;
+    write_descriptor_set.dstBinding = R_DIFFUSE_TEXTURE_BINDING;
+    write_descriptor_set.descriptorCount = 1;
+    write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write_descriptor_set.pImageInfo = &image_info;
+    write_descriptor_set.pBufferInfo = NULL;
+    write_descriptor_set.pTexelBufferView = NULL;
+
+    vkCmdPushDescriptorSet(r_vk_renderer.command_state.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS,
+        r_vk_renderer.pipeline_layout, 0, 1, &write_descriptor_set);
+}
 
 /*
 =================================================================
@@ -1182,10 +1304,9 @@ void r_vk_BeginFrame()
     command_buffer_begin_info.pNext = NULL;
     command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     command_buffer_begin_info.pInheritanceInfo = NULL;
-
+    
     vkResetCommandBuffer(r_vk_renderer.command_state.command_buffers[0], 0);
     vkBeginCommandBuffer(r_vk_renderer.command_state.command_buffers[0], &command_buffer_begin_info);
-
     r_AcquireNextImage();
 
     VkSurfaceCapabilitiesKHR surface_capabilities;
@@ -1218,37 +1339,44 @@ void r_vk_BeginFrame()
     vkCmdBindPipeline(r_vk_renderer.command_state.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, r_vk_renderer.graphics_pipeline);
 }
 
-void r_vk_Draw(struct r_cmd_t *cmd)
+void r_vk_PushViewMatrix(mat4_t *view_matrix)
+{   
+    // printf("[%f %f %f %f]\n[%f %f %f %f]\n[%f %f %f %f]\n[%f %f %f %f]\n\n", view_matrix->mcomps[0][0], 
+    //                                                                          view_matrix->mcomps[0][1], 
+    //                                                                          view_matrix->mcomps[0][2], 
+    //                                                                          view_matrix->mcomps[0][3],
+                                                                             
+    //                                                                          view_matrix->mcomps[1][0], 
+    //                                                                          view_matrix->mcomps[1][1], 
+    //                                                                          view_matrix->mcomps[1][2], 
+    //                                                                          view_matrix->mcomps[1][3],
+                                                                             
+    //                                                                          view_matrix->mcomps[2][0], 
+    //                                                                          view_matrix->mcomps[2][1], 
+    //                                                                          view_matrix->mcomps[2][2], 
+    //                                                                          view_matrix->mcomps[2][3],
+                                                                             
+    //                                                                          view_matrix->mcomps[3][0], 
+    //                                                                          view_matrix->mcomps[3][1], 
+    //                                                                          view_matrix->mcomps[3][2], 
+    //                                                                          view_matrix->mcomps[3][3]);
+
+
+    vkCmdPushConstants(r_vk_renderer.command_state.command_buffers[0], r_vk_renderer.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 64, sizeof(mat4_t), view_matrix);
+}
+ 
+void r_vk_Draw(struct r_material_t *material, mat4_t *view_projection_matrix, struct r_draw_cmd_t *draw_cmds, uint32_t count)
 {
     mat4_t model_view_projection_matrix;
-    struct r_draw_cmd_buffer_t *cmd_buffer;
     struct r_draw_cmd_t *draw_cmd;
-    uint32_t command_buffer_count;
-    struct r_material_t *material;
-    struct r_texture_t *texture;
 
-    cmd_buffer = (struct r_draw_cmd_buffer_t *)cmd->data;
-    material = cmd_buffer->material;
-    // printf("draw with material %s ...", cmd_buffer->material->name);
-    if(material)
-    {
-        texture = material->diffuse_texture;
-        if(texture)
-        {
-            // printf("using texture %s\n", material->diffuse_texture->name);
-            r_vk_SetTexture((struct r_vk_texture_t *)texture, 0);
-        }   
-        // else
-        // {
-        //     printf("\n");
-        // }
-        
-    } 
+    r_vk_SetMaterial(material);
     
-    for(uint32_t i = 0; i < cmd_buffer->draw_cmd_count; i++)
+    for(uint32_t i = 0; i < count; i++)
     {
-        draw_cmd = cmd_buffer->draw_cmds + i;
-        mat4_t_mul(&model_view_projection_matrix, &draw_cmd->model_matrix, &cmd_buffer->view_projection_matrix);
+        draw_cmd = draw_cmds + i;
+        // mat4_t_mul(&model_view_projection_matrix, &draw_cmd->model_matrix, view_projection_matrix);
+        model_view_projection_matrix = draw_cmd->model_matrix * (*view_projection_matrix);
         vkCmdPushConstants(r_vk_renderer.command_state.command_buffers[0], r_vk_renderer.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
         vkCmdDraw(r_vk_renderer.command_state.command_buffers[0], draw_cmd->range.count, 1, draw_cmd->range.start, 0);
     }
@@ -1303,10 +1431,12 @@ uint32_t r_AcquireNextImage()
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement)
 {
+    printf("memory types: %d\n", r_vk_renderer.memory_properties.memoryTypeCount);
     for(uint32_t i = 0; i < r_vk_renderer.memory_properties.memoryTypeCount; i++)
     {
         if(type_bits & 1)
         {
+            printf("memory type %d has %x property flags\n", i, r_vk_renderer.memory_properties.memoryTypes[i].propertyFlags);
             if((r_vk_renderer.memory_properties.memoryTypes[i].propertyFlags & requirement) == requirement)
             {
                 return i;
@@ -1319,6 +1449,78 @@ uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement)
     return 0xffffffff;
 }
 
+char *r_vk_ResultString(VkResult error)
+{
+    switch(error)
+    {
+        case VK_SUCCESS:
+            return "VK_SUCCESS";
+        case VK_NOT_READY:
+            return "VK_NOT_READY";
+        case VK_TIMEOUT:
+            return "VK_TIMEOUT";
+        case VK_EVENT_SET:
+            return "VK_EVENT_SET";
+        case VK_EVENT_RESET:
+            return "VK_EVENT_RESET";
+        case VK_INCOMPLETE:
+            return "VK_INCOMPLETE";
+        case VK_ERROR_OUT_OF_HOST_MEMORY:
+            return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+            return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_INITIALIZATION_FAILED:
+            return "VK_ERROR_INITIALIZATION_FAILED";
+        case VK_ERROR_DEVICE_LOST:
+            return "VK_ERROR_DEVICE_LOST";
+        case VK_ERROR_MEMORY_MAP_FAILED:
+            return "VK_ERROR_MEMORY_MAP_FAILED";
+        case VK_ERROR_LAYER_NOT_PRESENT:
+            return "VK_ERROR_LAYER_NOT_PRESENT";
+        case VK_ERROR_EXTENSION_NOT_PRESENT:
+            return "VK_ERROR_EXTENSION_NOT_PRESENT";
+        case VK_ERROR_FEATURE_NOT_PRESENT:
+            return "VK_ERROR_FEATURE_NOT_PRESENT";
+        case VK_ERROR_INCOMPATIBLE_DRIVER:
+            return "VK_ERROR_INCOMPATIBLE_DRIVER";
+        case VK_ERROR_TOO_MANY_OBJECTS:
+            return "VK_ERROR_TOO_MANY_OBJECTS";
+        case VK_ERROR_FORMAT_NOT_SUPPORTED:
+            return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+        case VK_ERROR_FRAGMENTED_POOL:
+            return "VK_ERROR_FRAGMENTED_POOL";
+        case VK_ERROR_OUT_OF_POOL_MEMORY:
+            return "VK_ERROR_OUT_OF_POOL_MEMORY";
+        case VK_ERROR_INVALID_EXTERNAL_HANDLE:
+            return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
+        case VK_ERROR_SURFACE_LOST_KHR:
+            return "VK_ERROR_SURFACE_LOST_KHR";
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
+            return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+        case VK_SUBOPTIMAL_KHR:
+            return "VK_SUBOPTIMAL_KHR";
+        case VK_ERROR_OUT_OF_DATE_KHR:
+            return "VK_ERROR_OUT_OF_DATE_KHR";
+        case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR:
+            return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+        case VK_ERROR_VALIDATION_FAILED_EXT:
+            return "VK_ERROR_VALIDATION_FAILED_EXT";
+        case VK_ERROR_INVALID_SHADER_NV:
+            return "VK_ERROR_INVALID_SHADER_NV";
+        case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT:
+            return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
+        case VK_ERROR_FRAGMENTATION_EXT:
+            return "VK_ERROR_FRAGMENTATION_EXT";
+        case VK_ERROR_NOT_PERMITTED_EXT:
+            return "VK_ERROR_NOT_PERMITTED_EXT";
+        case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT:
+            return "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT";
+        case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
+            return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+        default:
+            return "Unknown VkResult value";
+    }
+}
 struct rVkShader r_LoadShader(const char *file_name)
 {
     struct rVkShader shader = {};
@@ -1332,7 +1534,7 @@ struct rVkShader r_LoadShader(const char *file_name)
         shader.size = ftell(file);
         rewind(file);
 
-        shader.shader = calloc(1, shader.size + 1);
+        shader.shader = (uint32_t *)calloc(1, shader.size + 1);
 
         fread(shader.shader, 1, shader.size, file);
         fclose(file);
@@ -1342,22 +1544,12 @@ struct rVkShader r_LoadShader(const char *file_name)
         printf("couldn't find file %s!\n", file_name);    
     }
     
-
     return shader;
 }
 
-void r_vk_SetProjectionMatrix(mat4_t *projection_matrix)
+void r_vk_AdjustProjectionMatrix(mat4_t *projection_matrix)
 {
-    projection_matrix->mcomps[1][1] *= -1.0;
-    projection_matrix->mcomps[2][2] *= 0.5;
-    projection_matrix->mcomps[2][3] *= 0.5; 
-}
-
-void r_vk_UpdateModelViewProjectionMatrix(mat4_t *m)
-{
-    // void *memory; 
-
-    // vkMapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory, 0, sizeof(mat4_t), 0, &memory);
-    // memcpy(memory, m, sizeof(mat4_t));
-    // vkUnmapMemory(r_vk_renderer.device, r_vk_renderer.uniform_buffer.memory);
+    projection_matrix->comps[1][1] *= -1.0;
+    projection_matrix->comps[2][2] *= 0.5;
+    projection_matrix->comps[2][3] *= 0.5; 
 }

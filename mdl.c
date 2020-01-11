@@ -28,7 +28,7 @@ struct model_handle_t mdl_AllocModel()
     struct model_handle_t handle;
 
     handle.model_index = add_stack_list_element(&models, NULL);
-    model = get_stack_list_element(&models, handle.model_index);
+    model = (struct model_t*)get_stack_list_element(&models, handle.model_index);
 
     model->lod_count = 0;
     model->batch_count = 0;
@@ -41,7 +41,7 @@ struct model_t *mdl_GetModelPointer(struct model_handle_t handle)
 {
     struct model_t *model;
 
-    model = get_stack_list_element(&models, handle.model_index);
+    model = (struct model_t*)get_stack_list_element(&models, handle.model_index);
 
     if(model && model->lod_count == MDL_INVALID_LOD_COUNT)
     {
@@ -107,13 +107,13 @@ struct model_handle_t mdl_LoadModel(char *file_name)
     {
         handle = mdl_AllocModel();
         model = mdl_GetModelPointer(handle);
-        model->batches = calloc(sizeof(struct model_batch_t), data.batches.cursor);
+        model->batches = (struct model_batch_t*)calloc(sizeof(struct model_batch_t), data.batches.cursor);
         model->lod_count = 1;
         model->batch_count = data.batches.cursor;
 
         for(uint32_t i = 0; i < data.batches.cursor; i++)
         {
-            batch = get_list_element(&data.batches, i);
+            batch = (struct batch_data_t*)get_list_element(&data.batches, i);
             material_handle = r_GetMaterialHandle(batch->material);
             material = r_GetMaterialPointer(material_handle);
             
@@ -142,9 +142,9 @@ struct model_handle_t mdl_LoadModel(char *file_name)
 
                     if(!material->diffuse_texture)
                     {
-                        texture_handle = r_GetTextureHandle("doggo");
+                        texture_handle = r_GetTextureHandle("default_texture");
                         material->diffuse_texture = r_GetTexturePointer(texture_handle);
-                        printf("material %s will use doggo texture...\n", material->name);
+                        // printf("material %s will use doggo texture...\n", material->name);
                     }
                 }
 
@@ -167,16 +167,21 @@ struct model_handle_t mdl_LoadModel(char *file_name)
             model->batches[i].range.count = batch->count;
         }
 
-        vertices = calloc(data.vertices.cursor, sizeof(struct vertex_t));
+        vertices = (struct vertex_t*)calloc(data.vertices.cursor, sizeof(struct vertex_t));
 
         for(uint32_t i = 0; i < data.vertices.cursor; i++)
         {
             vec3 = *(vec3_t *)get_list_element(&data.vertices, i);
-
             vertices[i].position.comps[0] = vec3.comps[0];
             vertices[i].position.comps[1] = vec3.comps[1];
             vertices[i].position.comps[2] = vec3.comps[2];
             vertices[i].position.comps[3] = 1.0;
+
+            vec3 = *(vec3_t *)get_list_element(&data.normals, i);
+            vertices[i].normal.comps[0] = vec3.comps[0];
+            vertices[i].normal.comps[1] = vec3.comps[1];
+            vertices[i].normal.comps[2] = vec3.comps[2];
+            vertices[i].normal.comps[3] = 0.0;
         }
 
         /* some models may not have texture coordinates */

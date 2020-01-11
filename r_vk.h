@@ -48,6 +48,7 @@ struct r_vk_texture_t
     VkImage image;
     VkImageView image_view;
     VkDeviceMemory memory;
+    uint32_t sampler_index;
 };
 
 struct r_vk_swapchain_t
@@ -58,6 +59,17 @@ struct r_vk_swapchain_t
     VkImageView *image_views;
 };
 
+union r_vk_sampler_tag_t
+{
+    struct r_texture_sampler_params_t params;
+    uint16_t tag;
+};
+
+struct r_vk_sampler_t
+{
+    VkSampler sampler;
+    union r_vk_sampler_tag_t tag;
+};
 struct r_vk_renderer_t
 {
     VkInstance instance;
@@ -90,7 +102,8 @@ struct r_vk_renderer_t
     VkFence submit_fence;
 
     // struct rVkImage texture;
-    VkSampler samplers[R_SAMPLER_COUNT];
+    // VkSampler samplers[R_SAMPLER_COUNT];
+    struct list_t samplers;
     uint32_t current_image;
 
     struct
@@ -126,6 +139,7 @@ void r_vk_InitCommandPool();
 
 void r_vk_InitPipeline();
 
+
 // void r_vk_InitExtensions();
 
 /*
@@ -146,9 +160,13 @@ void r_vk_UnmapAlloc(struct r_alloc_handle_t handle);
 =================================================================
 */
 
-void r_vk_InitalizeTexture(struct r_vk_texture_t *texture, unsigned char *pixels);
+void r_vk_InitWithDefaultTexture(struct r_vk_texture_t *texture);
 
-void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index);
+void r_vk_LoadTextureData(struct r_vk_texture_t *texture, unsigned char *pixels);
+
+// void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t binding_index);
+
+void r_vk_TextureSamplerIndex(struct r_vk_texture_t *texture);
 
 /*
 =================================================================
@@ -157,7 +175,7 @@ void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t sampler_index);
 */
 
 void r_vk_SetMaterial(struct r_material_t *material);
-
+ 
 /*
 =================================================================
 =================================================================
@@ -166,7 +184,9 @@ void r_vk_SetMaterial(struct r_material_t *material);
 
 void r_vk_BeginFrame();
 
-void r_vk_Draw(struct r_cmd_t *cmd);
+void r_vk_PushViewMatrix(mat4_t *view_matrix);
+
+void r_vk_Draw(struct r_material_t *material, mat4_t *view_projection_matrix, struct r_draw_cmd_t *draw_cmds, uint32_t count);
 
 void r_vk_EndFrame();
 
@@ -180,9 +200,11 @@ uint32_t r_AcquireNextImage();
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 
+char *r_vk_ResultString(VkResult error); 
+
 struct rVkShader r_LoadShader(const char *file_name);
 
-void r_vk_SetProjectionMatrix(mat4_t *projection_matrix);
+void r_vk_AdjustProjectionMatrix(mat4_t *projection_matrix);
 
 
 #endif

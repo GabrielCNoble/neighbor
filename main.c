@@ -4,8 +4,12 @@
 // #include "Windows.h"
 
 #include "r_main.h"
+#include "in.h"
 #include "mdl.h"
+#include "ent.h"
+#include "g.h"
 #include "dstuff/loaders/bsp.h"
+#include "dstuff/math/geometry.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,21 +33,19 @@ void draw_things(struct thing_t *things, uint32_t thing_count)
     struct model_batch_t *batch;
     struct r_material_t *material;
 
-    // printf("\n\nstart\n");
-
-    r_BeginSubmission(&r_renderer.view_projection_matrix);
+    r_BeginSubmission(&r_renderer.view_projection_matrix, &r_renderer.view_matrix);
     for(uint32_t i = 0; i < thing_count; i++)
     {
         model = mdl_GetModelPointer(things[i].model);
-    
+        // printf("before drawing thing %d\n", i);
         for(uint32_t j = 0; j < model->batch_count; j++)
         {
-            // if(j == 13)
-            {
-                batch = model->batches + j;
-                r_SubmitDrawCmd(&things[i].transform, batch->material, batch->range.start, batch->range.count);
-            }
+            // printf("before submit\n");
+            batch = model->batches + j;
+            r_SubmitDrawCmd(&things[i].transform, batch->material, batch->range.start, batch->range.count);
+            // printf("after submit\n");
         }
+        // printf("after drawing thing %d\n", i);
     }
     r_EndSubmission();
 }
@@ -60,6 +62,8 @@ int main(int argc, char *argv[])
 
     r_InitRenderer();
     mdl_Init();
+    ent_Init();
+    g_Init();
 
     struct r_texture_handle_t logo = r_LoadTexture("logo_fuck.png", "logo_fuck");
     struct r_texture_handle_t logo2 = r_LoadTexture("logo2.png", "logo2");
@@ -78,6 +82,15 @@ int main(int argc, char *argv[])
     struct thing_t things[1];
     vec3_t vec3;
     vec2_t vec2;
+
+
+    // vec3_t p = closest_point_on_triangle(&vec3_t_c(0.0, 5.0, 0.0), 
+    //                                      &vec3_t_c(2.0, 0.0, -2.0),
+    //                                      &vec3_t_c(-2.0, 0.0, -2.0),
+    //                                      &vec3_t_c(0.0, 0.0, 2.0));
+    
+
+    // printf("[%f %f %f]\n", p.x, p.y, p.z);
 
     // load_wavefront("level0.obj", &data);
     // vertices = calloc(sizeof(struct vertex_t), data.vertices.cursor);
@@ -116,9 +129,15 @@ int main(int argc, char *argv[])
 
     // load_bsp("q3ctf1.bsp");
 
+
+
     // things[0].model = mdl_LoadModel("level0.obj");
-    things[0].model = mdl_LoadModel("q3dm0.bsp");
+    things[0].model = mdl_LoadModel("q3dm9.bsp");
     mat4_t_identity(&things[0].transform);
+    // things[0].transform.identity();
+    things[0].transform.comps[3][2] = -5.0;
+    // printf("load world\n");
+    // mat4_t_identity(&things[0].transform);
     // things[0].transform.vcomps[3].comps[2] = -5.0;
 
     // things[1].model = mdl_LoadModel("cube2.obj");
@@ -136,92 +155,47 @@ int main(int argc, char *argv[])
     // things[2].transform.vcomps[3].comps[2] = -7.0;
     // things[2].transform.vcomps[3].comps[0] = -6.0;
 
-    mat4_t_persp(&projection_matrix, 0.68, 800.0 / 600.0, 0.01, 1000.0);
-    mat4_t_identity(&view_matrix);
 
-    r_SetViewProjectionMatrix(NULL, &projection_matrix);
+    // mat4_t_persp(&projection_matrix, 0.68, 1366.0 / 768.0, 0.01, 1000.0);
+    // mat4_t_identity(&view_matrix);
+
+    // r_SetViewProjectionMatrix(NULL, &projection_matrix);
     // r_SetTexture(logo, 0);
     // r_SetTexture(doggo, 1);
 
-    float pitch = 0.0;
-    float yaw = 0.0;
-    float mouse_dx;
-    float mouse_dy;
-    int mouse_x;
-    int mouse_y;
-    uint8_t *keys;
+    // float pitch = 0.0;
+    // float yaw = 0.0;
+    // float mouse_dx;
+    // float mouse_dy;
+    // int mouse_x;
+    // int mouse_y;
+    // uint8_t *keys;
 
-    vec4_t forward_vec;
-    vec4_t right_vec;
-    vec4_t translation;
-    vec4_t position;
+    // vec4_t forward_vec;
+    // vec4_t right_vec;
+    // vec4_t translation;
+    // vec4_t position;
 
     SDL_ShowCursor(0);
     
-    float r = 0.0;
+    // float r = 0.0;
 
-    position = vec4_t_zero;
+    // position = vec4_t_zero;
+    mat3_t orientation;
+    vec3_t position(0.0, 0.0, 0.0);
+    mat3_t_identity(&orientation);
+    // orientation.identity();
+    // mat3_t_identity(&orientation);
+    union entity_handle_t player = g_CreatePlayerEntity("main player", &position, &orientation);
+    g_SetPlayer(player);
     while(1)
     {
-
-        // mat4_t_yaw(&things[1].transform, r);
-        // things[1].transform.vcomps[3].comps[1] = 2.0;
-
-        // r += 0.01;
-        // things[2].transform.vcomps[3].comps[1] = sin(r * 3.14159265) * 1.5;
-
-        SDL_PollEvent(NULL);
-        SDL_GetMouseState(&mouse_x, &mouse_y);
-        mouse_dx = ((float)mouse_x - 400.0) / 400.0;
-        mouse_dy = (300.0 - (float)mouse_y) / 300.0;
-        SDL_WarpMouseInWindow(r_renderer.window, 400, 300);
-        pitch += mouse_dy * 0.1;
-        yaw -= mouse_dx * 0.1;
-        // printf("%f %f\n", mouse_dx, mouse_dy);
-
-        mat4_t_pitch(&pitch_matrix, pitch);
-        mat4_t_yaw(&yaw_matrix, yaw);
-        mat4_t_mul(&view_matrix, &pitch_matrix, &yaw_matrix);
-
-        forward_vec = view_matrix.vcomps[2];
-        right_vec = view_matrix.vcomps[0];
-
-        translation = vec4_t_zero;
-
-        keys = SDL_GetKeyboardState(NULL);
-
-        if(keys[SDL_SCANCODE_W])
-        {
-            translation.comps[2] = -CAMERA_SPEED;
-        }
-        if(keys[SDL_SCANCODE_S])
-        {
-            translation.comps[2] = CAMERA_SPEED;
-        }
-
-        if(keys[SDL_SCANCODE_A])
-        {
-            translation.comps[0] = -CAMERA_SPEED;
-        }
-        if(keys[SDL_SCANCODE_D])
-        {
-            translation.comps[0] = CAMERA_SPEED;
-        }
-
-        vec4_t_mul(&forward_vec, translation.comps[2]);
-        vec4_t_mul(&right_vec, translation.comps[0]);
-        vec4_t_add(&position, &position, &forward_vec);
-        vec4_t_add(&position, &position, &right_vec);
-
-        position.comps[3] = 1.0;
-        view_matrix.vcomps[3] = position;
-
-        r_SetViewProjectionMatrix(&view_matrix, NULL);
+        in_ReadInput();
+        g_UpdateEntities();
         r_QueueCmd(R_CMD_TYPE_BEGIN_FRAME, NULL, 0);
         draw_things(things, sizeof(things) / sizeof(things[0]));
         r_QueueCmd(R_CMD_TYPE_END_FRAME, NULL, 0);
-        r_ExecuteCmds();
-        // SDL_Delay(16);
+        r_WaitEmptyQueue();
     }
 
     return 0;
