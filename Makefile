@@ -1,25 +1,23 @@
 CC = g++
 CFLAGS = -std=c++11 -Wno-write-strings
 
-DS = dstuff
-DSTUFF = $(wildcard $(DS)/accel_structs/*.c) \
-		 $(wildcard $(DS)/containers/*.c) \
-		 $(wildcard $(DS)/file/*.c) \
-		 $(wildcard $(DS)/loaders/*.c) \
-		 $(wildcard $(DS)/math/*.c) \
-		 $(wildcard $(DS)/physics/*.c)
 
-SRC = main.c mdl.c r_main.c r_vk.c in.c g.c ent.c $(DSTUFF)
+DSTUFF_DIRS = $(wildcard dstuff/*)
+DSTUFF = $(wildcard $(DSTUFF_DIRS:=/*.c))
+
+SRC = $(wildcard *.c) $(DSTUFF)
+LIBINC = -L"vulkan/lib" -L"SDL/lib"
+LIB = $(LIBINC) -lSDL2 -lvulkan-1
 OBJ = $(SRC:.c=.o)
 
-$(OBJ) : $(SRC)
+%.o : %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 
 all: $(OBJ)
-	$(CC) $^ -o main.exe 
+	$(CC) $^ $(LIB) -o main.exe 
 
 clean:
-	del $(OBJ)
+	del $(subst /,\,$(OBJ))
 
 
 

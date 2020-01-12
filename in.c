@@ -36,7 +36,7 @@ void in_ReadInput()
     normalized_dy = -((float)mouse_y / (float)window_height) * 2.0 + 1.0;
     SDL_WarpMouseInWindow(r_renderer.window, window_width >> 1, window_height >> 1);
 
-
+ 
 
     for(uint32_t i = 0; i < registered_keys_count; i++)
     {
