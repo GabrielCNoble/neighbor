@@ -1,6 +1,7 @@
 #include "g.h"
 #include "in.h"
 #include "dstuff/containers/stack_list.h"
+#include "dstuff/physics/physics.h"
 #include "r_main.h"
 #include <stdio.h>
 
@@ -15,6 +16,7 @@ void g_Init()
     in_RegisterKey(SDL_SCANCODE_A);
     in_RegisterKey(SDL_SCANCODE_D);
 
+    init_physics();
 
     mdl_LoadModel("gun.obj");
 }
@@ -31,15 +33,21 @@ union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orien
     struct entity_t* gun;
     struct entity_prop_t* prop;
     struct player_entity_props_t* props; 
+
     handle = ent_CreateEntity(name, position, orientation, G_ENTITY_TYPE_PLAYER);
+
     prop = ent_AddProp(handle, "props", sizeof(struct player_entity_props_t));
     props = (struct player_entity_props_t*)prop->data;
+
     props->gun = g_CreateProp(name, position, orientation);
     gun = ent_GetEntityPointer(props->gun);
     gun->model = mdl_GetModelHandle("gun");
+
     props->gun_x = 1.1;
     props->gun_z = -3.2;
     props->gun_y = -0.5;
+
+    props->collider = create_player_collider(position, 0.3, 1.7);
     return handle;
 }
 

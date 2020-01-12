@@ -18,8 +18,8 @@ void r_InitRenderer()
     r_renderer.z_far = 1000.0;
     r_renderer.z_near = 0.01;
     r_renderer.fov_y = 0.68;
-    r_renderer.width = 1366;
-    r_renderer.height = 768;
+    r_renderer.width = 800;
+    r_renderer.height = 600;
 
     r_RecomputeViewProjectionMatrix();
 
