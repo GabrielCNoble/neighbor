@@ -349,6 +349,11 @@ struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle)
     return texture;
 }
 
+struct r_texture_t* r_GetDefaultTexturePointer()
+{
+    return r_GetTexturePointer(R_TEXTURE_HANDLE(R_DEFAULT_TEXTURE_INDEX));
+}
+
 struct r_texture_handle_t r_GetTextureHandle(char *name)
 {
     struct r_texture_handle_t handle = R_INVALID_TEXTURE_HANDLE;
@@ -559,7 +564,6 @@ void r_SubmitDrawCmd(mat4_t *model_matrix, struct r_material_t *material, uint32
         r_BeginSubmission(&r_renderer.submiting_draw_cmd_buffer->view_projection_matrix, &r_renderer.submiting_draw_cmd_buffer->view_matrix);
     }
     draw_cmd = r_renderer.submiting_draw_cmd_buffer->draw_cmds + r_renderer.submiting_draw_cmd_buffer->draw_cmd_count;
-
     draw_cmd->material = material;
     draw_cmd->range.start = start;
     draw_cmd->range.count = count;
@@ -679,7 +683,6 @@ int r_ExecuteCmds(void *data)
 
                 case R_CMD_TYPE_DRAW:
                     r_Draw(cmd);
-                    // r_vk_Draw(cmd);
                 break;
 
                 case R_CMD_TYPE_END_FRAME:

@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
     // struct geometry_data_t data;
     // struct batch_data_t *batch;
     struct model_handle_t model;
+    struct model_handle_t gun;
     mat4_t projection_matrix;
     mat4_t view_matrix;
     mat4_t pitch_matrix;
@@ -131,11 +132,11 @@ int main(int argc, char *argv[])
 
 
 
-    // things[0].model = mdl_LoadModel("level0.obj");
     things[0].model = mdl_LoadModel("q3dm9.bsp");
     mat4_t_identity(&things[0].transform);
-    // things[0].transform.identity();
     things[0].transform.comps[3][2] = -5.0;
+
+
     // printf("load world\n");
     // mat4_t_identity(&things[0].transform);
     // things[0].transform.vcomps[3].comps[2] = -5.0;
@@ -184,16 +185,23 @@ int main(int argc, char *argv[])
     mat3_t orientation;
     vec3_t position(0.0, 0.0, 0.0);
     mat3_t_identity(&orientation);
-    // orientation.identity();
-    // mat3_t_identity(&orientation);
-    union entity_handle_t player = g_CreatePlayerEntity("main player", &position, &orientation);
+    union entity_handle_t player = g_CreatePlayer("main player", &position, &orientation);
     g_SetPlayer(player);
+
+
+    // position.x = 20.0;
+    // gun = mdl_LoadModel("gun.obj");
+    // union entity_handle_t handle = g_CreatePlatform("FUCK", &position, &orientation);
+    // struct entity_t* platform = ent_GetEntityPointer(handle);
+    // platform->model = gun;
+
     while(1)
     {
         in_ReadInput();
         g_UpdateEntities();
         r_QueueCmd(R_CMD_TYPE_BEGIN_FRAME, NULL, 0);
         draw_things(things, sizeof(things) / sizeof(things[0]));
+        ent_DrawEntities();
         r_QueueCmd(R_CMD_TYPE_END_FRAME, NULL, 0);
         r_WaitEmptyQueue();
     }

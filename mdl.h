@@ -10,10 +10,13 @@ struct model_batch_t
 };
 struct model_t
 {
-    struct model_batch_t *batches;
+    char* name;
+    struct model_batch_t* batches;
     uint32_t batch_count;
     uint32_t lod_count;
     struct r_alloc_handle_t alloc; 
+    vec3_t max;
+    vec3_t min;
 };
 
 struct model_handle_t
@@ -31,6 +34,8 @@ void mdl_Init();
 void mdl_Shutdown();
 
 struct model_handle_t mdl_AllocModel();
+
+struct model_handle_t mdl_GetModelHandle(char* name);
 
 struct model_t *mdl_GetModelPointer(struct model_handle_t handle);
 

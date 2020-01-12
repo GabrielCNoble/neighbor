@@ -1369,13 +1369,10 @@ void r_vk_Draw(struct r_material_t *material, mat4_t *view_projection_matrix, st
 {
     mat4_t model_view_projection_matrix;
     struct r_draw_cmd_t *draw_cmd;
-
     r_vk_SetMaterial(material);
-    
     for(uint32_t i = 0; i < count; i++)
     {
         draw_cmd = draw_cmds + i;
-        // mat4_t_mul(&model_view_projection_matrix, &draw_cmd->model_matrix, view_projection_matrix);
         model_view_projection_matrix = draw_cmd->model_matrix * (*view_projection_matrix);
         vkCmdPushConstants(r_vk_renderer.command_state.command_buffers[0], r_vk_renderer.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
         vkCmdDraw(r_vk_renderer.command_state.command_buffers[0], draw_cmd->range.count, 1, draw_cmd->range.start, 0);
@@ -1431,12 +1428,12 @@ uint32_t r_AcquireNextImage()
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement)
 {
-    printf("memory types: %d\n", r_vk_renderer.memory_properties.memoryTypeCount);
+    // printf("memory types: %d\n", r_vk_renderer.memory_properties.memoryTypeCount);
     for(uint32_t i = 0; i < r_vk_renderer.memory_properties.memoryTypeCount; i++)
     {
         if(type_bits & 1)
         {
-            printf("memory type %d has %x property flags\n", i, r_vk_renderer.memory_properties.memoryTypes[i].propertyFlags);
+            // printf("memory type %d has %x property flags\n", i, r_vk_renderer.memory_properties.memoryTypes[i].propertyFlags);
             if((r_vk_renderer.memory_properties.memoryTypes[i].propertyFlags & requirement) == requirement)
             {
                 return i;

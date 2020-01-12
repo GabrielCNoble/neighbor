@@ -4,24 +4,7 @@
 #include <stdint.h>
 #include "dstuff/math/vector.h"
 #include "dstuff/math/matrix.h"
-
-// enum G_ENTITY_TYPE
-// {
-//     G_ENTITY_TYPE_PLAYER,
-//     G_ENTITY_TYPE_MONSTER,
-//     G_ENTITY_TYPE_LAST,
-// };
-
-enum ENT_ENTITY_MOVE_FLAGS
-{
-    ENT_ENTITY_MOVE_FLAG_WALK_FORWARD = 1,
-    ENT_ENTITY_MOVE_FLAG_WALK_BACKWARD = 1 << 1,
-    ENT_ENTITY_MOVE_FLAG_STRAFE_LEFT = 1 << 2,
-    ENT_ENTITY_MOVE_FLAG_STRAFE_RIGHT = 1 << 3,
-    ENT_ENTITY_MOVE_FLAG_JUMP = 1 << 4,
-    ENT_ENTITY_MOVE_FLAG_ON_AIR = 1 << 5
-};
-
+#include "mdl.h"
 struct entity_prop_t
 {
     struct entity_prop_t *next;
@@ -34,8 +17,9 @@ struct entity_t
 {
     char *name;
     uint32_t type;
-    uint32_t move_flags;
+    // uint32_t node;
     mat4_t transform;
+    struct model_handle_t model;
     struct entity_prop_t *props;
 };
 
@@ -59,6 +43,8 @@ void ent_DestroyEntity(union entity_handle_t handle);
 
 struct entity_t* ent_GetEntityPointer(union entity_handle_t handle);
 
+// void ent_SetEntityModel(union entity_handle_t handle, struct model_handle_t model);
+
 struct entity_prop_t* ent_AddProp(union entity_handle_t handle, char* name, uint32_t size);
 
 void ent_RemoveProp(union entity_handle_t handle, char* name);
@@ -70,6 +56,8 @@ struct entity_prop_t* ent_GetProp(union entity_handle_t handle, char* name);
 void *ent_GetPropData(union entity_handle_t handle, char* name);
 
 struct stack_list_t* ent_GetEntityList();
+
+void ent_DrawEntities();
 
 
 #endif 

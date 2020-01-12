@@ -1,5 +1,6 @@
 #include "in.h"
 #include "r_common.h"
+#include <stdio.h>
 #include "r_main.h"
 
 
@@ -78,6 +79,7 @@ void in_RegisterKey(uint16_t key)
         }
 
         registered_keys[registered_keys_count] = key;
+        registered_keys_count++;
     }
 }
 

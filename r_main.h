@@ -53,6 +53,8 @@ struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
 
 struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
 
+struct r_texture_t* r_GetDefaultTexturePointer();
+
 struct r_texture_handle_t r_GetTextureHandle(char *name);
 
 // void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index);

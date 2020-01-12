@@ -10,28 +10,35 @@
 enum G_ENTITY_TYPE
 {
     G_ENTITY_TYPE_PLAYER = 1,
-    G_ENTITY_TYPE_NONE,
+    G_ENTITY_TYPE_PROP,
+    G_ENTITY_TYPE_PLATFORM,
 };
-
-
+struct player_entity_props_t
+{
+    float pitch;
+    float yaw;
+    float gun_x;
+    float gun_y;
+    float gun_z;
+    float gun_dx;
+    float gun_dy; 
+    struct collider_handle_t collider;
+    union entity_handle_t gun;
+};
 
 void g_Init();
 
 void g_Shutdown();
 
-// union entity_handle_t g_CreateEntity(char *name, vec3_t *position, mat3_t *orientation, uint32_t type);
+union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orientation);
 
-union entity_handle_t g_CreatePlayerEntity(char *name, vec3_t *position, mat3_t *orientation);
+union entity_handle_t g_CreateProp(char* name, vec3_t* position, mat3_t* orientation);
+
+// union entity_handle_t g_CreatePlatform(char* name, vec3_t* position, mat3_t* orientation);
 
 void g_DestroyEntity(union entity_handle_t handle);
 
-// struct entity_t *g_GetEntityPointer(union entity_handle_t handle);
-
 void g_SetPlayer(union entity_handle_t handle);
-
-void g_PlayerInput();
-
-void g_MonsterInput();
 
 void g_UpdatePlayer(union entity_handle_t handle);
 
