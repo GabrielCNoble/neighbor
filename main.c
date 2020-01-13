@@ -188,12 +188,8 @@ int main(int argc, char *argv[])
     union entity_handle_t player = g_CreatePlayer("main player", &position, &orientation);
     g_SetPlayer(player);
 
-
-    // position.x = 20.0;
-    // gun = mdl_LoadModel("gun.obj");
-    // union entity_handle_t handle = g_CreatePlatform("FUCK", &position, &orientation);
-    // struct entity_t* platform = ent_GetEntityPointer(handle);
-    // platform->model = gun;
+    position.y = -10.0;
+    union entity_handle_t platform = g_CreatePlatform("FUCK", &position, &orientation);
 
     while(1)
     {

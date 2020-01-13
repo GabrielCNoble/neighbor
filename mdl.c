@@ -127,6 +127,11 @@ struct model_handle_t mdl_LoadModel(char *file_name)
         model->lod_count = 1;
         model->batch_count = data.batches.cursor;
         model->name = strdup(get_file_name_no_ext(get_file_from_path(file_name)));
+        model->vertices = (vec3_t*)calloc(data.vertices.cursor, sizeof(vec3_t));
+        for(uint32_t i = 0; i < data.vertices.cursor; i++)
+        {
+            model->vertices[i] = *(vec3_t*)get_list_element(&data.vertices, i);
+        }
 
         for(uint32_t i = 0; i < data.batches.cursor; i++)
         {

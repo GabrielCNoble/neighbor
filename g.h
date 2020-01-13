@@ -12,6 +12,7 @@ enum G_ENTITY_TYPE
     G_ENTITY_TYPE_PLAYER = 1,
     G_ENTITY_TYPE_PROP,
     G_ENTITY_TYPE_PLATFORM,
+    G_ENTITY_TYPE_LIGHT,
 };
 struct player_entity_props_t
 {
@@ -26,6 +27,11 @@ struct player_entity_props_t
     union entity_handle_t gun;
 };
 
+struct platform_entity_props_t
+{
+    struct collider_handle_t collider;
+};
+
 void g_Init();
 
 void g_Shutdown();
@@ -34,7 +40,7 @@ union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orien
 
 union entity_handle_t g_CreateProp(char* name, vec3_t* position, mat3_t* orientation);
 
-// union entity_handle_t g_CreatePlatform(char* name, vec3_t* position, mat3_t* orientation);
+union entity_handle_t g_CreatePlatform(char* name, vec3_t* position, mat3_t* orientation);
 
 void g_DestroyEntity(union entity_handle_t handle);
 

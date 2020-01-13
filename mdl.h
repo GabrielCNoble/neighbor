@@ -11,6 +11,7 @@ struct model_batch_t
 struct model_t
 {
     char* name;
+    struct vec3_t* vertices;
     struct model_batch_t* batches;
     uint32_t batch_count;
     uint32_t lod_count;
