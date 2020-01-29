@@ -1,11 +1,19 @@
-#ifndef R_MAIN_H
-#define R_MAIN_H
+#ifndef R_H
+#define R_H
 
 #include "r_common.h"
 #include "r_vk.h"
 
 
 void r_InitRenderer();
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* description);
 
 /*
 =================================================================
@@ -56,9 +64,6 @@ struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
 struct r_texture_t* r_GetDefaultTexturePointer();
 
 struct r_texture_handle_t r_GetTextureHandle(char *name);
-
-// void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index);
-
 
 /*
 =================================================================
@@ -121,6 +126,8 @@ void r_Draw(struct r_cmd_t *cmd);
 =================================================================================
 =================================================================================
 */
+
+void r_DrawPoint(vec3_t* position, vec3_t* color);
 
 
 

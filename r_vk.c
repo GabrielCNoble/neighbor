@@ -1,6 +1,6 @@
 #include "r_vk.h"
 // #include "r_common.h"
-#include "r_main.h"
+#include "r.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,35 +20,88 @@ PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSet;
 VkFilter filter_map[R_TEXTURE_FILTER_LAST] = {(VkFilter)R_TEXTURE_FILTER_LAST};
 VkSamplerMipmapMode mipmap_mode_map[R_TEXTURE_FILTER_LAST] = {(VkSamplerMipmapMode)R_TEXTURE_FILTER_LAST};
 VkSamplerAddressMode address_mode_map[R_TEXTURE_ADDRESS_MODE_LAST] = {(VkSamplerAddressMode)R_TEXTURE_ADDRESS_MODE_LAST};
+VkCompareOp compare_op_map[R_COMPARE_OP_LAST] = {(VkCompareOp)R_COMPARE_OP_LAST};
+VkStencilOp stencil_op_map[R_STENCIL_OP_LAST] = {(VkStencilOp)R_STENCIL_OP_LAST};
+VkPolygonMode polygon_mode_map[R_POLYGON_MODE_LAST] = {(VkPolygonMode)R_POLYGON_MODE_LAST};
+VkFrontFace front_face_map[R_FRONT_FACE_LAST] = {(VkFrontFace)R_FRONT_FACE_LAST};
+VkBlendOp blend_op_map[R_BLEND_OP_LAST] = {(VkBlendOp)R_BLEND_OP_LAST};
+VkBlendFactor blend_factor_map[R_BLEND_FACTOR_LAST] = {(VkBlendFactor)R_BLEND_FACTOR_LAST};
+VkCullModeFlags cull_mode_map[R_CULL_MODE_LAST] = {(VkCullModeFlags)R_CULL_MODE_LAST};
+VkFormat format_map[R_FORMAT_LAST] = {(VkFormat)R_FORMAT_LAST};
+VkBool32 bool_map[] = {VK_FALSE, VK_TRUE}; 
+
 
 void r_vk_InitRenderer()
 {
     r_renderer.textures = create_stack_list(sizeof(struct r_vk_texture_t), 32);
+    r_renderer.pipelines = create_stack_list(sizeof(struct r_vk_pipeline_t), 16);
     r_vk_renderer.samplers = create_list(sizeof(struct r_vk_sampler_t), 16);
 
     filter_map[R_TEXTURE_FILTER_NEAREST] = VK_FILTER_NEAREST;
     filter_map[R_TEXTURE_FILTER_LINEAR] = VK_FILTER_LINEAR;
+
     mipmap_mode_map[R_TEXTURE_FILTER_NEAREST] = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     mipmap_mode_map[R_TEXTURE_FILTER_LINEAR] = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
     address_mode_map[R_TEXTURE_ADDRESS_MODE_REPEAT] = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     address_mode_map[R_TEXTURE_ADDRESS_MODE_CLAMP_TO_EDGE] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     address_mode_map[R_TEXTURE_ADDRESS_MODE_CLAMP_TO_BORDER] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    // address_mode_map[R_TEXTURE_ADDRESS_MODE_MIRROR] = VK_SAMPLER_ADDRESS_MODE_MIRROR
+    
+    compare_op_map[R_COMPARE_OP_ALWAYS] = VK_COMPARE_OP_ALWAYS;
+    compare_op_map[R_COMPARE_OP_NEVER] = VK_COMPARE_OP_NEVER;
+    compare_op_map[R_COMPARE_OP_EQUAL] = VK_COMPARE_OP_EQUAL;
+    compare_op_map[R_COMPARE_OP_GEQUAL] = VK_COMPARE_OP_GREATER_OR_EQUAL;
+    compare_op_map[R_COMPARE_OP_GREATER] = VK_COMPARE_OP_GREATER;
+    compare_op_map[R_COMPARE_OP_LEQUAL] = VK_COMPARE_OP_LESS_OR_EQUAL;
+    compare_op_map[R_COMPARE_OP_LESS] = VK_COMPARE_OP_LESS;
+    compare_op_map[R_COMPARE_OP_NEQUAL] = VK_COMPARE_OP_NOT_EQUAL;
+
+    stencil_op_map[R_STENCIL_OP_DEC_CLAMP] = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+    stencil_op_map[R_STENCIL_OP_DEC_WRAP] = VK_STENCIL_OP_DECREMENT_AND_WRAP;
+    stencil_op_map[R_STENCIL_OP_INC_CLAMP] = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+    stencil_op_map[R_STENCIL_OP_INC_WRAP] = VK_STENCIL_OP_INCREMENT_AND_WRAP;
+    stencil_op_map[R_STENCIL_OP_INVERT] = VK_STENCIL_OP_INVERT;
+    stencil_op_map[R_STENCIL_OP_KEEP] = VK_STENCIL_OP_KEEP;
+    stencil_op_map[R_STENCIL_OP_REPLACE] = VK_STENCIL_OP_REPLACE;
+    stencil_op_map[R_STENCIL_OP_ZERO] = VK_STENCIL_OP_ZERO;
+
+    polygon_mode_map[R_POLYGON_MODE_POINT] = VK_POLYGON_MODE_POINT;
+    polygon_mode_map[R_POLYGON_MODE_LINE] = VK_POLYGON_MODE_LINE;
+    polygon_mode_map[R_POLYGON_MODE_FILL] = VK_POLYGON_MODE_FILL;
+
+    front_face_map[R_FRONT_FACE_CCW] = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    front_face_map[R_FRONT_FACE_CW] = VK_FRONT_FACE_CLOCKWISE;
+
+    blend_op_map[R_BLEND_OP_ADD] = VK_BLEND_OP_ADD;
+    blend_op_map[R_BLEND_OP_MAX] = VK_BLEND_OP_MAX;
+    blend_op_map[R_BLEND_OP_MIN] = VK_BLEND_OP_MIN;
+    blend_op_map[R_BLEND_OP_REV_SUB] = VK_BLEND_OP_REVERSE_SUBTRACT;
+    blend_op_map[R_BLEND_OP_SUB] = VK_BLEND_OP_SUBTRACT;
+
+    blend_factor_map[R_BLEND_FACTOR_DST_ALPHA] = VK_BLEND_FACTOR_DST_ALPHA;
+    blend_factor_map[R_BLEND_FACTOR_DST_COLOR] = VK_BLEND_FACTOR_DST_COLOR;
+    blend_factor_map[R_BLEND_FACTOR_ONE] = VK_BLEND_FACTOR_ONE;
+    blend_factor_map[R_BLEND_FACTOR_ONE_MINUS_DST_ALPHA] = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+    blend_factor_map[R_BLEND_FACTOR_ONE_MINUS_DST_COLOR] = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+    blend_factor_map[R_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA] = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blend_factor_map[R_BLEND_FACTOR_ONE_MINUS_SRC_COLOR] = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    blend_factor_map[R_BLEND_FACTOR_SRC_ALPHA] = VK_BLEND_FACTOR_SRC_ALPHA;
+    blend_factor_map[R_BLEND_FACTOR_SRC_COLOR] = VK_BLEND_FACTOR_SRC_COLOR;
+    blend_factor_map[R_BLEND_FACTOR_ZERO] = VK_BLEND_FACTOR_ZERO;
+
+    cull_mode_map[R_CULL_MODE_FRONT] = VK_CULL_MODE_FRONT_BIT;
+    cull_mode_map[R_CULL_MODE_BACK] = VK_CULL_MODE_BACK_BIT;
+    cull_mode_map[R_CULL_MODE_FRONT_AND_BACK] = VK_CULL_MODE_FRONT_AND_BACK;
+
+    format_map[R_FORMAT_R32G32B32A32_SFLOAT] = VK_FORMAT_R32G32B32A32_SFLOAT;
 
     r_vk_InitDevice();
-    // printf("device ok!\n");
     r_vk_InitSwapchain();
-    // printf("swapchain ok!\n");
     r_vk_InitUniformBuffer();
-    // printf("uniform buffer ok!\n");
     r_vk_InitHeap();
-    // printf("heap ok!\n");
     r_vk_InitDescriptorSets();
-    // printf("descriptor sets ok!\n");
     r_vk_InitCommandPool();
-    // printf("command pool ok!\n");
     r_vk_InitPipeline();
-    // printf("pipeline ok!\n");
 
     vkCmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(r_vk_renderer.device, "vkCmdPushDescriptorSetKHR");
 }
@@ -993,9 +1046,128 @@ void r_vk_InitPipeline()
     
 }
 
-void r_vk_InitExtensions()
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
 {
-    // vkCmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(r_vk_renderer.device, "vkCmdPushDescriptorSetKHR");
+    struct r_vk_pipeline_t* vk_pipeline = (struct r_vk_pipeline_t*)pipeline;
+
+
+    VkVertexInputBindingDescription* binding_descriptions;
+    VkVertexInputBindingDescription* binding_description;
+    VkVertexInputAttributeDescription* attribute_descriptions;
+    VkVertexInputAttributeDescription* attribute_description;
+    struct r_vertex_attrib_t* attrib;
+    uint32_t input_attribute_index = 0;
+    binding_descriptions = (VkVertexInputBindingDescription*) alloca(pipeline->description.input_state.attribs.attrib_count * 
+        sizeof(VkVertexInputBindingDescription));
+
+    for(uint32_t i = 0; i < pipeline->description.input_state.binding_count; i++)
+    {
+        input_attribute_index += pipeline->description.input_state.attrib_count;
+    }
+    attribute_descriptions = (VkVertexInputAttributeDescription* )alloca(input_attribute_index * sizeof(VkVertexInputAttributeDescription));
+    input_attribute_index = 0;
+    for(uint32_t i = 0; i < pipeline->description.input_state.binding_count; i++)
+    {
+        binding_description = binding_descriptions + i;
+        binding_description->binding = pipeline->description.input_state.bindings[i].binding;
+        binding_description->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        binding_description->stride = pipeline->description.input_state.bindings[i].stride;
+        for(uint32_t j = 0; j < pipeline->description.input_state.bindings[i].attrib_count; j++)
+        {
+            attribute_description = attribute_descriptions + input_attribute_index;
+            attrib = pipeline->description.input_state.bindings[i].attribs + j;
+            attribute_description->binding = binding_description->binding;
+            attribute_description->format = format_map[attrib->format];
+            attribute_description->location = attrib->location;
+            attribute_description->offset = attrib->offset;
+            input_attribute_index++;
+        }
+    }
+
+    VkPipelineVertexInputStateCreateInfo input_state_create_info = {};
+    input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    input_state_create_info.pNext = NULL;
+    input_state_create_info.flags = 0;
+    input_state_create_info.vertexBindingDescriptionCount = pipeline->description.input_state.binding_count;
+    input_state_create_info.pVertexBindingDescriptions = binding_descriptions;
+    input_state_create_info.vertexAttributeDescriptionCount = input_attribute_index;
+    input_state_create_info.pVertexAttributeDescriptions = attribute_descriptions;
+    
+
+
+    VkPipelineRasterizationStateCreateInfo rasterization_state_create_info = {};
+    rasterization_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterization_state_create_info.pNext = NULL;
+    rasterization_state_create_info.flags = 0;
+    rasterization_state_create_info.depthClampEnabled = VK_FALSE;
+    rasterization_state_create_info.rasterizerDiscardEnabled = VK_FALSE;
+    rasterization_state_create_info.polygonMode = polygon_mode_map[pipeline->description.rasterizer_state.polygon_mode];
+    rasterization_state_create_info.cullMode = cull_mode_map[pipeline->description.rasterizer_state.cull_mode];
+    rasterization_state_create_info.frontFace = front_face_map[pipeline->description.rasterizer_state.front_face];
+    rasterization_state_create_info.depthBiasEnabled = VK_FALSE;
+    rasterization_state_create_info.depthBiasConstantFactor = 0.0;
+    rasterization_state_create_info.depthBiasClamp = 0.0;
+    rasterization_state_create_info.depthBiasSlopeFactor = 0.0;
+    rasterization_state_create_info.lineWidth = 1.0;
+
+
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
+    depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth_stencil_state_create_info.pNext = NULL;
+    depth_stencil_state_create_info.flags = 0;
+    depth_stencil_state_create_info.depthTestEnable = bool_map[pipeline->description.depth_state.test_enabled];
+    depth_stencil_state_create_info.depthWriteEnable = bool_map[pipeline->description.depth_state.write_enabled];
+    depth_stencil_state_create_info.depthCompareOp = compare_op_map[pipeline->description.depth_state.compare_op];
+    depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
+    depth_stencil_state_create_info.stencilTestEnable = bool_map[pipeline->description.stencil_state.test_enabled];
+    depth_stencil_state_create_info.front.failOp = stencil_op_map[pipeline->description.stencil_state.fail_op];
+    depth_stencil_state_create_info.front.passOp = stencil_op_map[pipeline->description.stencil_state.pass_op];
+    depth_stencil_state_create_info.front.depthFailOp = stencil_op_map[pipeline->description.stencil_state.depth_fail_op];
+    depth_stencil_state_create_info.front.compareOp = compare_op_map[pipeline->description.stencil_state.compare_op];
+    /* those will be set later dynamically */
+    depth_stencil_state_create_info.front.compareMask = 0xff;
+    depth_stencil_state_create_info.front.writeMask = 0xff;
+    depth_stencil_state_create_info.front.reference = 0xff;
+    depth_stencil_state_create_info.back = depth_stencil_state_create_info.front;
+    depth_stencil_state_create_info.minDepthBounds = 0.0;
+    depth_stencil_state_create_info.maxDepthBounds = 1.0;
+
+
+    VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {};
+    multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample_state_create_info.pNext = NULL;
+    multisample_state_create_info.flags = 0;
+    multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisample_state_create_info.sampleShadingEnable = VK_FALSE;
+    multisample_state_create_info.minSampleShading = 0.0;
+    multisample_state_create_info.pSampleMask = NULL;
+    multisample_state_create_info.alphaToCoverageEnable = VK_FALSE;
+    multisample_state_create_info.alphaToOneEnable = VK_FALSE;
+
+    
+    VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
+    color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend_state_create_info.pNext = NULL;
+    color_blend_state_create_info.flags = 0;
+    color_blend_state_create_info.logicOpEnable = VK_FALSE;
+    color_blend_state_create_info.logicOp = VK_LOGIC_OP_NO_OP;
+
+
+
+
+
+
+    VkGraphicsPipelineCreateInfo pipeline_create_info = {};
+    pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_create_info.pNext = NULL;
+    pipeline_create_info.flags = 0;
+    // pipeline_create_info.stateCount
 }
 
 /*
@@ -1418,6 +1590,17 @@ uint32_t r_AcquireNextImage()
 {
     vkAcquireNextImageKHR(r_vk_renderer.device, r_vk_renderer.swapchain.swapchain, UINT64_MAX, r_vk_renderer.image_aquire_semaphore, NULL, &r_vk_renderer.current_image);
     return r_vk_renderer.current_image;
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_DrawPoint(vec3_t* position, vec3_t* color)
+{
+    
 }
 
 /*

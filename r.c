@@ -1,4 +1,4 @@
-#include "r_main.h"
+#include "r.h"
 #include "dstuff/file/path.h"
 #include "r_vk.h"
 #include "dstuff/containers/stack_list.h"
@@ -47,6 +47,41 @@ void r_InitRenderer()
     renderer_thread = SDL_CreateThread(r_ExecuteCmds, "renderer thread", NULL);
     SDL_DetachThread(renderer_thread);
     r_InitBuiltinTextures();
+}
+
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* description)
+{
+    struct r_pipeline_handle_t handle;
+    struct r_pipeline_t* pipeline;
+    struct r_vertex_binding_t *bindings;
+
+    handle.index = add_stack_list_element(&r_renderer.pipelines, NULL);
+    pipeline = (struct r_pipeline_t*)get_stack_list_element(&r_renderer.pipelines, handle.index);
+
+    memcpy(&pipeline->description, description, sizeof(r_pipeline_description_t));
+    pipeline->description.input_state.bindings = (r_vertex_binding_t*)calloc(description->input_state.binding_count, 
+        sizeof(struct r_vertex_binding_t));
+    bindings = pipeline->description.input_state.bindings;
+    for(uint32_t i = 0; i < pipeline->description.input_state.binding_count; i++)
+    {
+        memcpy(bindings + i, description->input_state.bindings + i, sizeof(struct r_vertex_binding_t));
+        bindings[i].attribs = (struct r_vertex_attrib_t*)calloc(bindings[i].attrib_count, sizeof(struct r_vertex_attrib_t));
+        memcpy(bindings[i].attribs, description->input_state.bindings[i].attribs);
+    }
+
+    memcpy(pipeline->description.input_state.attribs.attribs, description->input_state.attribs.attribs, 
+        sizeof(struct r_vertex_attrib_t) * description->input_state.attribs.attrib_count);
+
+    r_vk_CreatePipeline(pipeline);
+
+    return handle;
 }
 
 /*
@@ -515,8 +550,6 @@ void *r_AllocCmdData(uint32_t size)
     uint32_t elem_count;
     void *data;
     elem_count = ((size + R_CMD_DATA_ELEM_SIZE - 1) & (~(R_CMD_DATA_ELEM_SIZE - 1))) / R_CMD_DATA_ELEM_SIZE;
-    // printf("size: %d     elem_count: %d\n", size, elem_count);
-
     /* this is not a safe allocation scheme, and it doesn't have to. Data 
     WILL be overwritten if the producer end is queueing stuff too fast and 
     the consumer end is taking too long to use the data */
@@ -529,8 +562,6 @@ void *r_AllocCmdData(uint32_t size)
     data = (char *)r_renderer.cmd_buffer_data.buffer + r_renderer.cmd_buffer_data.next_in * R_CMD_DATA_ELEM_SIZE;
     r_renderer.cmd_buffer_data.next_in += elem_count;
     r_renderer.cmd_buffer_data.next_out = r_renderer.cmd_buffer_data.next_in;
-
-    // printf("%d\n", r_renderer.cmd_buffer_data.next_in);
 
     return data;
 }
@@ -725,4 +756,15 @@ void r_Draw(struct r_cmd_t *cmd)
         draw_cmds += draw_cmd_index;
         cmd_buffer->draw_cmd_count -= draw_cmd_index;
     }
+}
+
+/*
+=================================================================================
+=================================================================================
+=================================================================================
+*/
+
+void r_DrawPoint(vec3_t* position, vec3_t* color)
+{
+
 }

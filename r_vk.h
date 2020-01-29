@@ -42,6 +42,11 @@ struct r_vk_buffer_t
 //     VkDeviceMemory memory;
 // };
 
+struct r_vk_pipeline_t
+{
+    struct r_pipeline_t base;
+    VkPipeline pipeline; 
+};
 struct r_vk_texture_t
 {
     struct r_texture_t base;
@@ -148,6 +153,14 @@ void r_vk_InitPipeline();
 =================================================================
 */
 
+void r_vk_CreatePipeline(struct r_pipeline_t* pipeline);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 VkResult r_vk_CreateBuffer(struct r_vk_buffer_t *buffer, uint32_t size, uint32_t usage);
 
 void *r_vk_MapAlloc(struct r_alloc_handle_t handle, struct r_alloc_t *alloc);
@@ -163,8 +176,6 @@ void r_vk_UnmapAlloc(struct r_alloc_handle_t handle);
 void r_vk_InitWithDefaultTexture(struct r_vk_texture_t *texture);
 
 void r_vk_LoadTextureData(struct r_vk_texture_t *texture, unsigned char *pixels);
-
-// void r_vk_SetTexture(struct r_vk_texture_t *texture, uint32_t binding_index);
 
 void r_vk_TextureSamplerIndex(struct r_vk_texture_t *texture);
 
@@ -191,6 +202,14 @@ void r_vk_Draw(struct r_material_t *material, mat4_t *view_projection_matrix, st
 void r_vk_EndFrame();
 
 uint32_t r_AcquireNextImage();
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_DrawPoint(vec3_t* position, vec3_t* color);
 
 /*
 =================================================================

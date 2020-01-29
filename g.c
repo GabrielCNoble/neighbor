@@ -2,7 +2,7 @@
 #include "in.h"
 #include "dstuff/containers/stack_list.h"
 #include "dstuff/physics/physics.h"
-#include "r_main.h"
+#include "r.h"
 #include <stdio.h>
 
 union entity_handle_t player_handle;
@@ -34,6 +34,7 @@ union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orien
     struct entity_t* gun;
     struct entity_prop_t* prop;
     struct player_entity_props_t* props; 
+    struct player_collider_t* collider;
 
     handle = ent_CreateEntity(name, position, orientation, G_ENTITY_TYPE_PLAYER);
 
@@ -49,6 +50,7 @@ union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orien
     props->gun_y = -0.5;
 
     props->collider = create_player_collider(position, 0.3, 1.7);
+    add_collider_to_world(props->collider);
     return handle;
 }
 

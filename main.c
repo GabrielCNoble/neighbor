@@ -3,7 +3,7 @@
 #include "SDL/include/SDL2/SDL_syswm.h"
 // #include "Windows.h"
 
-#include "r_main.h"
+#include "r.h"
 #include "in.h"
 #include "mdl.h"
 #include "ent.h"
@@ -183,13 +183,16 @@ int main(int argc, char *argv[])
 
     // position = vec4_t_zero;
     mat3_t orientation;
-    vec3_t position(0.0, 0.0, 0.0);
+    vec3_t position(0.0, 2.0, 0.0);
     mat3_t_identity(&orientation);
     union entity_handle_t player = g_CreatePlayer("main player", &position, &orientation);
     g_SetPlayer(player);
 
     position.y = -10.0;
-    union entity_handle_t platform = g_CreatePlatform("FUCK", &position, &orientation);
+    g_CreatePlatform("FUCK", &position, &orientation);
+
+    position.y = 10.0;
+    g_CreatePlatform("ASS", &position, &orientation);
 
     while(1)
     {

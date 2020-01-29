@@ -3,7 +3,7 @@
 #include "dstuff/accel_structs/dbvh.h"
 #include "dstuff/math/vector.h"
 #include "dstuff/math/matrix.h"
-#include "r_main.h"
+#include "r.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

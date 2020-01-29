@@ -6,7 +6,7 @@
 #include "dstuff/loaders/obj.h"
 #include "dstuff/loaders/bsp.h"
 #include "dstuff/math/vector.h"
-#include "r_main.h"
+#include "r.h"
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
