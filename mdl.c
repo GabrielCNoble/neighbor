@@ -184,8 +184,8 @@ struct model_handle_t mdl_LoadModel(char *file_name)
         }
 
         vertices = (struct vertex_t*)calloc(data.vertices.cursor, sizeof(struct vertex_t));
-        model->min = vec3_t(FLT_MAX);
-        model->max = vec3_t(-FLT_MAX);
+        model->min = vec3_t_c(FLT_MAX, FLT_MAX, FLT_MAX);
+        model->max = vec3_t_c(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         for(uint32_t i = 0; i < data.vertices.cursor; i++)
         {
             vert = *(vec3_t *)get_list_element(&data.vertices, i);

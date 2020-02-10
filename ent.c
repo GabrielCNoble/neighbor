@@ -29,7 +29,8 @@ union entity_handle_t ent_CreateEntity(char* name, vec3_t* position, mat3_t* ori
     handle.index = add_stack_list_element(&entities, NULL);
     entity = (struct entity_t*)get_stack_list_element(&entities, handle.index);
     entity->name = strdup(name);
-    entity->transform = mat4_t(*orientation, *position);
+    // entity->transform = mat4_t(*orientation, *position);
+    mat4_t_comp(&entity->transform, orientation, position);
     entity->props = NULL;
     entity->type = type;
     entity->model = MDL_INVALID_MODEL_HANDLE;
@@ -72,7 +73,7 @@ struct entity_t* ent_GetEntityPointer(union entity_handle_t handle)
 //         if(entity->node == INVALID_DBVH_NODE_INDEX)
 //         {
 //             entity->node = alloc_dbvh_node(&dbvh);
-            
+
 //         }
 //     }
 // }

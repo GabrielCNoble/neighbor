@@ -5,7 +5,6 @@
 #include "dstuff/containers/list.h"
 #include <stdlib.h>
 #include <string.h>
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
 struct r_renderer_t r_renderer;
@@ -24,7 +23,7 @@ void r_InitRenderer()
     r_RecomputeViewProjectionMatrix();
 
     r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, r_renderer.width, r_renderer.height, SDL_WINDOW_OPENGL);
-    
+
     SDL_GL_SetSwapInterval(1);
 
     r_renderer.allocd_blocks[0] = create_stack_list(sizeof(struct r_alloc_t), 512);
@@ -32,7 +31,7 @@ void r_InitRenderer()
     r_renderer.free_blocks[0] = create_list(sizeof(struct r_alloc_t), 512);
     r_renderer.free_blocks[1] = create_list(sizeof(struct r_alloc_t), 512);
     r_renderer.cmd_buffer = create_ringbuffer(sizeof(struct r_cmd_t), 8192);
-    r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 8192 * 10); 
+    r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 8192 * 10);
     r_renderer.submiting_draw_cmd_buffer = NULL;
     r_renderer.materials = create_stack_list(sizeof(struct r_material_t), 256);
     r_renderer.lights = create_stack_list(sizeof(struct r_light_t), 256);
@@ -65,199 +64,35 @@ struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* des
     handle.index = add_stack_list_element(&r_renderer.pipelines, NULL);
     pipeline = (struct r_pipeline_t*)get_stack_list_element(&r_renderer.pipelines, handle.index);
 
-    memcpy(&pipeline->description, description, sizeof(r_pipeline_description_t));
-    pipeline->description.input_state.bindings = (r_vertex_binding_t*)calloc(description->input_state.binding_count, 
-        sizeof(struct r_vertex_binding_t));
-    bindings = pipeline->description.input_state.bindings;
-    for(uint32_t i = 0; i < pipeline->description.input_state.binding_count; i++)
-    {
-        memcpy(bindings + i, description->input_state.bindings + i, sizeof(struct r_vertex_binding_t));
-        bindings[i].attribs = (struct r_vertex_attrib_t*)calloc(bindings[i].attrib_count, sizeof(struct r_vertex_attrib_t));
-        memcpy(bindings[i].attribs, description->input_state.bindings[i].attribs);
-    }
-
-    memcpy(pipeline->description.input_state.attribs.attribs, description->input_state.attribs.attribs, 
-        sizeof(struct r_vertex_attrib_t) * description->input_state.attribs.attrib_count);
+    memcpy(&pipeline->description, description, sizeof(struct r_pipeline_description_t));
+    // pipeline->description.input_state.bindings = (struct r_vertex_binding_t*)calloc(description->input_state.binding_count,
+        // sizeof(struct r_vertex_binding_t));
+    // bindings = pipeline->description.input_state.bindings;
+    // for(uint32_t i = 0; i < pipeline->description.input_state.binding_count; i++)
+    // {
+    //     memcpy(bindings + i, description->input_state.bindings + i, sizeof(struct r_vertex_binding_t));
+    //     bindings[i].attribs = (struct r_vertex_attrib_t*)calloc(bindings[i].attrib_count, sizeof(struct r_vertex_attrib_t));
+    //     memcpy(bindings[i].attribs, description->input_state.bindings[i].attribs, sizeof(struct r_vertex_attrib_t) * bindings[i].attrib_count);
+    // }
 
     r_vk_CreatePipeline(pipeline);
 
     return handle;
 }
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc)
+void r_DestroyPipeline(struct r_pipeline_handle_t handle)
 {
-    struct r_alloc_t *alloc;
-    struct r_alloc_t new_alloc;
-    struct r_alloc_handle_t handle = R_INVALID_ALLOC_HANDLE;
-    uint32_t start;
-    uint32_t block_size;
-    struct list_t *free_blocks;
 
-    index_alloc = index_alloc && 1;
-    // align--;
-
-    free_blocks = &r_renderer.free_blocks[index_alloc];
-
-    for(uint32_t i = 0; i < free_blocks->cursor; i++)
-    {
-        alloc = (struct r_alloc_t *)get_list_element(free_blocks, i);
-        /* align the start of the allocation to the desired alignment */
-        // start = (alloc->start + align) & (~align);
-
-        start = alloc->start;
-
-        while(start % align)
-        {
-            start += align - (start % align);
-        }
-
-        /* subtract the bytes before the aligned start from
-        the total size */
-        block_size = alloc->size - (start - alloc->start);
-
-        if(block_size >= size)
-        {
-            /* compute the how many bytes of alignment we need */
-            align = start - alloc->start;
-
-            if(block_size == size)
-            {
-                /* taking away the aligment bytes, this buffer is just the right size for
-                the allocation required, so just move this allocation header from the 
-                free list to the allocation list*/
-                alloc->align = align;
-                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], alloc);
-                remove_list_element(free_blocks, i);
-            }
-            else
-            {
-                /* this buffer is bigger than the requested
-                size, even after adjusting for alignment */
-                block_size = size + align;
-
-                /* we'll create a new allocation header to add
-                in the allocations list */
-                new_alloc.start = alloc->start;
-                new_alloc.size = block_size;
-                new_alloc.align = align;
-
-                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], &new_alloc);
-
-                /* chop a chunk of this free block */
-                alloc->start += block_size;
-                alloc->size -= block_size;
-            }
-            
-            // handle.alloc_index = i;
-            handle.is_index = index_alloc;
-            break;
-        }
-    }
-
-    return handle;
 }
 
-struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle)
+void r_BindPipeline(struct r_pipeline_handle_t handle)
 {
-    struct r_alloc_t *alloc;
-    alloc = (struct r_alloc_t *)get_stack_list_element(&r_renderer.allocd_blocks[handle.is_index], handle.alloc_index);
 
-    if(alloc && !alloc->size)
-    {
-        /* zero sized allocs are considered invalid */
-        alloc = NULL;
-    }
-
-    return alloc;
 }
 
-void r_Free(struct r_alloc_handle_t handle)
+struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle)
 {
-    struct r_alloc_t *alloc = r_GetAllocPointer(handle);
-
-    if(alloc)
-    {
-        add_list_element(&r_renderer.free_blocks[handle.is_index], alloc);
-        
-        /* zero sized allocs are considered invalid */
-        alloc->size = 0;
-    }
-}
-
-void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size)
-{
-    void *memory;
-    struct r_alloc_t *alloc;
-    uint32_t alloc_size;
-
-    alloc = r_GetAllocPointer(handle);
-
-    if(alloc)
-    {
-        alloc_size = alloc->size - alloc->align;
-
-        if(size > alloc_size)
-        {
-            size = alloc_size;
-        }
-
-        /* backend specific mapping function. It's necessary to pass both
-        the handle and the alloc, as the backend doesn't use any of the
-        interface's functions, and can't get the alloc pointer from the 
-        handle. It also needs the handle to know whether it's an vertex
-        or and index alloc. */
-        memory = r_vk_MapAlloc(handle, alloc);
-        memcpy(memory, data, size);
-        r_vk_UnmapAlloc(handle);
-    }
-}
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-void r_SetZPlanes(float z_near, float z_far)
-{
-    r_renderer.z_near = z_near;
-    r_renderer.z_far = z_far;
-    r_RecomputeViewProjectionMatrix();
-}
-
-void r_SetFovY(float fov_y)
-{
-    r_renderer.fov_y = fov_y;
-    r_RecomputeViewProjectionMatrix();
-}
-
-void r_RecomputeViewProjectionMatrix()
-{
-    mat4_t_persp(&r_renderer.projection_matrix, r_renderer.fov_y, 
-        (float)r_renderer.width / (float)r_renderer.height, r_renderer.z_near, r_renderer.z_far);
-    r_vk_AdjustProjectionMatrix(&r_renderer.projection_matrix);
-    r_renderer.view_projection_matrix = r_renderer.view_matrix * r_renderer.projection_matrix;
-    // mat4_t_mul(&r_renderer.view_projection_matrix, &r_renderer.view_matrix, &r_renderer.projection_matrix);
-}
-
-
-void r_SetViewMatrix(mat4_t *view_matrix)
-{
-    memcpy(&r_renderer.view_matrix, view_matrix, sizeof(mat4_t));
-    mat4_t_invvm(&r_renderer.view_matrix);
-    r_RecomputeViewProjectionMatrix();
-}
-
-void r_GetWindowSize(uint32_t *width, uint32_t *height)
-{
-    *width = r_renderer.width;
-    *height = r_renderer.height;
+    return NULL;
 }
 
 /*
@@ -275,14 +110,15 @@ void r_InitBuiltinTextures()
     default_texture = r_AllocTexture();
     texture = r_GetTexturePointer(default_texture);
 
-    texture->width = 8;
-    texture->height = 8;
-    texture->depth = 1;
+    texture->description.width = 8;
+    texture->description.height = 8;
+    texture->description.depth = 1;
     texture->name = "default_texture";
-    texture->type = R_TEXTURE_TYPE_2D;
-    texture->sampler_params.min_filter = R_TEXTURE_FILTER_NEAREST;
-    texture->sampler_params.mag_filter = R_TEXTURE_FILTER_NEAREST;
-    texture->sampler_params.mip_filter = R_TEXTURE_FILTER_NEAREST;
+    texture->description.type = R_TEXTURE_TYPE_2D;
+    texture->description.format = R_FORMAT_R8G8B8A8_UNORM;
+    texture->description.sampler_params.min_filter = R_TEXTURE_FILTER_NEAREST;
+    texture->description.sampler_params.mag_filter = R_TEXTURE_FILTER_NEAREST;
+    texture->description.sampler_params.mip_filter = R_TEXTURE_FILTER_NEAREST;
 
     default_texture_pixels = (uint32_t*)calloc(sizeof(uint32_t), 8 * 8);
     for(uint32_t y = 0; y < 8; y++)
@@ -303,13 +139,14 @@ struct r_texture_handle_t r_AllocTexture()
     handle.index = add_stack_list_element(&r_renderer.textures, &texture);
 
     texture = (struct r_texture_t*)get_stack_list_element(&r_renderer.textures, handle.index);
-    texture->type = R_TEXTURE_TYPE_NONE;
-    texture->sampler_params.min_filter = R_TEXTURE_FILTER_LINEAR;
-    texture->sampler_params.mag_filter = R_TEXTURE_FILTER_LINEAR;
-    texture->sampler_params.mip_filter = R_TEXTURE_FILTER_LINEAR;
-    texture->sampler_params.addr_mode_u = R_TEXTURE_ADDRESS_MODE_REPEAT;
-    texture->sampler_params.addr_mode_v = R_TEXTURE_ADDRESS_MODE_REPEAT;
-    texture->sampler_params.addr_mode_w = R_TEXTURE_ADDRESS_MODE_REPEAT;
+    texture->description.type = R_TEXTURE_TYPE_NONE;
+    texture->description.format = R_FORMAT_UNDEFINED;
+    texture->description.sampler_params.min_filter = R_TEXTURE_FILTER_LINEAR;
+    texture->description.sampler_params.mag_filter = R_TEXTURE_FILTER_LINEAR;
+    texture->description.sampler_params.mip_filter = R_TEXTURE_FILTER_LINEAR;
+    texture->description.sampler_params.addr_mode_u = R_TEXTURE_ADDRESS_MODE_REPEAT;
+    texture->description.sampler_params.addr_mode_v = R_TEXTURE_ADDRESS_MODE_REPEAT;
+    texture->description.sampler_params.addr_mode_w = R_TEXTURE_ADDRESS_MODE_REPEAT;
 
     if(handle.index != R_DEFAULT_TEXTURE_INDEX)
     {
@@ -322,12 +159,17 @@ struct r_texture_handle_t r_AllocTexture()
 void r_FreeTexture(struct r_texture_handle_t handle)
 {
     struct r_texture_t *texture = r_GetTexturePointer(handle);
-    
+
     if(texture && handle.index != R_DEFAULT_TEXTURE_INDEX && handle.index != R_MISSING_TEXTURE_INDEX)
     {
-        texture->type = R_TEXTURE_TYPE_INVALID;
+        texture->description.type = R_TEXTURE_TYPE_INVALID;
         remove_stack_list_element(&r_renderer.textures, handle.index);
     }
+}
+
+struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *texture_description)
+{
+    return R_INVALID_TEXTURE_HANDLE;
 }
 
 struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name)
@@ -350,10 +192,11 @@ struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name)
         texture = r_GetTexturePointer(handle);
 
         /* TODO: implement this properly! */
-        texture->width = width;
-        texture->height = height;
-        texture->depth = 1;
-        texture->type = R_TEXTURE_TYPE_2D;
+        texture->description.width = width;
+        texture->description.height = height;
+        texture->description.depth = 1;
+        texture->description.type = R_TEXTURE_TYPE_2D;
+        texture->description.format = R_FORMAT_R8G8B8A8_UNORM;
 
         if(texture_name)
         {
@@ -363,7 +206,7 @@ struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name)
         {
             texture->name = strdup(file_name);
         }
-        
+
 
         r_vk_LoadTextureData((struct r_vk_texture_t *)texture, pixels);
     }
@@ -376,7 +219,7 @@ struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle)
     struct r_texture_t *texture;
     texture = (struct r_texture_t *)get_stack_list_element(&r_renderer.textures, handle.index);
 
-    if(texture && texture->type == R_TEXTURE_TYPE_INVALID)
+    if(texture && texture->description.type == R_TEXTURE_TYPE_INVALID)
     {
         texture = NULL;
     }
@@ -426,6 +269,299 @@ void r_SetTexture(struct r_texture_handle_t handle, uint32_t sampler_index)
 =================================================================
 */
 
+struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *description)
+{
+    struct r_shader_t *shader;
+    struct r_shader_handle_t handle = R_INVALID_SHADER_HANDLE;
+    struct r_vertex_attrib_t *attribs;
+    struct r_vertex_attrib_t *attrib;
+    struct r_vertex_binding_t *binding;
+    uint32_t attrib_count;
+    uint32_t alloc_size;
+    if(description)
+    {
+        handle.index = add_stack_list_element(&r_renderer.shaders, NULL);
+        shader = (struct r_shader_t *)get_stack_list_element(&r_renderer.shaders, handle.index);
+        memcpy(&shader->description, description, sizeof(struct r_shader_description_t));
+
+        if(description->resource_count)
+        {
+            shader->description.resources = (struct r_shader_resource_t *)calloc(description->resource_count, sizeof(struct r_shader_resource_t));
+            memcpy(shader->description.resources, description->resources, sizeof(struct r_shader_resource_t) * description->resource_count);
+        }
+        else
+        {
+            shader->description.resources = NULL;
+        }
+
+        if(description->push_constant_count)
+        {
+            shader->description.push_constants = (struct r_shader_push_constant_t *)calloc(description->push_constant_count, sizeof(struct r_shader_push_constant_t));
+            memcpy(shader->description.push_constants, description->push_constants, sizeof(struct r_shader_push_constant_t) * description->push_constant_count);
+        }
+        else
+        {
+            shader->description.push_constants = NULL;
+        }
+
+        if(description->vertex_binding_count)
+        {
+            attrib_count = 0;
+            for(uint32_t i = 0; i < description->vertex_binding_count; i++)
+            {
+                attrib_count += description->vertex_bindings[i].attrib_count;
+            }
+            alloc_size = attrib_count * sizeof(struct r_vertex_attrib_t);
+            alloc_size += description->vertex_binding_count * sizeof(struct r_vertex_binding_t);
+
+            shader->description.vertex_bindings = (struct r_vertex_binding_t *)calloc(1, alloc_size);
+            attribs = shader->description.vertex_bindings + description->vertex_binding_count;
+            memcpy(shader->description.vertex_bindings, description->vertex_bindings, sizeof(struct r_vertex_binding_t) *
+                   description->vertex_binding_count);
+            attrib_count = 0;
+            for(uint32_t i = 0; i < description->vertex_binding_count; i++)
+            {
+                binding = shader->description.vertex_bindings + i;
+                binding->attribs = attribs + attrib_count;
+                attrib_count += binding->attrib_count;
+
+                memcpy(binding->attribs, description->vertex_bindings[i].attribs,
+                    sizeof(struct r_vertex_attrib_t) * binding->attrib_count);
+            }
+        }
+        else
+        {
+            shader->description.vertex_bindings = NULL;
+        }
+
+        r_vk_CreateShader(shader);
+    }
+
+    return handle;
+}
+
+void r_DestroyShader(struct r_shader_handle_t handle)
+{
+    struct r_shader_t *shader;
+    shader = r_GetShaderPointer(handle);
+    if(shader)
+    {
+        r_vk_DestroyShader(shader);
+
+        if(shader->description.push_constants)
+        {
+            free(shader->description.push_constants);
+        }
+
+        if(shader->description.resources)
+        {
+            free(shader->description.resources);
+        }
+
+        if(shader->description.vertex_bindings)
+        {
+            free(shader->description.vertex_bindings);
+        }
+
+        shader->description.resource_count = 0xffffffff;
+        shader->description.vertex_binding_count = 0xffffffff;
+        remove_stack_list_element(&r_renderer.shaders, handle.index);
+    }
+}
+
+struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle)
+{
+    struct r_shader_t *shader = NULL;
+    shader = (struct r_shader_t *)get_stack_list_element(&r_renderer.shaders, handle.index);
+    if(shader && shader->description.resource_count == 0xffffffff)
+    {
+        shader = NULL;
+    }
+
+    return shader;
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc)
+{
+    struct r_alloc_t *alloc;
+    struct r_alloc_t new_alloc;
+    struct r_alloc_handle_t handle = R_INVALID_ALLOC_HANDLE;
+    uint32_t start;
+    uint32_t block_size;
+    struct list_t *free_blocks;
+
+    index_alloc = index_alloc && 1;
+    // align--;
+
+    free_blocks = &r_renderer.free_blocks[index_alloc];
+
+    for(uint32_t i = 0; i < free_blocks->cursor; i++)
+    {
+        alloc = (struct r_alloc_t *)get_list_element(free_blocks, i);
+        /* align the start of the allocation to the desired alignment */
+        // start = (alloc->start + align) & (~align);
+
+        start = alloc->start;
+
+        while(start % align)
+        {
+            start += align - (start % align);
+        }
+
+        /* subtract the bytes before the aligned start from
+        the total size */
+        block_size = alloc->size - (start - alloc->start);
+
+        if(block_size >= size)
+        {
+            /* compute the how many bytes of alignment we need */
+            align = start - alloc->start;
+
+            if(block_size == size)
+            {
+                /* taking away the aligment bytes, this buffer is just the right size for
+                the allocation required, so just move this allocation header from the
+                free list to the allocation list*/
+                alloc->align = align;
+                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], alloc);
+                remove_list_element(free_blocks, i);
+            }
+            else
+            {
+                /* this buffer is bigger than the requested
+                size, even after adjusting for alignment */
+                block_size = size + align;
+
+                /* we'll create a new allocation header to add
+                in the allocations list */
+                new_alloc.start = alloc->start;
+                new_alloc.size = block_size;
+                new_alloc.align = align;
+
+                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], &new_alloc);
+
+                /* chop a chunk of this free block */
+                alloc->start += block_size;
+                alloc->size -= block_size;
+            }
+
+            // handle.alloc_index = i;
+            handle.is_index = index_alloc;
+            break;
+        }
+    }
+
+    return handle;
+}
+
+struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle)
+{
+    struct r_alloc_t *alloc;
+    alloc = (struct r_alloc_t *)get_stack_list_element(&r_renderer.allocd_blocks[handle.is_index], handle.alloc_index);
+
+    if(alloc && !alloc->size)
+    {
+        /* zero sized allocs are considered invalid */
+        alloc = NULL;
+    }
+
+    return alloc;
+}
+
+void r_Free(struct r_alloc_handle_t handle)
+{
+    struct r_alloc_t *alloc = r_GetAllocPointer(handle);
+
+    if(alloc)
+    {
+        add_list_element(&r_renderer.free_blocks[handle.is_index], alloc);
+
+        /* zero sized allocs are considered invalid */
+        alloc->size = 0;
+    }
+}
+
+void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size)
+{
+    void *memory;
+    struct r_alloc_t *alloc;
+    uint32_t alloc_size;
+
+    alloc = r_GetAllocPointer(handle);
+
+    if(alloc)
+    {
+        alloc_size = alloc->size - alloc->align;
+
+        if(size > alloc_size)
+        {
+            size = alloc_size;
+        }
+
+        /* backend specific mapping function. It's necessary to pass both
+        the handle and the alloc, as the backend doesn't use any of the
+        interface's functions, and can't get the alloc pointer from the
+        handle. It also needs the handle to know whether it's an vertex
+        or and index alloc. */
+        memory = r_vk_MapAlloc(handle, alloc);
+        memcpy(memory, data, size);
+        r_vk_UnmapAlloc(handle);
+    }
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_SetZPlanes(float z_near, float z_far)
+{
+    r_renderer.z_near = z_near;
+    r_renderer.z_far = z_far;
+    r_RecomputeViewProjectionMatrix();
+}
+
+void r_SetFovY(float fov_y)
+{
+    r_renderer.fov_y = fov_y;
+    r_RecomputeViewProjectionMatrix();
+}
+
+void r_RecomputeViewProjectionMatrix()
+{
+    mat4_t_persp(&r_renderer.projection_matrix, r_renderer.fov_y,
+        (float)r_renderer.width / (float)r_renderer.height, r_renderer.z_near, r_renderer.z_far);
+    r_vk_AdjustProjectionMatrix(&r_renderer.projection_matrix);
+    mat4_t_mul(&r_renderer.view_projection_matrix, &r_renderer.view_matrix, &r_renderer.projection_matrix);
+}
+
+
+void r_SetViewMatrix(mat4_t *view_matrix)
+{
+    memcpy(&r_renderer.view_matrix, view_matrix, sizeof(mat4_t));
+    mat4_t_invvm(&r_renderer.view_matrix, &r_renderer.view_matrix);
+    r_RecomputeViewProjectionMatrix();
+}
+
+void r_GetWindowSize(uint32_t *width, uint32_t *height)
+{
+    *width = r_renderer.width;
+    *height = r_renderer.height;
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 struct r_material_handle_t r_AllocMaterial()
 {
     struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
@@ -436,7 +572,7 @@ struct r_material_handle_t r_AllocMaterial()
     material = (struct r_material_t*)get_stack_list_element(&r_renderer.materials, handle.index);
     material->flags = 0;
     material->diffuse_texture = NULL;
-    material->normal_texture = NULL;    
+    material->normal_texture = NULL;
 
     return handle;
 }
@@ -472,7 +608,7 @@ struct r_material_handle_t r_GetMaterialHandle(char *name)
 {
     struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
     struct r_material_t *material;
-    
+
     for(uint32_t i = 0; i < r_renderer.materials.cursor; i++)
     {
         material = r_GetMaterialPointer(R_MATERIAL_HANDLE(i));
@@ -550,8 +686,8 @@ void *r_AllocCmdData(uint32_t size)
     uint32_t elem_count;
     void *data;
     elem_count = ((size + R_CMD_DATA_ELEM_SIZE - 1) & (~(R_CMD_DATA_ELEM_SIZE - 1))) / R_CMD_DATA_ELEM_SIZE;
-    /* this is not a safe allocation scheme, and it doesn't have to. Data 
-    WILL be overwritten if the producer end is queueing stuff too fast and 
+    /* this is not a safe allocation scheme, and it doesn't have to. Data
+    WILL be overwritten if the producer end is queueing stuff too fast and
     the consumer end is taking too long to use the data */
 
     if(elem_count > r_renderer.cmd_buffer_data.next_in - r_renderer.cmd_buffer_data.buffer_size)
@@ -638,7 +774,7 @@ void r_EndSubmission()
 //     {
 //         udraw_cmd = udraw_cmd_buffer->draw_cmds + i;
 
-//         if(udraw_cmd->material != current_material || 
+//         if(udraw_cmd->material != current_material ||
 //             draw_cmd_buffer->draw_cmd_count >= R_MAX_DRAW_CMDS)
 //         {
 //             current_material = udraw_cmd->material;
@@ -650,7 +786,7 @@ void r_EndSubmission()
 //             draw_cmd_buffer->view_matrix = udraw_cmd_buffer->view_matrix;
 //             draw_cmd_buffer->draw_cmd_count = 0;
 //         }
-        
+
 //         draw_cmd = draw_cmd_buffer->draw_cmds + draw_cmd_buffer->draw_cmd_count;
 //         draw_cmd->model_matrix = udraw_cmd->model_matrix;
 //         draw_cmd->range = udraw_cmd->range;
@@ -733,7 +869,7 @@ void r_WaitEmptyQueue()
 
 int r_CmpDrawCmd(const void *a, const void *b)
 {
-    return (ptrdiff_t)((struct r_draw_cmd_t *)a)->material - (ptrdiff_t)((struct r_draw_cmd_t *)b)->material; 
+    return (ptrdiff_t)((struct r_draw_cmd_t *)a)->material - (ptrdiff_t)((struct r_draw_cmd_t *)b)->material;
 }
 
 void r_Draw(struct r_cmd_t *cmd)
@@ -753,6 +889,7 @@ void r_Draw(struct r_cmd_t *cmd)
         cur_material = draw_cmds[0].material;
         while(cur_material == draw_cmds[draw_cmd_index].material)draw_cmd_index++;
         r_vk_Draw(cur_material, &cmd_buffer->view_projection_matrix, draw_cmds, draw_cmd_index);
+//        r_vk_Draw(cur_material, &r_renderer.projection_matrix, draw_cmds, draw_cmd_index);
         draw_cmds += draw_cmd_index;
         cmd_buffer->draw_cmd_count -= draw_cmd_index;
     }

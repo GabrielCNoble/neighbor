@@ -22,11 +22,11 @@ struct rVkShader
 {
     uint32_t size;
     uint32_t *shader;
-}; 
+};
 
 // struct r_vk_shader_t
 // {
-    
+
 // };
 
 struct r_vk_buffer_t
@@ -45,7 +45,8 @@ struct r_vk_buffer_t
 struct r_vk_pipeline_t
 {
     struct r_pipeline_t base;
-    VkPipeline pipeline; 
+    VkPipelineLayout layout;
+    VkPipeline pipeline;
 };
 struct r_vk_texture_t
 {
@@ -54,6 +55,13 @@ struct r_vk_texture_t
     VkImageView image_view;
     VkDeviceMemory memory;
     uint32_t sampler_index;
+};
+
+struct r_vk_shader_t
+{
+    struct r_shader_t base;
+    VkShaderModule module;
+    VkDescriptorSetLayout descriptor_set_layout;
 };
 
 struct r_vk_swapchain_t
@@ -80,27 +88,27 @@ struct r_vk_renderer_t
     VkInstance instance;
     VkPhysicalDevice physical_device;
     VkDevice device;
-    VkSurfaceKHR surface; 
+    VkSurfaceKHR surface;
     struct r_vk_swapchain_t swapchain;
     // VkSwapchainKHR swapchain;
     uint32_t graphics_queue_index;
-    uint32_t present_queue_index; 
+    uint32_t present_queue_index;
     VkFramebuffer *framebuffers;
     VkPhysicalDeviceMemoryProperties memory_properties;
-    
+
     // VkCommandBuffer command_buffer;
     VkDescriptorSet descriptor_sets[2];
     VkDescriptorPool descriptor_pool;
     VkRenderPass render_pass;
     VkQueue queue;
-    
+
     VkShaderModule vertex_shader_module;
     VkShaderModule fragment_shader_module;
     struct r_vk_buffer_t uniform_buffer;
     // struct rVkBuffer uniform_buffer;
     struct r_vk_buffer_t vertex_buffer;
     struct r_vk_buffer_t index_buffer;
-    
+
     VkPipelineLayout pipeline_layout;
     VkPipeline graphics_pipeline;
     VkSemaphore image_aquire_semaphore;
@@ -118,7 +126,7 @@ struct r_vk_renderer_t
         // uint32_t command_buffer_count;
         uint32_t current_command_buffer;
         uint32_t current_command_buffer_draw_cmds;
-        uint32_t max_command_buffer_draw_cmds;    
+        uint32_t max_command_buffer_draw_cmds;
     }command_state;
 };
 
@@ -155,6 +163,18 @@ void r_vk_InitPipeline();
 
 void r_vk_CreatePipeline(struct r_pipeline_t* pipeline);
 
+void r_vk_DestroyPipeline(struct r_pipeline_t *pipeline);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_CreateShader(struct r_shader_t *shader);
+
+void r_vk_DestroyShader(struct r_shader_t *shader);
+
 /*
 =================================================================
 =================================================================
@@ -186,7 +206,7 @@ void r_vk_TextureSamplerIndex(struct r_vk_texture_t *texture);
 */
 
 void r_vk_SetMaterial(struct r_material_t *material);
- 
+
 /*
 =================================================================
 =================================================================
@@ -219,7 +239,7 @@ void r_vk_DrawPoint(vec3_t* position, vec3_t* color);
 
 uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
 
-char *r_vk_ResultString(VkResult error); 
+char *r_vk_ResultString(VkResult error);
 
 struct rVkShader r_LoadShader(const char *file_name);
 

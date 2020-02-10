@@ -24,7 +24,7 @@ void g_Init()
 
 void g_Shutdown()
 {
-    
+
 }
 
 union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orientation)
@@ -33,7 +33,7 @@ union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orien
     struct entity_t* player;
     struct entity_t* gun;
     struct entity_prop_t* prop;
-    struct player_entity_props_t* props; 
+    struct player_entity_props_t* props;
     struct player_collider_t* collider;
 
     handle = ent_CreateEntity(name, position, orientation, G_ENTITY_TYPE_PLAYER);
@@ -49,8 +49,8 @@ union entity_handle_t g_CreatePlayer(char *name, vec3_t *position, mat3_t *orien
     props->gun_z = -3.2;
     props->gun_y = -0.5;
 
-    props->collider = create_player_collider(position, 0.3, 1.7);
-    add_collider_to_world(props->collider);
+    //props->collider = create_player_collider(position, 0.3, 1.7);
+    //add_collider_to_world(props->collider);
     return handle;
 }
 
@@ -77,13 +77,13 @@ union entity_handle_t g_CreatePlatform(char* name, vec3_t* position, mat3_t* ori
 
 
     model = mdl_GetModelPointer(entity->model);
-    props->collider = create_static_collider();
-    for(uint32_t i = 0, c = model->batch_count / model->lod_count; i < c; i++)
-    {
-        vert_count += model->batches[i].range.count;
-    }
-    set_static_collider_triangles(props->collider, model->vertices, vert_count);
-    add_collider_to_world(props->collider);
+//    props->collider = create_static_collider();
+//    for(uint32_t i = 0, c = model->batch_count / model->lod_count; i < c; i++)
+//    {
+//        vert_count += model->batches[i].range.count;
+//    }
+//    set_static_collider_triangles(props->collider, model->vertices, vert_count);
+//    add_collider_to_world(props->collider);
 
     return handle;
 }
@@ -100,7 +100,7 @@ void g_SetPlayer(union entity_handle_t handle)
 
 void g_UpdatePlayer(union entity_handle_t handle)
 {
-    vec3_t movement = vec3_t(0.0);
+    vec3_t movement = vec3_t_c(0.0, 0.0, 0.0);
     vec4_t position;
     vec4_t forward_vec;
     vec4_t right_vec;
@@ -126,15 +126,16 @@ void g_UpdatePlayer(union entity_handle_t handle)
     props->gun_dy -= dy * 0.1;
 
     if(props->pitch > 0.5) props->pitch = 0.5;
-    else if(props->pitch < -0.5) props->pitch = -0.5; 
+    else if(props->pitch < -0.5) props->pitch = -0.5;
 
     if(props->yaw > 1.0) props->yaw = -2.0 + props->yaw;
     else if(props->yaw < -1.0) props->yaw = 2.0 + props->yaw;
-    
+
     position = player->transform.rows[3];
     mat4_t_yaw(&yaw_matrix, props->yaw);
     mat4_t_pitch(&pitch_matrix, props->pitch);
-    pitch_matrix *= yaw_matrix;
+    // pitch_matrix *= yaw_matrix;
+    mat4_t_mul(&pitch_matrix, &pitch_matrix, &yaw_matrix);
     forward_vec = pitch_matrix.rows[2];
     right_vec = pitch_matrix.rows[0];
 
@@ -158,10 +159,15 @@ void g_UpdatePlayer(union entity_handle_t handle)
         movement.x += 1.0;
     }
 
-    forward_vec *= movement.z;
-    right_vec *= movement.x;
+    // forward_vec *= movement.z;
+    // right_vec *= movement.x;
+    vec4_t_mul(&forward_vec, &forward_vec, movement.z);
+    vec4_t_mul(&right_vec, &right_vec, movement.x);
+
     player->transform = pitch_matrix;
-    player->transform.rows[3] = position + forward_vec + right_vec;
+    // player->transform.rows[3] = position + forward_vec + right_vec;
+    vec4_t_add(&player->transform.rows[3], &position, &forward_vec);
+    vec4_t_add(&player->transform.rows[3], &player->transform.rows[3], &right_vec);
     player->transform.rows[3].w = 1.0;
     r_SetViewMatrix(&player->transform);
 
@@ -175,13 +181,14 @@ void g_UpdatePlayer(union entity_handle_t handle)
 
     mat4_t_identity(&gun->transform);
     gun->transform.rows[3] = gun_position;
-    gun->transform *= player->transform;
+    mat4_t_mul(&gun->transform, &gun->transform, &player->transform);
+    // gun->transform *= player->transform;
 
 
-    collider = get_player_collider_pointer(props->collider);
-    printf("[%f %f %f]\n", collider->base.position.x, 
-                           collider->base.position.y, 
-                           collider->base.position.z);
+//    collider = get_player_collider_pointer(props->collider);
+//    printf("[%f %f %f]\n", collider->base.position.x,
+//                           collider->base.position.y,
+//                           collider->base.position.z);
 }
 
 void g_UpdateEntities()
@@ -195,7 +202,7 @@ void g_UpdateEntities()
     mat4_t pitch_matrix;
     mat4_t yaw_matrix;
 
-    step_physics();
+//    step_physics();
 
     entities = ent_GetEntityList();
     for(uint32_t i = 0; i < entities->cursor; i++)

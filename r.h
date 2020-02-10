@@ -15,6 +15,48 @@ void r_InitRenderer();
 
 struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* description);
 
+void r_DestroyPipeline(struct r_pipeline_handle_t handle);
+
+void r_BindPipeline(struct r_pipeline_handle_t handle);
+
+struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle);
+
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_InitBuiltinTextures();
+
+struct r_texture_handle_t r_AllocTexture();
+
+void r_FreeTexture(struct r_texture_handle_t handle);
+
+struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *texture_description);
+
+struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
+
+struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
+
+struct r_texture_t* r_GetDefaultTexturePointer();
+
+struct r_texture_handle_t r_GetTextureHandle(char *name);
+
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *description);
+
+void r_DestroyShader(struct r_shader_handle_t handle);
+
+struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle);
+
 /*
 =================================================================
 =================================================================
@@ -45,25 +87,6 @@ void r_SetViewMatrix(mat4_t *view_matrix);
 
 void r_GetWindowSize(uint32_t *width, uint32_t *height);
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-void r_InitBuiltinTextures();
-
-struct r_texture_handle_t r_AllocTexture();
-
-void r_FreeTexture(struct r_texture_handle_t handle);
-
-struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
-
-struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
-
-struct r_texture_t* r_GetDefaultTexturePointer();
-
-struct r_texture_handle_t r_GetTextureHandle(char *name);
 
 /*
 =================================================================

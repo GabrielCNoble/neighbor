@@ -1,6 +1,4 @@
-CC = g++
-CFLAGS = -std=c++11 -Wno-write-strings
-
+CC = gcc
 
 DSTUFF_DIRS = $(wildcard dstuff/*)
 DSTUFF = $(wildcard $(DSTUFF_DIRS:=/*.c))
@@ -11,7 +9,7 @@ LIB = $(LIBINC) -lSDL2 -lvulkan-1
 OBJ = $(SRC:.c=.o)
 
 %.o : %.c
-	$(CC) -c $< $(CFLAGS) -o $@
+	$(CC) -c $< -o $@
 
 all: $(OBJ)
 	$(CC) $^ $(LIB) -o main.exe 

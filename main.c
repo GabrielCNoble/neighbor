@@ -10,10 +10,13 @@
 #include "g.h"
 #include "dstuff/loaders/bsp.h"
 #include "dstuff/math/geometry.h"
+#include "dstuff/math/matrix.h"
+#include "dstuff/math/vector.h"
+
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  
+#include <string.h>
 #include <math.h>
 
 
@@ -60,6 +63,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+
     r_InitRenderer();
     mdl_Init();
     ent_Init();
@@ -85,11 +89,11 @@ int main(int argc, char *argv[])
     vec2_t vec2;
 
 
-    // vec3_t p = closest_point_on_triangle(&vec3_t_c(0.0, 5.0, 0.0), 
+    // vec3_t p = closest_point_on_triangle(&vec3_t_c(0.0, 5.0, 0.0),
     //                                      &vec3_t_c(2.0, 0.0, -2.0),
     //                                      &vec3_t_c(-2.0, 0.0, -2.0),
     //                                      &vec3_t_c(0.0, 0.0, 2.0));
-    
+
 
     // printf("[%f %f %f]\n", p.x, p.y, p.z);
 
@@ -178,21 +182,18 @@ int main(int argc, char *argv[])
     // vec4_t position;
 
     SDL_ShowCursor(0);
-    
-    // float r = 0.0;
 
-    // position = vec4_t_zero;
     mat3_t orientation;
-    vec3_t position(0.0, 2.0, 0.0);
+    vec3_t position = vec3_t_c(0.0, 0.0, 0.0);
     mat3_t_identity(&orientation);
     union entity_handle_t player = g_CreatePlayer("main player", &position, &orientation);
     g_SetPlayer(player);
 
-    position.y = -10.0;
+    position.z = -3.5;
     g_CreatePlatform("FUCK", &position, &orientation);
 
-    position.y = 10.0;
-    g_CreatePlatform("ASS", &position, &orientation);
+//    position.y = 10.0;
+//    g_CreatePlatform("ASS", &position, &orientation);
 
     while(1)
     {

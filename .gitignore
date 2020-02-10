@@ -17,3 +17,6 @@ models
 *.jpeg
 *.obj
 *.mtl
+*.cbp
+*.layout
+*.depend
