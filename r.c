@@ -314,8 +314,10 @@ struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *descripti
             alloc_size = attrib_count * sizeof(struct r_vertex_attrib_t);
             alloc_size += description->vertex_binding_count * sizeof(struct r_vertex_binding_t);
 
+            /* single memory block for bindings and attributes */
             shader->description.vertex_bindings = (struct r_vertex_binding_t *)calloc(1, alloc_size);
-            attribs = shader->description.vertex_bindings + description->vertex_binding_count;
+            /* attributes exist in memory right after the bindings */
+            attribs = (struct r_vertex_attrib_t *)(shader->description.vertex_bindings + description->vertex_binding_count);
             memcpy(shader->description.vertex_bindings, description->vertex_bindings, sizeof(struct r_vertex_binding_t) *
                    description->vertex_binding_count);
             attrib_count = 0;
@@ -379,6 +381,135 @@ struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle)
     }
 
     return shader;
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_description_t *description)
+{
+    struct r_render_pass_handle_t handle = R_INVALID_RENDER_PASS_HANDLE;
+    struct r_render_pass_t *render_pass;
+    struct r_attachment_description_t *attachment;
+    struct r_attachment_reference_t *reference;
+    struct r_subpass_description_t subpass = {};
+    uint32_t attachment_size;
+    uint32_t depth_stencil_index = 0xffffffff;
+
+    handle.index = add_stack_list_element(&r_renderer.render_passes, NULL);
+    render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_renderer.render_passes, handle.index);
+    memcpy(&render_pass->description, description, sizeof(struct r_render_pass_description_t));
+
+    attachment_size = sizeof(struct r_attachment_description_t) * description->attachment_count;
+    render_pass->description.attachments = (struct r_attachment_description_t *)calloc(1, attachment_size);
+    memcpy(render_pass->description.attachments, description->attachments, attachment_size);
+
+    for(uint32_t i = 0; i < description->attachment_count; i++)
+    {
+        attachment = render_pass->description.attachments + i;
+
+        if(attachment->final_layout == R_LAYOUT_USE_INITIAL)
+        {
+            attachment->final_layout = attachment->initial_layout;
+        }
+    }
+
+    if(render_pass->description.subpass_count)
+    {
+//        render_pass->description.subpasses = (struct r_subpass_description_t *)calloc(description->subpass_count, sizeof(struct r_subpass_description_t));
+//        memcpy(render_pass->description.subpasses, description->subpasses, sizeof(struct r_subpass_description_t) * description->subpass_count);
+    }
+    else
+    {
+        /* no subpasses given, so create one that uses all attachments,
+        and don't cause any layout transitions */
+
+
+        /* since this subpass is being created only for
+        convenience of further ahead code the address of a
+        local var will be used, is not meant to be accessed
+        after this function returns */
+        render_pass->description.subpasses = &subpass;
+        render_pass->description.subpass_count = 1;
+
+        /* a single block of memory for all color references and
+        depth_stencil reference */
+        subpass.color_references = (struct r_attachment_reference_t *)alloca(sizeof(struct r_attachment_reference_t) *
+                                                                description->attachment_count);
+
+        subpass.color_attachment_count = 0;
+        for(uint32_t i = 0; i < description->attachment_count; i++)
+        {
+            attachment = render_pass->description.attachments + i;
+
+            if(attachment->initial_layout == R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            {
+                depth_stencil_index = i;
+                continue;
+            }
+            reference = subpass.color_references + subpass.color_attachment_count;
+            subpass.color_attachment_count++;
+            reference->attachment = i;
+            reference->layout = attachment->initial_layout;
+        }
+
+        if(depth_stencil_index != 0xffffffff)
+        {
+            attachment = render_pass->description.attachments + depth_stencil_index;
+            reference = subpass.color_references + subpass.color_attachment_count;
+            reference->attachment = depth_stencil_index;
+            reference->layout = attachment->initial_layout;
+        }
+    }
+
+    r_vk_CreateRenderPass(render_pass);
+
+    return handle;
+}
+
+void r_DestroyRenderPass(struct r_render_pass_handle_t handle)
+{
+
+}
+
+struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle)
+{
+
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description)
+{
+    struct r_framebuffer_handle_t handle = R_INVALID_FRAMEBUFFER_HANDLE;
+    struct r_framebuffer_t *framebuffer;
+    if(description)
+    {
+        handle.index = add_stack_list_element(&r_renderer.framebuffers, NULL);
+        framebuffer = (struct r_framebuffer_t *)get_stack_list_element(&r_renderer.render_passes, handle.index);
+        memcpy(&framebuffer->description, description, sizeof(struct r_framebuffer_description_t));
+
+//        r_vk_CreateRenderPass(render_pass);
+    }
+
+    return handle;
+}
+
+void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle)
+{
+
+}
+
+struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_handle_t handle)
+{
+
 }
 
 /*

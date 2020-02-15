@@ -64,6 +64,18 @@ struct r_vk_shader_t
     VkDescriptorSetLayout descriptor_set_layout;
 };
 
+struct r_vk_framebuffer_t
+{
+    struct r_framebuffer_t base;
+    VkFramebuffer *framebuffers;
+};
+
+struct r_vk_render_pass_t
+{
+    struct r_render_pass_t base;
+    VkRenderPass render_pass;
+};
+
 struct r_vk_swapchain_t
 {
     VkSwapchainKHR swapchain;
@@ -83,6 +95,7 @@ struct r_vk_sampler_t
     VkSampler sampler;
     union r_vk_sampler_tag_t tag;
 };
+
 struct r_vk_renderer_t
 {
     VkInstance instance;
@@ -130,11 +143,6 @@ struct r_vk_renderer_t
     }command_state;
 };
 
-struct r_vk_render_pass_t
-{
-    VkRenderPass render_pass;
-};
-
 
 void r_vk_InitRenderer();
 
@@ -165,6 +173,8 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline);
 
 void r_vk_DestroyPipeline(struct r_pipeline_t *pipeline);
 
+void r_vk_BindPipeline(struct r_pipeline_t *pipeline);
+
 /*
 =================================================================
 =================================================================
@@ -174,6 +184,26 @@ void r_vk_DestroyPipeline(struct r_pipeline_t *pipeline);
 void r_vk_CreateShader(struct r_shader_t *shader);
 
 void r_vk_DestroyShader(struct r_shader_t *shader);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_CreateRenderPass(struct r_render_pass_t *render_pass);
+
+void r_vk_DestroyRenderPass(struct r_render_pass_t *render_pass);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_CreateFramebuffer(struct r_framebuffer_t *framebuffer);
+
+void r_vk_DestroyFramebuffer(struct r_framebuffer_t *framebuffer);
 
 /*
 =================================================================

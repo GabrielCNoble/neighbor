@@ -88,54 +88,6 @@ int main(int argc, char *argv[])
     vec3_t vec3;
     vec2_t vec2;
 
-
-    // vec3_t p = closest_point_on_triangle(&vec3_t_c(0.0, 5.0, 0.0),
-    //                                      &vec3_t_c(2.0, 0.0, -2.0),
-    //                                      &vec3_t_c(-2.0, 0.0, -2.0),
-    //                                      &vec3_t_c(0.0, 0.0, 2.0));
-
-
-    // printf("[%f %f %f]\n", p.x, p.y, p.z);
-
-    // load_wavefront("level0.obj", &data);
-    // vertices = calloc(sizeof(struct vertex_t), data.vertices.cursor);
-    // for(uint32_t i = 0; i < data.vertices.cursor; i++)
-    // {
-    //     vec3 = *(vec3_t *)get_list_element(&data.vertices, i);
-    //     vertices[i].position.comps[0] = vec3.comps[0];
-    //     vertices[i].position.comps[1] = vec3.comps[1];
-    //     vertices[i].position.comps[2] = vec3.comps[2];
-    //     vertices[i].position.comps[3] = 1.0;
-
-    //     vertices[i].color.comps[0] = 1.0;
-    //     vertices[i].color.comps[1] = 1.0;
-    //     vertices[i].color.comps[2] = 1.0;
-    //     vertices[i].color.comps[3] = 1.0;
-
-    //     vec2 = *(vec2_t *)get_list_element(&data.tex_coords, i);
-    //     vertices[i].tex_coords.comps[0] = vec2.comps[0];
-    //     vertices[i].tex_coords.comps[1] = vec2.comps[1];
-    //     vertices[i].tex_coords.comps[2] = 1.0;
-    //     vertices[i].tex_coords.comps[3] = 1.0;
-    // }
-
-    // for(uint32_t i = 0; i < data.batches.cursor; i++)
-    // {
-    //     batch = (struct batch_data_t *)get_list_element(&data.batches, i);
-    //     material_handle = r_AllocMaterial();
-    //     material = r_GetMaterialPointer(material_handle);
-    //     material->diffuse_texture = r_LoadTexture(batch->diffuse_texture);
-    //     material->normal_texture = R_INVALID_TEXTURE_HANDLE;
-    // }
-
-    // quad = r_Alloc(sizeof(struct vertex_t) * data.vertices.cursor, sizeof(struct vertex_t), 0);
-    // r_Memcpy(quad, vertices, sizeof(struct vertex_t) * data.vertices.cursor);
-    // free(vertices);
-
-    // load_bsp("q3ctf1.bsp");
-
-
-
     things[0].model = mdl_LoadModel("q3dm9.bsp");
     mat4_t_identity(&things[0].transform);
     things[0].transform.comps[3][2] = -5.0;
@@ -159,27 +111,6 @@ int main(int argc, char *argv[])
     // mat4_t_yaw(&things[2].transform, 0.2);
     // things[2].transform.vcomps[3].comps[2] = -7.0;
     // things[2].transform.vcomps[3].comps[0] = -6.0;
-
-
-    // mat4_t_persp(&projection_matrix, 0.68, 1366.0 / 768.0, 0.01, 1000.0);
-    // mat4_t_identity(&view_matrix);
-
-    // r_SetViewProjectionMatrix(NULL, &projection_matrix);
-    // r_SetTexture(logo, 0);
-    // r_SetTexture(doggo, 1);
-
-    // float pitch = 0.0;
-    // float yaw = 0.0;
-    // float mouse_dx;
-    // float mouse_dy;
-    // int mouse_x;
-    // int mouse_y;
-    // uint8_t *keys;
-
-    // vec4_t forward_vec;
-    // vec4_t right_vec;
-    // vec4_t translation;
-    // vec4_t position;
 
     SDL_ShowCursor(0);
 

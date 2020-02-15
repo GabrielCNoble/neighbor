@@ -112,6 +112,31 @@ enum R_FORMAT
     R_FORMAT_LAST,
 };
 
+enum R_TEXTURE_LAYOUT
+{
+    R_LAYOUT_USE_INITIAL = 0,
+    R_LAYOUT_UNDEFINED,
+    R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+//    R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+    R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    R_LAYOUT_LAST
+};
+
+enum R_ATTACHMENT_LOAD_OP
+{
+    R_ATTACHMENT_LOAD_OP_LOAD = 0,
+    R_ATTACHMENT_LOAD_OP_CLEAR,
+    R_ATTACHMENT_LOAD_OP_DONT_CARE,
+    R_ATTACHMENT_LOAD_OP_LAST
+};
+
+enum R_ATTACHMENT_STORE_OP
+{
+    R_ATTACHMENT_STORE_OP_STORE = 0,
+    R_ATTACHMENT_STORE_OP_DONT_CARE,
+    R_ATTACHMENT_STORE_OP_LAST
+};
+
 enum R_TEXTURE_TYPE
 {
     R_TEXTURE_TYPE_INVALID = 0,
@@ -232,10 +257,8 @@ struct r_vertex_attrib_t
 
 struct r_shader_resource_t
 {
-    uint8_t binding;                /* Binding specified in the shader */
+    uint8_t binding;
     uint8_t type;
-//    uint16_t size;
-//    uint16_t offset;
 };
 
 struct r_shader_push_constant_t
@@ -273,6 +296,56 @@ struct r_shader_handle_t
 #define R_INVALID_SHADER_INDEX 0xffffffff
 #define R_SHADER_HANDLE(index) (struct r_shader_handle_t){index}
 #define R_INVALID_SHADER_HANDLE R_SHADER_HANDLE(R_INVALID_SHADER_INDEX)
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_command_buffer_t
+{
+
+};
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_attachment_description_t
+{
+    uint8_t format;
+    uint8_t load_op;
+    uint8_t store_op;
+    uint8_t stencil_load_op;
+    uint8_t stencil_store_op;
+    uint8_t initial_layout;
+    uint8_t final_layout;
+};
+
+struct r_framebuffer_description_t
+{
+    struct r_attachment_description_t *attachments;
+    struct r_render_pass_t *render_pass;
+    uint8_t attachment_count;
+    uint8_t framebuffer_count;
+};
+
+struct r_framebuffer_t
+{
+    struct r_framebuffer_description_t *description;
+};
+
+struct r_framebuffer_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_FRAMEBUFFER_INDEX 0xffffffff
+#define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_handle_t){index}
+#define R_INVALID_FRAMEBUFFER_HANDLE R_FRAMEBUFFER_HANDLE(R_INVALID_FRAMEBUFFER_INDEX)
 
 /*
 =================================================================
@@ -319,6 +392,130 @@ struct r_texture_handle_t
 #define R_INVALID_TEXTURE_HANDLE R_TEXTURE_HANDLE(R_INVALID_TEXTURE_INDEX)
 #define R_DIFFUSE_TEXTURE_BINDING 0
 #define R_NORMAL_TEXTURE_BINDING 1
+
+
+/*
+=================================================================================
+=================================================================================
+=================================================================================
+*/
+
+struct r_attachment_reference_t
+{
+    uint8_t attachment;
+    uint8_t layout;
+};
+
+struct r_subpass_description_t
+{
+    struct r_attachment_reference_t *color_references;
+    struct r_attachment_reference_t *depth_stencil_reference;
+    uint8_t color_attachment_count;
+};
+
+struct r_render_pass_description_t
+{
+    struct r_attachment_description_t *attachments;
+    struct r_subpass_description_t *subpasses;
+    uint8_t attachment_count;
+    uint8_t subpass_count;
+};
+
+struct r_render_pass_t
+{
+    struct r_render_pass_description_t description;
+    struct r_framebuffer_t *framebuffers;
+};
+
+struct r_render_pass_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_RENDER_PASS_INDEX 0xffffffff
+#define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
+#define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
+
+/*
+=================================================================================
+=================================================================================
+=================================================================================
+*/
+
+struct r_pipeline_description_t
+{
+    struct r_shader_t *vertex_shader;
+    struct r_shader_t *fragment_shader;
+    struct r_render_pass_t *render_pass;
+
+    struct
+    {
+        unsigned compare_op: 4;
+        unsigned test_enabled: 1;
+        unsigned write_enabled: 1;
+    }depth_state;
+
+    struct
+    {
+        unsigned compare_op: 4;
+        unsigned fail_op: 3;
+        unsigned depth_fail_op: 3;
+        unsigned pass_op: 3;
+        unsigned test_enabled: 1;
+    }stencil_state;
+
+    struct
+    {
+        unsigned blend_factor: 4;
+        unsigned blend_op: 3;
+    }blend_state;
+
+    struct
+    {
+        unsigned polygon_mode: 2;
+        unsigned front_face: 2;
+        unsigned cull_face: 2;
+    }rasterizer_state;
+
+    struct
+    {
+        unsigned topology;
+    }input_assembly_state;
+};
+
+struct r_pipeline_t
+{
+    struct r_pipeline_description_t description;
+
+    struct
+    {
+        uint8_t reference;
+        uint8_t write_mask;
+        uint8_t compare_mask;
+    }stencil_state;
+
+    struct
+    {
+        uint16_t viewport_x;
+        uint16_t viewport_y;
+        uint16_t viewport_w;
+        uint16_t viewport_h;
+
+        uint16_t scissor_x;
+        uint16_t scissor_y;
+        uint16_t scissor_w;
+        uint16_t scissor_h;
+    }viewport_state;
+};
+
+struct r_pipeline_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_PIPELINE_INDEX 0xffffffff
+#define R_PIPELINE_HANDLE(index) (struct r_pipeline_handle_t){index}
+#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
 
 /*
 =================================================================
@@ -441,119 +638,7 @@ struct r_draw_cmd_buffer_t
 };
 
 
-/*
-=================================================================================
-=================================================================================
-=================================================================================
-*/
 
-
-struct r_attachment_description_t
-{
-    struct r_texture_description_t texture_description;
-};
-
-struct r_renderpass_description_t
-{
-    uint32_t attachment_count;
-    struct r_attachment_description_t *attachment_descriptions;
-};
-
-
-
-struct r_renderpass_t
-{
-    struct r_renderpass_description_t description;
-};
-
-// struct r_vertex_attrib_t
-// {
-//     uint32_t location;
-//     uint32_t format;
-//     uint32_t offset;
-// };
-
-// struct r_vertex_binding_t
-// {
-//     uint32_t binding;
-//     uint32_t stride;
-//     uint32_t attrib_count;
-//     struct r_vertex_attrib_t* attribs;
-// };
-struct r_pipeline_description_t
-{
-    struct r_shader_t *vertex_shader;
-    struct r_shader_t *fragment_shader;
-    struct r_renderpass_t *renderpass;
-
-    struct
-    {
-        unsigned compare_op: 4;
-        unsigned test_enabled: 1;
-        unsigned write_enabled: 1;
-    }depth_state;
-
-    struct
-    {
-        unsigned compare_op: 4;
-        unsigned fail_op: 3;
-        unsigned depth_fail_op: 3;
-        unsigned pass_op: 3;
-        unsigned test_enabled: 1;
-    }stencil_state;
-
-    struct
-    {
-        unsigned blend_factor: 4;
-        unsigned blend_op: 3;
-    }blend_state;
-
-    struct
-    {
-        unsigned polygon_mode: 2;
-        unsigned front_face: 2;
-        unsigned cull_face: 2;
-    }rasterizer_state;
-
-    struct
-    {
-        unsigned topology;
-    }input_assembly_state;
-};
-
-struct r_pipeline_t
-{
-    struct r_pipeline_description_t description;
-
-    struct
-    {
-        uint8_t reference;
-        uint8_t write_mask;
-        uint8_t compare_mask;
-    }stencil_state;
-
-    struct
-    {
-        uint16_t viewport_x;
-        uint16_t viewport_y;
-        uint16_t viewport_w;
-        uint16_t viewport_h;
-
-        uint16_t scissor_x;
-        uint16_t scissor_y;
-        uint16_t scissor_w;
-        uint16_t scissor_h;
-    }viewport_state;
-};
-
-struct r_pipeline_handle_t
-{
-    uint32_t index;
-};
-
-#define R_INVALID_PIPELINE_INDEX 0xffffffff
-#define R_PIPELINE_HANDLE(index) (struct r_pipeline_handle_t){index}
-#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
 
 
 struct r_renderer_t
@@ -573,6 +658,8 @@ struct r_renderer_t
     struct stack_list_t textures;
     struct stack_list_t materials;
     struct stack_list_t lights;
+    struct stack_list_t framebuffers;
+    struct stack_list_t render_passes;
 
     SDL_SpinLock cmd_buffer_lock;
     struct ringbuffer_t cmd_buffer;

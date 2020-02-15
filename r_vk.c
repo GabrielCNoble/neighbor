@@ -34,12 +34,16 @@ VkBool32 bool_map[] = {VK_FALSE, VK_TRUE};
 VkPrimitiveTopology primitive_topology_map[R_PRIMITIVE_TOPOLOGY_LAST] = {(VkPrimitiveTopology)R_PRIMITIVE_TOPOLOGY_LAST};
 VkImageType image_type_map[R_TEXTURE_TYPE_LAST] = {(VkImageType)R_TEXTURE_TYPE_LAST};
 VkShaderStageFlagBits shader_stage_map[R_SHADER_STAGE_LAST] = {(VkShaderStageFlagBits)R_SHADER_STAGE_LAST};
+VkImageLayout image_layout_map[R_LAYOUT_LAST] = {(VkImageLayout)R_LAYOUT_LAST};
+VkAttachmentLoadOp attachment_load_op_map[R_ATTACHMENT_LOAD_OP_LAST] = {(VkAttachmentLoadOp)R_ATTACHMENT_LOAD_OP_LAST};
+VkAttachmentStoreOp attachment_store_op_map[R_ATTACHMENT_STORE_OP_LAST] = {(VkAttachmentStoreOp)R_ATTACHMENT_STORE_OP_LAST};
 
 void r_vk_InitRenderer()
 {
     r_renderer.textures = create_stack_list(sizeof(struct r_vk_texture_t), 32);
     r_renderer.pipelines = create_stack_list(sizeof(struct r_vk_pipeline_t), 16);
     r_renderer.shaders = create_stack_list(sizeof(struct r_vk_shader_t), 64);
+    r_renderer.framebuffers = create_stack_list(sizeof(struct r_vk_framebuffer_t), 32);
     r_vk_renderer.samplers = create_list(sizeof(struct r_vk_sampler_t), 16);
 
     filter_map[R_TEXTURE_FILTER_NEAREST] = VK_FILTER_NEAREST;
@@ -116,6 +120,17 @@ void r_vk_InitRenderer()
     shader_stage_map[R_SHADER_STAGE_VERTEX] = VK_SHADER_STAGE_VERTEX_BIT;
     shader_stage_map[R_SHADER_STAGE_FRAGMENT] = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+    image_layout_map[R_LAYOUT_UNDEFINED] = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_layout_map[R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+//    image_layout_map[R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_DEPTH;
+    image_layout_map[R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    attachment_load_op_map[R_ATTACHMENT_LOAD_OP_LOAD] = VK_ATTACHMENT_LOAD_OP_LOAD;
+    attachment_load_op_map[R_ATTACHMENT_LOAD_OP_CLEAR] = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment_load_op_map[R_ATTACHMENT_LOAD_OP_DONT_CARE] = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+
+    attachment_store_op_map[R_ATTACHMENT_STORE_OP_STORE] = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment_store_op_map[R_ATTACHMENT_STORE_OP_DONT_CARE] = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
     r_vk_InitDevice();
     r_vk_InitSwapchain();
@@ -380,7 +395,7 @@ void r_vk_InitSwapchain()
 
     r_vk_renderer.swapchain.image_views = (VkImageView *)calloc(r_vk_renderer.swapchain.image_count, sizeof(VkImageView));
 
-    for(uint32_t i; i < r_vk_renderer.swapchain.image_count; i++)
+    for(uint32_t i = 0; i < r_vk_renderer.swapchain.image_count; i++)
     {
         image_view_create_info.image = r_vk_renderer.swapchain.images[i];
         vkCreateImageView(r_vk_renderer.device, &image_view_create_info, NULL, r_vk_renderer.swapchain.image_views + i);
@@ -1185,9 +1200,9 @@ void r_vk_InitPipeline()
 void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
 {
     struct r_vk_pipeline_t* vk_pipeline = (struct r_vk_pipeline_t*)pipeline;
-
     struct r_vk_shader_t *vertex_shader;
     struct r_vk_shader_t *fragment_shader;
+    struct r_vk_render_pass_t *vk_render_pass = (struct r_vk_render_pass_t *)vk_pipeline->base.description.render_pass;
 
     vertex_shader = (struct r_vk_shader_t *)pipeline->description.vertex_shader;
     fragment_shader = (struct r_vk_shader_t *)pipeline->description.fragment_shader;
@@ -1225,7 +1240,7 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
 
         for(uint32_t j = 0; j < binding->attrib_count; j++, attrib_count++)
         {
-            attrib = binding + j;
+            attrib = binding->attribs + j;
             attrib_description = attrib_descriptions + attrib_count;
 
             attrib_description->binding = i;
@@ -1244,12 +1259,86 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
     input_state_create_info.vertexAttributeDescriptionCount = attrib_count;
     input_state_create_info.pVertexAttributeDescriptions = attrib_descriptions;
 
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
+
+    VkPushConstantRange *ranges;
+    VkPushConstantRange *range;
+    struct r_shader_push_constant_t *push_constants;
+    struct r_shader_push_constant_t *push_constant;
+    uint32_t push_constant_count = vertex_shader->base.description.push_constant_count +
+                                   fragment_shader->base.description.push_constant_count;
+
+    ranges = (VkPushConstantRange *)alloca(push_constant_count * sizeof(VkPushConstantRange));
+    push_constant_count = 0;
+    for(uint32_t i = 0; i < vertex_shader->base.description.push_constant_count; i++)
+    {
+        push_constant = vertex_shader->base.description.push_constants + i;
+        range = ranges + push_constant_count;
+        push_constant_count++;
+
+        range->offset = push_constant->offset;
+        range->size = push_constant->size;
+        range->stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    }
+
+    for(uint32_t i = 0; i < fragment_shader->base.description.push_constant_count; i++)
+    {
+        push_constant = fragment_shader->base.description.push_constants + i;
+        range = ranges + push_constant_count;
+        push_constant_count++;
+
+        range->offset = push_constant->offset;
+        range->size = push_constant->size;
+        range->stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+
+    VkDescriptorSetLayout descriptor_set_layouts[2];
+    uint32_t descriptor_set_layout_count = 0;
+
+    if(vertex_shader->descriptor_set_layout != VK_NULL_HANDLE)
+    {
+        descriptor_set_layouts[descriptor_set_layout_count] = vertex_shader->descriptor_set_layout;
+        descriptor_set_layout_count++;
+    }
+
+    if(fragment_shader->descriptor_set_layout != VK_NULL_HANDLE)
+    {
+        descriptor_set_layouts[descriptor_set_layout_count] = fragment_shader->descriptor_set_layout;
+        descriptor_set_layout_count++;
+    }
+
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
+    pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_create_info.pNext = NULL;
+    pipeline_layout_create_info.flags = 0;
+    pipeline_layout_create_info.setLayoutCount = descriptor_set_layout_count;
+    pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
+    pipeline_layout_create_info.pushConstantRangeCount = push_constant_count;
+    pipeline_layout_create_info.pPushConstantRanges = ranges;
+    vkCreatePipelineLayout(r_vk_renderer.device, &pipeline_layout_create_info, NULL, &vk_pipeline->layout);
+
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
+
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {};
     input_assembly_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     input_assembly_state_create_info.pNext = NULL;
     input_assembly_state_create_info.flags = 0;
     input_assembly_state_create_info.topology = primitive_topology_map[pipeline->description.input_assembly_state.topology];
     input_assembly_state_create_info.primitiveRestartEnable = VK_FALSE;
+
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
 
     VkPipelineViewportStateCreateInfo viewport_state_create_info = {};
     viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -1259,6 +1348,12 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
     viewport_state_create_info.pViewports = NULL;
     viewport_state_create_info.scissorCount = 0;
     viewport_state_create_info.pScissors = NULL;
+
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
 
     VkPipelineRasterizationStateCreateInfo rasterization_state_create_info = {};
     rasterization_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -1275,6 +1370,12 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
     rasterization_state_create_info.depthBiasSlopeFactor = 0.0;
     rasterization_state_create_info.lineWidth = 1.0;
 
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
+
     VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {};
     multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisample_state_create_info.pNext = NULL;
@@ -1285,6 +1386,12 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
     multisample_state_create_info.pSampleMask = NULL;
     multisample_state_create_info.alphaToCoverageEnable = VK_FALSE;
     multisample_state_create_info.alphaToOneEnable = VK_FALSE;
+
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
     depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -1307,12 +1414,27 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
     depth_stencil_state_create_info.minDepthBounds = 0.0;
     depth_stencil_state_create_info.maxDepthBounds = 1.0;
 
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
+
+//    VkPipelineColorBlendAttachmentState attachment_state
+
     VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
     color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     color_blend_state_create_info.pNext = NULL;
     color_blend_state_create_info.flags = 0;
     color_blend_state_create_info.logicOpEnable = VK_FALSE;
     color_blend_state_create_info.logicOp = VK_LOGIC_OP_NO_OP;
+//    color_blend_state_create_info.
+
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
 
     VkDynamicState dynamic_states[] =
     {
@@ -1331,12 +1453,42 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
     dynamic_state_create_info.dynamicStateCount = sizeof(dynamic_states) / sizeof(VkDynamicState);
     dynamic_state_create_info.pDynamicStates = dynamic_states;
 
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
+
+    VkPipelineShaderStageCreateInfo shader_stage_create_info[2] = {};
+    shader_stage_create_info[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stage_create_info[0].pNext = NULL;
+    shader_stage_create_info[0].flags = 0;
+    shader_stage_create_info[0].pName = "main";
+    shader_stage_create_info[0].pSpecializationInfo = NULL;
+    shader_stage_create_info[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shader_stage_create_info[0].module = vertex_shader->module;
+
+    shader_stage_create_info[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stage_create_info[1].pNext = NULL;
+    shader_stage_create_info[1].flags = 0;
+    shader_stage_create_info[1].pName = "main";
+    shader_stage_create_info[1].pSpecializationInfo = NULL;
+    shader_stage_create_info[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shader_stage_create_info[1].module = fragment_shader->module;
+
+
+    /*
+    =================================================================
+    =================================================================
+    =================================================================
+    */
+
     VkGraphicsPipelineCreateInfo pipeline_create_info = {};
     pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipeline_create_info.pNext = NULL;
     pipeline_create_info.flags = 0;
-    // pipeline_create_info.stageCount
-    // pipeline_create_info.pStages
+    pipeline_create_info.stageCount = 2;
+    pipeline_create_info.pStages = shader_stage_create_info;
     pipeline_create_info.pVertexInputState = &input_state_create_info;
     pipeline_create_info.pInputAssemblyState = &input_assembly_state_create_info;
     pipeline_create_info.pTessellationState = NULL;
@@ -1346,8 +1498,8 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
     pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
     // pipeline_create_info.pColorBlendState
     pipeline_create_info.pDynamicState = &dynamic_state_create_info;
-    // pipeline_create_info.layout
-    // pipeline_create_info.renderPass
+    pipeline_create_info.layout = vk_pipeline->layout;
+    pipeline_create_info.renderPass = vk_render_pass->render_pass;
     // pipeline_create_info.subpass
     pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
     pipeline_create_info.basePipelineIndex = 0;
@@ -1357,6 +1509,12 @@ void r_vk_CreatePipeline(struct r_pipeline_t* pipeline)
 void r_vk_DestroyPipeline(struct r_pipeline_t *pipeline)
 {
 
+}
+
+void r_vk_BindPipeline(struct r_pipeline_t *pipeline)
+{
+//    struct r_vk_pipeline *vk_pipeline = (struct r_vk_pipeline_t *)pipeline;
+//    vkCmdBindPipeline(r_vk_renderer.command_buffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, &vk_pipeline->pipeline);
 }
 
 /*
@@ -1385,24 +1543,6 @@ void r_vk_CreateShader(struct r_shader_t *shader)
     module_create_info.codeSize = vk_shader->base.description.code_size;
     module_create_info.pCode = (uint32_t *)vk_shader->base.description.code;
     vkCreateShaderModule(r_vk_renderer.device, &module_create_info, NULL, &vk_shader->module);
-
-//    push_constants = vk_shader->base.description.push_constants;
-//    push_constant_count = vk_shader->base.description.push_constant_count;
-//
-//    if(push_constant_count)
-//    {
-//        ranges = (VkPushConstantRange *)alloca(sizeof(VkPushConstantRange) * push_constant_count);
-//
-//        for(uint32_t i = 0; i < push_constant_count; i++)
-//        {
-//            push_constant = push_constants + i;
-//            range = ranges + i;
-//
-//            range->offset = push_constant->offset;
-//            range->size = push_constant->size;
-//            range->stageFlags = VK_SHADER_STAGE_ALL;
-//        }
-//    }
 
     resources = vk_shader->base.description.resources;
     resource_count = vk_shader->base.description.resource_count;
@@ -1440,17 +1580,6 @@ void r_vk_CreateShader(struct r_shader_t *shader)
     {
         vk_shader->descriptor_set_layout = VK_NULL_HANDLE;
     }
-
-
-//    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
-//    pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-//    pipeline_layout_create_info.pNext = NULL;
-//    pipeline_layout_create_info.flags = 0;
-//    pipeline_layout_create_info.setLayoutCount = 1;
-//    pipeline_layout_create_info.pSetLayouts = &vk_shader->descriptor_set_layout;
-//    pipeline_layout_create_info.pushConstantRangeCount = push_constant_count;
-//    pipeline_layout_create_info.pPushConstantRanges = ranges;
-//    vkCreatePipelineLayout(r_vk_renderer.device, &pipeline_layout_create_info, NULL, &vk_shader->pipeline_layout);
 }
 
 void r_vk_DestroyShader(struct r_shader_t *shader)
@@ -1463,6 +1592,114 @@ void r_vk_DestroyShader(struct r_shader_t *shader)
         vkDestroyShaderModule(r_vk_renderer.device, vk_shader->module, NULL);
         vk_shader->module = VK_NULL_HANDLE;
     }
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_CreateRenderPass(struct r_render_pass_t *render_pass)
+{
+    struct r_vk_render_pass_t *vk_render_pass;
+    vk_render_pass = (struct r_vk_render_pass_t *)render_pass;
+
+    VkAttachmentDescription *attachment_descriptions;
+    VkAttachmentDescription *attachment_description;
+    struct r_attachment_description_t *attachment;
+    attachment_descriptions = (VkAttachmentDescription *)alloca(sizeof(VkAttachmentDescription) * render_pass->description.attachment_count);
+
+    for(uint32_t i = 0; i < render_pass->description.attachment_count; i++)
+    {
+        attachment_description = attachment_descriptions + i;
+        attachment = render_pass->description.attachments + i;
+
+        attachment_description->flags = 0;
+        attachment_description->format = format_map[attachment->format];
+        attachment_description->samples = VK_SAMPLE_COUNT_1_BIT;
+        attachment_description->loadOp = attachment_load_op_map[attachment->load_op];
+        attachment_description->storeOp = attachment_store_op_map[attachment->store_op];
+        attachment_description->stencilLoadOp = attachment_load_op_map[attachment->stencil_load_op];
+        attachment_description->stencilStoreOp = attachment_store_op_map[attachment->stencil_store_op];
+        attachment_description->initialLayout = image_layout_map[attachment->initial_layout];
+        attachment_description->finalLayout = image_layout_map[attachment->final_layout];
+    }
+
+    VkSubpassDescription *subpass_descriptions;
+    VkSubpassDescription *subpass_description;
+    VkAttachmentReference *references;
+    VkAttachmentReference *reference;
+    uint32_t reference_count = 0;
+    struct r_subpass_description_t *subpass;
+
+    for(uint32_t i = 0; i < render_pass->description.subpass_count; i++)
+    {
+        subpass = render_pass->description.subpasses + i;
+        reference_count += subpass->color_attachment_count;
+        if(subpass->depth_stencil_reference)
+        {
+            reference_count++;
+        }
+    }
+
+    subpass_descriptions = (VkSubpassDescription *)alloca(sizeof(VkSubpassDescription) * render_pass->description.subpass_count);
+    references = (VkAttachmentReference *)alloca(sizeof(VkAttachmentReference) * reference_count);
+    reference_count = 0;
+
+    for(uint32_t i = 0; i < render_pass->description.subpass_count; i++)
+    {
+        subpass_description = subpass_descriptions + i;
+        subpass = render_pass->description.subpasses + i;
+
+
+        subpass_description->flags = 0;
+        subpass_description->colorAttachmentCount = subpass->color_attachment_count;
+
+
+        subpass_description->
+        subpass_description->inputAttachmentCount = 0;
+        subpass_description->pInputAttachments = NULL;
+        subpass_description->pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass_description->preserveAttachmentCount = 0;
+        subpass_description->pPreserveAttachments = NULL;
+    }
+
+    VkRenderPassCreateInfo render_pass_create_info = {};
+    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_create_info.pNext = NULL;
+    render_pass_create_info.flags = 0;
+    render_pass_create_info.attachmentCount;
+    render_pass_create_info.pAttachments = attachment_descriptions;
+
+}
+
+void r_vk_DestroyRenderPass(struct r_render_pass_t *render_pass)
+{
+
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_vk_CreateFramebuffer(struct r_framebuffer_t *framebuffer)
+{
+    struct r_vk_framebuffer_t *vk_framebuffer;
+    vk_framebuffer = (struct r_vk_framebuffer_t *)framebuffer;
+
+//    VkFramebufferCreateInfo framebuffer_create_info = {};
+//    framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+//    framebuffer_create_info.pNext = NULL;
+//    framebuffer_create_info.flags = 0;
+//    framebuffer_create_info.
+}
+
+void r_vk_DestroyFramebuffer(struct r_framebuffer_t *framebuffer)
+{
+
 }
 
 /*

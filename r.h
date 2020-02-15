@@ -63,6 +63,30 @@ struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle);
 =================================================================
 */
 
+struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_description_t *description);
+
+void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
+
+struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description);
+
+void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle);
+
+struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_handle_t handle);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc);
 
 struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle);
