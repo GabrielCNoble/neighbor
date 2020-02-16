@@ -69,24 +69,24 @@ int main(int argc, char *argv[])
     ent_Init();
     g_Init();
 
-    struct r_texture_handle_t logo = r_LoadTexture("logo_fuck.png", "logo_fuck");
-    struct r_texture_handle_t logo2 = r_LoadTexture("logo2.png", "logo2");
-    struct r_texture_handle_t doggo = r_LoadTexture("doggo.png", "doggo");
+//    struct r_texture_handle_t logo = r_LoadTexture("logo_fuck.png", "logo_fuck");
+//    struct r_texture_handle_t logo2 = r_LoadTexture("logo2.png", "logo2");
+//    struct r_texture_handle_t doggo = r_LoadTexture("doggo.png", "doggo");
     // struct r_alloc_handle_t quad;
     // struct r_material_handle_t material_handle;
-    struct r_material_t *material;
+//    struct r_material_t *material;
     // struct vertex_t *vertices;
     // struct geometry_data_t data;
     // struct batch_data_t *batch;
-    struct model_handle_t model;
-    struct model_handle_t gun;
-    mat4_t projection_matrix;
-    mat4_t view_matrix;
-    mat4_t pitch_matrix;
-    mat4_t yaw_matrix;
+//    struct model_handle_t model;
+//    struct model_handle_t gun;
+//    mat4_t projection_matrix;
+//    mat4_t view_matrix;
+//    mat4_t pitch_matrix;
+//    mat4_t yaw_matrix;
     struct thing_t things[1];
-    vec3_t vec3;
-    vec2_t vec2;
+//    vec3_t vec3;
+//    vec2_t vec2;
 
     things[0].model = mdl_LoadModel("q3dm9.bsp");
     mat4_t_identity(&things[0].transform);

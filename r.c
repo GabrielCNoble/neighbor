@@ -9,10 +9,19 @@
 
 struct r_renderer_t r_renderer;
 
+//uint32_t format_to_layout_map[R_FORMAT_LAST];
+
 void r_InitRenderer()
 {
     struct r_alloc_t free_alloc;
     SDL_Thread *renderer_thread;
+
+//    format_to_layout_map[R_FORMAT_R8G8B8A8_UNORM] = R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+//    format_to_layout_map[R_FORMAT_B8G8R8A8_UNORM] = R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+//    format_to_layout_map[R_FORMAT_R32G32B32A32_SFLOAT] = R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+//    format_to_layout_map[R_FORMAT_D24_UNORM_S8_UINT] = R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+//    format_to_layout_map[R_FORMAT_D32_SFLOAT] = R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
 
     r_renderer.z_far = 1000.0;
     r_renderer.z_near = 0.01;
@@ -398,6 +407,7 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     struct r_subpass_description_t subpass = {};
     uint32_t attachment_size;
     uint32_t depth_stencil_index = 0xffffffff;
+    uint32_t depth_stencil_layout = R_LAYOUT_UNDEFINED;
 
     handle.index = add_stack_list_element(&r_renderer.render_passes, NULL);
     render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_renderer.render_passes, handle.index);
@@ -406,16 +416,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     attachment_size = sizeof(struct r_attachment_description_t) * description->attachment_count;
     render_pass->description.attachments = (struct r_attachment_description_t *)calloc(1, attachment_size);
     memcpy(render_pass->description.attachments, description->attachments, attachment_size);
-
-    for(uint32_t i = 0; i < description->attachment_count; i++)
-    {
-        attachment = render_pass->description.attachments + i;
-
-        if(attachment->final_layout == R_LAYOUT_USE_INITIAL)
-        {
-            attachment->final_layout = attachment->initial_layout;
-        }
-    }
 
     if(render_pass->description.subpass_count)
     {
@@ -429,9 +429,9 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
 
         /* since this subpass is being created only for
-        convenience of further ahead code the address of a
-        local var will be used, is not meant to be accessed
-        after this function returns */
+        convenience of further ahead code a local var will be
+        used, since it is not meant to be accessed after this
+        function returns */
         render_pass->description.subpasses = &subpass;
         render_pass->description.subpass_count = 1;
 
@@ -440,28 +440,48 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         subpass.color_references = (struct r_attachment_reference_t *)alloca(sizeof(struct r_attachment_reference_t) *
                                                                 description->attachment_count);
 
-        subpass.color_attachment_count = 0;
+        subpass.color_reference_count = 0;
         for(uint32_t i = 0; i < description->attachment_count; i++)
         {
             attachment = render_pass->description.attachments + i;
-
-            if(attachment->initial_layout == R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            switch(attachment->format)
             {
-                depth_stencil_index = i;
-                continue;
+                case R_FORMAT_D32_SFLOAT:
+                case R_FORMAT_D24_UNORM_S8_UINT:
+                    depth_stencil_index = i;
+                    continue;
+                break;
             }
-            reference = subpass.color_references + subpass.color_attachment_count;
-            subpass.color_attachment_count++;
+
+            reference = subpass.color_references + subpass.color_reference_count;
+            subpass.color_reference_count++;
             reference->attachment = i;
-            reference->layout = attachment->initial_layout;
+            /* this will assume that the desired layout for the color
+            attachment will be the optimal one */
+            reference->layout = R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+            if(attachment->final_layout == R_LAYOUT_UNDEFINED)
+            {
+                /* the Vulkan spec states that the final layout of an attachment
+                must not be undefined, so we fix it here in case that happens */
+                attachment->final_layout = R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            }
         }
 
         if(depth_stencil_index != 0xffffffff)
         {
             attachment = render_pass->description.attachments + depth_stencil_index;
-            reference = subpass.color_references + subpass.color_attachment_count;
+            reference = subpass.color_references + subpass.color_reference_count;
             reference->attachment = depth_stencil_index;
-            reference->layout = attachment->initial_layout;
+            reference->layout = R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            subpass.depth_stencil_reference = reference;
+
+            if(attachment->final_layout == R_LAYOUT_UNDEFINED)
+            {
+                /* the Vulkan spec states that the final layout of an attachment
+                must not be undefined, so we fix it here in case that happens */
+                attachment->final_layout = R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            }
         }
     }
 
@@ -477,7 +497,16 @@ void r_DestroyRenderPass(struct r_render_pass_handle_t handle)
 
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle)
 {
+    struct r_render_pass_t *render_pass;
 
+    render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_renderer.render_passes, handle.index);
+
+    if(render_pass && !(render_pass->description.attachment_count && render_pass->description.subpass_count))
+    {
+        render_pass = NULL;
+    }
+
+    return render_pass;
 }
 
 /*

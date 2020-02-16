@@ -108,17 +108,21 @@ enum R_FORMAT
 {
     R_FORMAT_UNDEFINED = 0,
     R_FORMAT_R8G8B8A8_UNORM,
+    R_FORMAT_B8G8R8A8_UNORM,
     R_FORMAT_R32G32B32A32_SFLOAT,
+    R_FORMAT_D32_SFLOAT,
+    R_FORMAT_D24_UNORM_S8_UINT,
     R_FORMAT_LAST,
 };
 
-enum R_TEXTURE_LAYOUT
+enum R_LAYOUT
 {
-    R_LAYOUT_USE_INITIAL = 0,
-    R_LAYOUT_UNDEFINED,
+//    R_LAYOUT_USE_INITIAL = 0,
+    R_LAYOUT_UNDEFINED = 0,
     R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 //    R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
     R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    R_LAYOUT_PRESENT_SRC,
     R_LAYOUT_LAST
 };
 
@@ -323,6 +327,7 @@ struct r_attachment_description_t
     uint8_t stencil_store_op;
     uint8_t initial_layout;
     uint8_t final_layout;
+    uint8_t pad;
 };
 
 struct r_framebuffer_description_t
@@ -410,7 +415,7 @@ struct r_subpass_description_t
 {
     struct r_attachment_reference_t *color_references;
     struct r_attachment_reference_t *depth_stencil_reference;
-    uint8_t color_attachment_count;
+    uint8_t color_reference_count;
 };
 
 struct r_render_pass_description_t

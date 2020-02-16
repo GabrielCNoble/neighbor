@@ -44,6 +44,7 @@ void r_vk_InitRenderer()
     r_renderer.pipelines = create_stack_list(sizeof(struct r_vk_pipeline_t), 16);
     r_renderer.shaders = create_stack_list(sizeof(struct r_vk_shader_t), 64);
     r_renderer.framebuffers = create_stack_list(sizeof(struct r_vk_framebuffer_t), 32);
+    r_renderer.render_passes = create_stack_list(sizeof(struct r_vk_render_pass_t), 32);
     r_vk_renderer.samplers = create_list(sizeof(struct r_vk_sampler_t), 16);
 
     filter_map[R_TEXTURE_FILTER_NEAREST] = VK_FILTER_NEAREST;
@@ -104,7 +105,10 @@ void r_vk_InitRenderer()
 
     format_map[R_FORMAT_UNDEFINED] = VK_FORMAT_UNDEFINED;
     format_map[R_FORMAT_R8G8B8A8_UNORM] = VK_FORMAT_R8G8B8A8_UNORM;
+    format_map[R_FORMAT_B8G8R8A8_UNORM] = VK_FORMAT_B8G8R8A8_UNORM;
     format_map[R_FORMAT_R32G32B32A32_SFLOAT] = VK_FORMAT_R32G32B32A32_SFLOAT;
+    format_map[R_FORMAT_D32_SFLOAT] = VK_FORMAT_D32_SFLOAT;
+    format_map[R_FORMAT_D24_UNORM_S8_UINT] = VK_FORMAT_D24_UNORM_S8_UINT;
 
     primitive_topology_map[R_PRIMITIVE_TOPOLOGY_POINT_LIST] = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
     primitive_topology_map[R_PRIMITIVE_TOPOLOGY_LINE_LIST] = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
@@ -122,8 +126,8 @@ void r_vk_InitRenderer()
 
     image_layout_map[R_LAYOUT_UNDEFINED] = VK_IMAGE_LAYOUT_UNDEFINED;
     image_layout_map[R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-//    image_layout_map[R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_DEPTH;
     image_layout_map[R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    image_layout_map[R_LAYOUT_PRESENT_SRC] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     attachment_load_op_map[R_ATTACHMENT_LOAD_OP_LOAD] = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment_load_op_map[R_ATTACHMENT_LOAD_OP_CLEAR] = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -622,72 +626,101 @@ void r_vk_InitPipeline()
 
 
 
+    struct r_render_pass_description_t render_pass_description = {};
+    render_pass_description.attachments = (struct r_attachment_description_t []){
+        [0] = {
+            .format = R_FORMAT_B8G8R8A8_UNORM,
+            .load_op = R_ATTACHMENT_LOAD_OP_CLEAR,
+            .stencil_load_op = R_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencil_store_op = R_ATTACHMENT_STORE_OP_DONT_CARE,
+            .final_layout = R_LAYOUT_PRESENT_SRC
+        },
+        [1] = {
+            .format = R_FORMAT_D32_SFLOAT,
+            .load_op = R_ATTACHMENT_LOAD_OP_CLEAR,
+            .stencil_load_op = R_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencil_store_op = R_ATTACHMENT_STORE_OP_DONT_CARE,
+        }
+    };
+    render_pass_description.attachment_count = 2;
 
-    /* our renderer will render to a color and a depth image. The
-    color image will be attachment 0, depth will be 1 */
-    VkAttachmentDescription attachment_description[2] = {};
-    attachment_description[0].flags = 0;
-    attachment_description[0].format = surface_format.format;
-    attachment_description[0].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachment_description[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachment_description[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment_description[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment_description[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachment_description[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    /* transform the image to a layout that can be used for presenting, as the
-    optimal layout most likely isn't a linear one. */
-    attachment_description[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    struct r_render_pass_handle_t render_pass_handle = r_CreateRenderPass(&render_pass_description);
+    struct r_vk_render_pass_t *render_pass = (struct r_vk_render_pass_t *)r_GetRenderPassPointer(render_pass_handle);
+    r_vk_renderer.render_pass = render_pass->render_pass;
 
-    attachment_description[1].flags = 0;
-    attachment_description[1].format = VK_FORMAT_D32_SFLOAT;
-    attachment_description[1].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachment_description[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachment_description[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment_description[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachment_description[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachment_description[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    /* leave the depth image on its most optimal layout, since we won't present it */
-    attachment_description[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    /* our renderer will have just a subpass for now, in which we
-    draw the scene. */
+//    /* our renderer will render to a color and a depth image. The
+//    color image will be attachment 0, depth will be 1 */
+//    VkAttachmentDescription attachment_description[2] = {};
+//    attachment_description[0].flags = 0;
+//    attachment_description[0].format = surface_format.format;
+//    attachment_description[0].samples = VK_SAMPLE_COUNT_1_BIT;
+//    attachment_description[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+//    attachment_description[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+//    attachment_description[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+//    attachment_description[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+//    attachment_description[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+//    /* transform the image to a layout that can be used for presenting, as the
+//    optimal layout most likely isn't a linear one. */
+//    attachment_description[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+//
+//    attachment_description[1].flags = 0;
+//    attachment_description[1].format = VK_FORMAT_D32_SFLOAT;
+//    attachment_description[1].samples = VK_SAMPLE_COUNT_1_BIT;
+//    attachment_description[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+//    attachment_description[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+//    attachment_description[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+//    attachment_description[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+//    attachment_description[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+//    /* leave the depth image on its most optimal layout, since we won't present it */
+//    attachment_description[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+//
+//    /* our renderer will have just a subpass for now, in which we
+//    draw the scene. */
+//
+//    /* this attachment reference will reference attachment 0, the color
+//    attachment */
+//    VkAttachmentReference color_attachment_reference = {};
+//    color_attachment_reference.attachment = 0;
+//    color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+//
+//    /* this will reference attachment 1, the depth attachment */
+//    VkAttachmentReference depth_attachment_reference = {};
+//    depth_attachment_reference.attachment = 1;
+//    depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+//
+//    VkSubpassDescription subpass_description = {};
+//    subpass_description.flags = 0;
+//    subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+//    subpass_description.inputAttachmentCount = 0;
+//    subpass_description.pInputAttachments = NULL;
+//    subpass_description.colorAttachmentCount = 1;
+//    subpass_description.pColorAttachments = &color_attachment_reference;
+//    subpass_description.pResolveAttachments = NULL;
+//    subpass_description.pDepthStencilAttachment = &depth_attachment_reference;
+//    subpass_description.preserveAttachmentCount = 0;
+//    subpass_description.pPreserveAttachments = NULL;
+//
+//    VkRenderPassCreateInfo render_pass_create_info = {};
+//    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+//    render_pass_create_info.pNext = NULL;
+//    render_pass_create_info.flags = 0;
+//    render_pass_create_info.attachmentCount = 2;
+//    render_pass_create_info.pAttachments = attachment_description;
+//    render_pass_create_info.subpassCount = 1;
+//    render_pass_create_info.pSubpasses = &subpass_description;
+//    render_pass_create_info.dependencyCount = 0;
+//    render_pass_create_info.pDependencies = NULL;
+//
+//    // VkRenderPass render_pass;
+//    vkCreateRenderPass(r_vk_renderer.device, &render_pass_create_info, NULL, &r_vk_renderer.render_pass);
 
-    /* this attachment reference will reference attachment 0, the color
-    attachment */
-    VkAttachmentReference color_attachment_reference = {};
-    color_attachment_reference.attachment = 0;
-    color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    /* this will reference attachment 1, the depth attachment */
-    VkAttachmentReference depth_attachment_reference = {};
-    depth_attachment_reference.attachment = 1;
-    depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    VkSubpassDescription subpass_description = {};
-    subpass_description.flags = 0;
-    subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass_description.inputAttachmentCount = 0;
-    subpass_description.pInputAttachments = NULL;
-    subpass_description.colorAttachmentCount = 1;
-    subpass_description.pColorAttachments = &color_attachment_reference;
-    subpass_description.pResolveAttachments = NULL;
-    subpass_description.pDepthStencilAttachment = &depth_attachment_reference;
-    subpass_description.preserveAttachmentCount = 0;
-    subpass_description.pPreserveAttachments = NULL;
 
-    VkRenderPassCreateInfo render_pass_create_info = {};
-    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    render_pass_create_info.pNext = NULL;
-    render_pass_create_info.flags = 0;
-    render_pass_create_info.attachmentCount = 2;
-    render_pass_create_info.pAttachments = attachment_description;
-    render_pass_create_info.subpassCount = 1;
-    render_pass_create_info.pSubpasses = &subpass_description;
-    render_pass_create_info.dependencyCount = 0;
-    render_pass_create_info.pDependencies = NULL;
 
-    // VkRenderPass render_pass;
-    vkCreateRenderPass(r_vk_renderer.device, &render_pass_create_info, NULL, &r_vk_renderer.render_pass);
+
+
 
     /* a framebuffer defines a set of attachments on which operations are made. We need one
     for each swapchain image */
@@ -1608,7 +1641,29 @@ void r_vk_CreateRenderPass(struct r_render_pass_t *render_pass)
     VkAttachmentDescription *attachment_descriptions;
     VkAttachmentDescription *attachment_description;
     struct r_attachment_description_t *attachment;
-    attachment_descriptions = (VkAttachmentDescription *)alloca(sizeof(VkAttachmentDescription) * render_pass->description.attachment_count);
+    attachment_descriptions = (VkAttachmentDescription *)alloca(sizeof(VkAttachmentDescription)
+                                                * render_pass->description.attachment_count);
+
+    //    attachment_description[0].flags = 0;
+    //    attachment_description[0].format = surface_format.format;
+    //    attachment_description[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    //    attachment_description[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    //    attachment_description[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    //    attachment_description[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    //    attachment_description[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    //    attachment_description[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    //    /* transform the image to a layout that can be used for presenting, as the
+    //    optimal layout most likely isn't a linear one. */
+    //    attachment_description[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    //
+    //    attachment_description[1].flags = 0;
+    //    attachment_description[1].format = VK_FORMAT_D32_SFLOAT;
+    //    attachment_description[1].samples = VK_SAMPLE_COUNT_1_BIT;
+    //    attachment_description[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    //    attachment_description[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    //    attachment_description[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    //    attachment_description[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    //    attachment_description[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     for(uint32_t i = 0; i < render_pass->description.attachment_count; i++)
     {
@@ -1623,6 +1678,7 @@ void r_vk_CreateRenderPass(struct r_render_pass_t *render_pass)
         attachment_description->stencilLoadOp = attachment_load_op_map[attachment->stencil_load_op];
         attachment_description->stencilStoreOp = attachment_store_op_map[attachment->stencil_store_op];
         attachment_description->initialLayout = image_layout_map[attachment->initial_layout];
+//        attachment_description->initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         attachment_description->finalLayout = image_layout_map[attachment->final_layout];
     }
 
@@ -1636,7 +1692,7 @@ void r_vk_CreateRenderPass(struct r_render_pass_t *render_pass)
     for(uint32_t i = 0; i < render_pass->description.subpass_count; i++)
     {
         subpass = render_pass->description.subpasses + i;
-        reference_count += subpass->color_attachment_count;
+        reference_count += subpass->color_reference_count;
         if(subpass->depth_stencil_reference)
         {
             reference_count++;
@@ -1644,34 +1700,51 @@ void r_vk_CreateRenderPass(struct r_render_pass_t *render_pass)
     }
 
     subpass_descriptions = (VkSubpassDescription *)alloca(sizeof(VkSubpassDescription) * render_pass->description.subpass_count);
+
+    /* single memory block for all attachment references */
     references = (VkAttachmentReference *)alloca(sizeof(VkAttachmentReference) * reference_count);
-    reference_count = 0;
 
     for(uint32_t i = 0; i < render_pass->description.subpass_count; i++)
     {
         subpass_description = subpass_descriptions + i;
         subpass = render_pass->description.subpasses + i;
-
-
-        subpass_description->flags = 0;
-        subpass_description->colorAttachmentCount = subpass->color_attachment_count;
-
-
-        subpass_description->
-        subpass_description->inputAttachmentCount = 0;
-        subpass_description->pInputAttachments = NULL;
+        memset(subpass_description, 0, sizeof(VkSubpassDescription));
         subpass_description->pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass_description->preserveAttachmentCount = 0;
-        subpass_description->pPreserveAttachments = NULL;
+
+        if(subpass->color_reference_count)
+        {
+            subpass_description->colorAttachmentCount = subpass->color_reference_count;
+            subpass_description->pColorAttachments = references;
+            for(uint32_t j = 0; j < subpass->color_reference_count; j++)
+            {
+                reference = references++;
+                reference->attachment = subpass->color_references[j].attachment;
+                reference->layout = image_layout_map[subpass->color_references[j].layout];
+            }
+        }
+
+        /* if there's depth_stencil attachment, it'll be the last
+        in the block */
+        if(subpass->depth_stencil_reference)
+        {
+            reference = references++;
+            reference->attachment = subpass->depth_stencil_reference->attachment;
+            reference->layout = image_layout_map[subpass->depth_stencil_reference->layout];
+            subpass_description->pDepthStencilAttachment = reference;
+        }
     }
 
     VkRenderPassCreateInfo render_pass_create_info = {};
     render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     render_pass_create_info.pNext = NULL;
     render_pass_create_info.flags = 0;
-    render_pass_create_info.attachmentCount;
+    render_pass_create_info.attachmentCount = render_pass->description.attachment_count;
     render_pass_create_info.pAttachments = attachment_descriptions;
-
+    render_pass_create_info.subpassCount = render_pass->description.subpass_count;
+    render_pass_create_info.pSubpasses = subpass_descriptions;
+    render_pass_create_info.dependencyCount = 0;
+    render_pass_create_info.pDependencies = NULL;
+    vkCreateRenderPass(r_vk_renderer.device, &render_pass_create_info, NULL, &vk_render_pass->render_pass);
 }
 
 void r_vk_DestroyRenderPass(struct r_render_pass_t *render_pass)
