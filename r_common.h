@@ -13,194 +13,12 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/Include/vulkan/vulkan.h"
 
-
-
-//enum R_STENCIL_OP
-//{
-//    R_STENCIL_OP_KEEP = 0,
-//    R_STENCIL_OP_ZERO,
-//    R_STENCIL_OP_REPLACE,
-//    R_STENCIL_OP_INC_CLAMP,
-//    R_STENCIL_OP_DEC_CLAMP,
-//    R_STENCIL_OP_INVERT,
-//    R_STENCIL_OP_INC_WRAP,
-//    R_STENCIL_OP_DEC_WRAP,
-//    R_STENCIL_OP_LAST,
-//};
-
-//enum R_COMPARE_OP
-//{
-//    R_COMPARE_OP_NONE = 0,
-//    R_COMPARE_OP_ALWAYS,
-//    R_COMPARE_OP_LESS,
-//    R_COMPARE_OP_LEQUAL,
-//    R_COMPARE_OP_EQUAL,
-//    R_COMPARE_OP_NEQUAL,
-//    R_COMPARE_OP_GEQUAL,
-//    R_COMPARE_OP_GREATER,
-//    R_COMPARE_OP_NEVER,
-//    R_COMPARE_OP_LAST
-//};
-
-//enum R_POLYGON_MODE
-//{
-//    R_POLYGON_MODE_LINE = 0,
-//    R_POLYGON_MODE_POINT,
-//    R_POLYGON_MODE_FILL,
-//    R_POLYGON_MODE_LAST,
-//};
-
-//enum R_BLEND_OP
-//{
-//    R_BLEND_OP_ADD = 0,
-//    R_BLEND_OP_SUB,
-//    R_BLEND_OP_REV_SUB,
-//    R_BLEND_OP_MIN,
-//    R_BLEND_OP_MAX,
-//    R_BLEND_OP_LAST,
-//};
-
-//enum R_BLEND_FACTOR
-//{
-//    R_BLEND_FACTOR_ZERO = 0,
-//    R_BLEND_FACTOR_ONE,
-//    R_BLEND_FACTOR_SRC_COLOR,
-//    R_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
-//    R_BLEND_FACTOR_DST_COLOR,
-//    R_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
-//    R_BLEND_FACTOR_SRC_ALPHA,
-//    R_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-//    R_BLEND_FACTOR_DST_ALPHA,
-//    R_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-//    R_BLEND_FACTOR_LAST,
-//};
-
-//enum R_POLYGON_FACE
-//{
-//    R_POLYGON_FACE_FRONT = 0,
-//    R_POLYGON_FACE_BACK,
-//    R_POLYGON_FACE_FRONT_AND_BACK,
-//    R_POLYGON_FACE_LAST,
-//};
-
-//enum R_PRIMITIVE_TOPOLOGY
-//{
-//    R_PRIMITIVE_TOPOLOGY_POINT_LIST = 0,
-//    R_PRIMITIVE_TOPOLOGY_LINE_LIST,
-//    R_PRIMITIVE_TOPOLOGY_LINE_STRIP,
-//    R_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-//    R_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-//    R_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
-//    R_PRIMITIVE_TOPOLOGY_LAST,
-//};
-
-//enum R_CULL_MODE
-//{
-//    R_CULL_MODE_NONE = 0,
-//    R_CULL_MODE_BACK,
-//    R_CULL_MODE_FRONT,
-//    R_CULL_MODE_FRONT_AND_BACK,
-//    R_CULL_MODE_LAST,
-//};
-
-//enum R_FRONT_FACE
-//{
-//    R_FRONT_FACE_CW = 0,
-//    R_FRONT_FACE_CCW,
-//    R_FRONT_FACE_LAST
-//};
-
-//enum R_FORMAT
-//{
-//    R_FORMAT_UNDEFINED = 0,
-//    R_FORMAT_R8G8B8A8_UNORM,
-//    R_FORMAT_B8G8R8A8_UNORM,
-//    R_FORMAT_R32G32B32A32_SFLOAT,
-//    R_FORMAT_D32_SFLOAT,
-//    R_FORMAT_D24_UNORM_S8_UINT,
-//    R_FORMAT_LAST,
-//};
-
-//enum R_LAYOUT
-//{
-////    R_LAYOUT_USE_INITIAL = 0,
-//    R_LAYOUT_UNDEFINED = 0,
-//    R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-////    R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-//    R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-//    R_LAYOUT_PRESENT_SRC,
-//    R_LAYOUT_LAST
-//};
-
-//enum R_ATTACHMENT_LOAD_OP
-//{
-//    R_ATTACHMENT_LOAD_OP_LOAD = 0,
-//    R_ATTACHMENT_LOAD_OP_CLEAR,
-//    R_ATTACHMENT_LOAD_OP_DONT_CARE,
-//    R_ATTACHMENT_LOAD_OP_LAST
-//};
-
-//enum R_ATTACHMENT_STORE_OP
-//{
-//    R_ATTACHMENT_STORE_OP_STORE = 0,
-//    R_ATTACHMENT_STORE_OP_DONT_CARE,
-//    R_ATTACHMENT_STORE_OP_LAST
-//};
-//
-//enum R_TEXTURE_TYPE
-//{
-//    R_TEXTURE_TYPE_INVALID = 0,
-//    R_TEXTURE_TYPE_NONE,
-//    R_TEXTURE_TYPE_1D,
-//    R_TEXTURE_TYPE_1D_ARRAY,
-//    R_TEXTURE_TYPE_2D,
-//    R_TEXTURE_TYPE_2D_ARRAY,
-//    R_TEXTURE_TYPE_3D,
-//    R_TEXTURE_TYPE_3D_ARRAY,
-//    R_TEXTURE_TYPE_CUBEMAP,
-//    R_TEXTURE_TYPE_CUBEMAP_ARRAY,
-//    R_TEXTURE_TYPE_LAST
-//};
-
-enum R_IMAGE_FILTER
-{
-    R_IMAGE_FILTER_NEAREST,
-    R_IMAGE_FILTER_LINEAR,
-    R_IMAGE_FILTER_LAST
-};
-
-enum R_IMAGE_ADDRESS_MODE
-{
-    R_IMAGE_ADDRESS_MODE_CLAMP_TO_EDGE,
-    R_IMAGE_ADDRESS_MODE_CLAMP_TO_BORDER,
-    R_IMAGE_ADDRESS_MODE_REPEAT,
-    // R_TEXTURE_ADDRESS_MODE_MIRROR,
-    R_IMAGE_ADDRESS_MODE_LAST,
-    // R_TEXTURE_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
-};
-
-enum R_IMAGE_ANISOTROPY
-{
-    R_IMAGE_ANISOTROPY_OFF,
-    R_IMAGE_ANISOTROPY_1X,
-    R_IMAGE_ANISOTROPY_2X,
-    R_IMAGE_ANISOTROPY_4X,
-    R_IMAGE_ANISOTROPY_8X,
-};
-
 enum R_SHADER_RESOURCE_TYPE
 {
     R_SHADER_RESOURCE_TYPE_TEXTURE = 0,
     R_SHADER_RESOURCE_TYPE_UNIFORM,
 //    R_SHADER_RESOURCE_TYPE_PUSH_CONSTANT,
 };
-
-//enum R_SHADER_STAGE
-//{
-//    R_SHADER_STAGE_VERTEX = 0,
-//    R_SHADER_STAGE_FRAGMENT,
-//    R_SHADER_STAGE_LAST,
-//};
 
 /*
 =================================================================
@@ -255,7 +73,7 @@ struct r_vertex_attrib_t
 {
     uint16_t offset;
     uint8_t format;
-    uint8_t location;
+    uint8_t pad;
 };
 
  struct r_vertex_binding_t
@@ -265,13 +83,13 @@ struct r_vertex_attrib_t
      struct r_vertex_attrib_t *attribs;
  };
 
-struct r_shader_resource_t
+struct r_resource_binding_t
 {
-    uint8_t binding;
-    uint8_t type;
+    uint16_t count;
+    uint8_t descriptor_type;
 };
 
-struct r_shader_push_constant_t
+struct r_push_constant_t
 {
     uint16_t size;
     uint16_t offset;
@@ -283,10 +101,10 @@ struct r_shader_description_t
     struct r_vertex_binding_t *vertex_bindings;
 
     uint32_t resource_count;
-    struct r_shader_resource_t *resources;
+    struct r_resource_binding_t *resources;
 
-    uint32_t ranges_count;
-    struct r_shader_push_constant_t *push_constants;
+    uint32_t push_constant_count;
+    struct r_push_constant_t *push_constants;
 
     uint32_t stage;
     uint32_t code_size;
@@ -295,13 +113,16 @@ struct r_shader_description_t
 
 struct r_shader_t
 {
+    /* necessary for the pipeline vertex input state */
     uint32_t vertex_binding_count;
-    struct r_vertex_binding_t *vertex_bindings; /* necessary for creating a pipeline */
+    struct r_vertex_binding_t *vertex_bindings;
 
     VkShaderModule module;
     VkDescriptorSetLayout descriptor_set_layout;
-    uint32_t range_count;
-    VkPushConstantRange *ranges;
+
+    /* necessary for creating the pipeline layout */
+    uint32_t push_constant_count;
+    struct r_push_constant_t *push_constants;
 };
 
 struct r_shader_handle_t
@@ -339,21 +160,9 @@ struct r_command_buffer_t
 =================================================================
 */
 
-//struct r_attachment_description_t
-//{
-//    uint8_t format;
-//    uint8_t load_op;
-//    uint8_t store_op;
-//    uint8_t stencil_load_op;
-//    uint8_t stencil_store_op;
-//    uint8_t initial_layout;
-//    uint8_t final_layout;
-//    uint8_t pad;
-//};
 
 struct r_framebuffer_description_t
 {
-//    struct r_attachment_description_t *attachments;
     VkAttachmentDescription *attachments;
     struct r_render_pass_t *render_pass;
     uint8_t attachment_count;
@@ -363,7 +172,6 @@ struct r_framebuffer_description_t
 
 struct r_framebuffer_t
 {
-//    struct r_framebuffer_description_t description;
     VkFramebuffer *buffers;
     struct r_texture_t *textures;
     uint8_t texture_count;
@@ -405,7 +213,6 @@ struct r_texture_description_t
     uint8_t format;
     uint8_t mip_levels;
     uint8_t aspect_mask;
-    uint8_t layout;
     struct r_sampler_params_t sampler_params;
     char *name;
 };
@@ -422,6 +229,7 @@ struct r_texture_t
     VkImage image;
     VkImageView image_view;
     VkDeviceMemory memory;
+    uint8_t current_layout;
 };
 
 struct r_texture_handle_t
@@ -437,15 +245,6 @@ struct r_texture_handle_t
 #define R_DIFFUSE_TEXTURE_BINDING 0
 #define R_NORMAL_TEXTURE_BINDING 1
 
-
-/*
-=================================================================================
-=================================================================================
-=================================================================================
-*/
-
-
-//struct r_command_buffer_t
 
 /*
 =================================================================================

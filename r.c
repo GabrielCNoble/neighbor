@@ -37,11 +37,15 @@ struct stack_list_t r_texture_descriptions;
 struct stack_list_t r_framebuffers;
 struct stack_list_t r_render_passes;
 struct stack_list_t r_samplers;
+struct stack_list_t r_shaders;
 
 void r_InitRenderer()
 {
     struct r_alloc_t free_alloc;
     SDL_Thread *renderer_thread;
+    FILE *file;
+    struct r_shader_description_t vertex_description = {};
+    struct r_shader_description_t fragment_description = {};
 
     r_renderer.allocd_blocks[0] = create_stack_list(sizeof(struct r_alloc_t), 512);
     r_renderer.allocd_blocks[1] = create_stack_list(sizeof(struct r_alloc_t), 512);
@@ -63,6 +67,7 @@ void r_InitRenderer()
     r_textures = create_stack_list(sizeof(struct r_texture_t), 512);
     r_texture_descriptions = create_stack_list(sizeof(struct r_texture_description_t), 512);
     r_samplers = create_stack_list(sizeof(struct r_sampler_t), 16);
+    r_shaders = create_stack_list(sizeof(struct r_shader_t), 128);
 
     r_renderer.z_far = 1000.0;
     r_renderer.z_near = 0.01;
@@ -74,12 +79,61 @@ void r_InitRenderer()
     r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, r_renderer.width, r_renderer.height, SDL_WINDOW_VULKAN);
     SDL_GL_SetSwapInterval(1);
     r_InitVulkan();
+    r_CreateDefaultTexture();
 
-    r_LoadTexture("doggo.png", "doggo0");
-    r_LoadTexture("doggo.png", "doggo1");
-    r_LoadTexture("doggo.png", "doggo2");
-    r_LoadTexture("doggo.png", "doggo3");
-    r_LoadTexture("doggo.png", "doggo4");
+    file = fopen("shader.vert.spv", "rb");
+    read_file(file, &vertex_description.code, &vertex_description.code_size);
+    fclose(file);
+    vertex_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertex_description.vertex_binding_count = 1;
+    vertex_description.vertex_bindings = (struct r_vertex_binding_t []){
+        [0] = {
+            .size = sizeof(struct vertex_t),
+            .attribs = (struct r_vertex_attrib_t []){
+                [0] = {
+                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                    .offset = offsetof(struct vertex_t, position),
+                },
+                [1] = {
+                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                    .offset = offsetof(struct vertex_t, normal),
+                },
+                [2] = {
+                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                    .offset = offsetof(struct vertex_t, tex_coords),
+                }
+            },
+            .attrib_count = 3
+        }
+    };
+
+    r_CreateShader(&vertex_description);
+    free(vertex_description.code);
+
+    fopen("shader.frag.spv", "rb");
+    read_file(file, &fragment_description.code, &fragment_description.code_size);
+    fclose(file);
+    fragment_description.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragment_description.resource_count = 1;
+    fragment_description.resources = (struct r_resource_binding_t []){
+        [0] = {
+            .descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .count = 1,
+        }
+    };
+    r_CreateShader(&fragment_description);
+    free(fragment_description.code);
+
+
+
+
+
+
+//    r_LoadTexture("doggo.png", "doggo0");
+//    r_LoadTexture("doggo.png", "doggo1");
+//    r_LoadTexture("doggo.png", "doggo2");
+//    r_LoadTexture("doggo.png", "doggo3");
+//    r_LoadTexture("doggo.png", "doggo4");
 
     renderer_thread = SDL_CreateThread(r_ExecuteCmds, "renderer thread", NULL);
     SDL_DetachThread(renderer_thread);
@@ -370,35 +424,36 @@ struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle)
 =================================================================
 */
 
-void r_InitBuiltinTextures()
+void r_CreateDefaultTexture()
 {
-//    struct r_texture_handle_t default_texture;
-//    struct r_texture_t *texture;
-//    uint32_t *default_texture_pixels;
-//
-//    default_texture = r_AllocTexture();
-//    texture = r_GetTexturePointer(default_texture);
-//
-//    texture->description.width = 8;
-//    texture->description.height = 8;
-//    texture->description.depth = 1;
-//    texture->name = "default_texture";
-//    texture->description.type = R_TEXTURE_TYPE_2D;
-//    texture->description.format = R_FORMAT_R8G8B8A8_UNORM;
-//    texture->description.sampler_params.min_filter = R_TEXTURE_FILTER_NEAREST;
-//    texture->description.sampler_params.mag_filter = R_TEXTURE_FILTER_NEAREST;
-//    texture->description.sampler_params.mip_filter = R_TEXTURE_FILTER_NEAREST;
-//
-//    default_texture_pixels = (uint32_t*)calloc(sizeof(uint32_t), 8 * 8);
-//    for(uint32_t y = 0; y < 8; y++)
-//    {
-//        for(uint32_t x = 0; x < 8; x++)
-//        {
-//            default_texture_pixels[y * 8 + x] = ((x + y) % 2) ? 0xff111111 : 0xff222222;
-//        }
-//    }
-//
-//    r_vk_LoadTextureData((struct r_vk_texture_t *)texture, (unsigned char *)default_texture_pixels);
+    struct r_texture_handle_t default_texture;
+    struct r_texture_description_t description = {};;
+    struct r_texture_t *texture;
+    uint32_t *default_texture_pixels;
+
+    description.width = 8;
+    description.height = 8;
+    description.name = "default_texture";
+    description.format = VK_FORMAT_R8G8B8A8_UNORM;
+    description.sampler_params.min_filter = VK_FILTER_NEAREST;
+    description.sampler_params.mag_filter = VK_FILTER_NEAREST;
+    description.sampler_params.mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    description.sampler_params.addr_mode_u = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    description.sampler_params.addr_mode_v = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    description.sampler_params.addr_mode_w = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+    default_texture = r_CreateTexture(&description);
+
+    default_texture_pixels = (uint32_t*)calloc(sizeof(uint32_t), 8 * 8);
+    for(uint32_t y = 0; y < 8; y++)
+    {
+        for(uint32_t x = 0; x < 8; x++)
+        {
+            default_texture_pixels[y * 8 + x] = ((x + y) % 2) ? 0xff111111 : 0xff222222;
+        }
+    }
+
+    r_LoadTextureData(default_texture, default_texture_pixels);
 }
 struct r_texture_handle_t r_AllocTexture()
 {
@@ -509,7 +564,7 @@ struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *descri
             break;
         }
 
-        texture_description->layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        texture->current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
         image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         image_create_info.pNext = NULL;
@@ -529,7 +584,7 @@ struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *descri
         image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         image_create_info.queueFamilyIndexCount = 0;
         image_create_info.pQueueFamilyIndices = NULL;
-        image_create_info.initialLayout = texture_description->layout;
+        image_create_info.initialLayout = texture->current_layout;
         vkCreateImage(r_device, &image_create_info, NULL, &texture->image);
 
         /* images must have memory bound to them before creating a view */
@@ -577,8 +632,6 @@ struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *descri
         image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
         image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
 
-
-
         image_view_create_info.subresourceRange.aspectMask = texture_description->aspect_mask;
         image_view_create_info.subresourceRange.baseArrayLayer = 0;
         image_view_create_info.subresourceRange.baseMipLevel = 0;
@@ -599,7 +652,7 @@ struct r_sampler_t *r_TextureSampler(struct r_sampler_params_t *params)
 
     for(sampler_index = 0; sampler_index < r_samplers.cursor; sampler_index++)
     {
-        sampler = (struct r_sampler_t *)get_list_element(&r_samplers, sampler_index);
+        sampler = (struct r_sampler_t *)get_stack_list_element(&r_samplers, sampler_index);
 
         if(!memcmp(&sampler->params, params, sizeof(struct r_sampler_params_t)))
         {
@@ -672,8 +725,8 @@ void r_SetTextureLayout(struct r_texture_handle_t handle, uint32_t layout)
     if(texture)
     {
         description = r_GetTextureDescriptionPointer(handle);
-        r_SetImageLayout(texture->image, description->aspect_mask, description->layout, layout);
-        description->layout = layout;
+        r_SetImageLayout(texture->image, description->aspect_mask, texture->current_layout, layout);
+        texture->current_layout = layout;
     }
 }
 
@@ -925,69 +978,86 @@ struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *descripti
     struct r_vertex_attrib_t *attribs;
     struct r_vertex_attrib_t *attrib;
     struct r_vertex_binding_t *binding;
+    struct r_resource_binding_t *resource_binding;
     uint32_t attrib_count;
     uint32_t alloc_size;
+    VkDescriptorSetLayoutBinding *layout_bindings;
+    VkDescriptorSetLayoutBinding *layout_binding;
+
     if(description)
     {
-//        handle.index = add_stack_list_element(&r_renderer.shaders, NULL);
-//        shader = (struct r_shader_t *)get_stack_list_element(&r_renderer.shaders, handle.index);
-//        memcpy(&shader->description, description, sizeof(struct r_shader_description_t));
+        handle.index = add_stack_list_element(&r_shaders, NULL);
+        shader = (struct r_shader_t *)get_stack_list_element(&r_shaders, handle.index);
+        memset(shader, 0, sizeof(struct r_shader_t));
 
+        if(description->push_constant_count)
+        {
+            shader->push_constants = (struct r_push_constant_t *)calloc(description->push_constant_count,
+                                                                    sizeof(struct r_push_constant_t));
+            memcpy(shader->push_constants, description->push_constants, description->push_constant_count *
+                                                                    sizeof(struct r_push_constant_t));
+        }
 
-//
-//        if(description->resource_count)
-//        {
-//            shader->description.resources = (struct r_shader_resource_t *)calloc(description->resource_count, sizeof(struct r_shader_resource_t));
-//            memcpy(shader->description.resources, description->resources, sizeof(struct r_shader_resource_t) * description->resource_count);
-//        }
-//        else
-//        {
-//            shader->description.resources = NULL;
-//        }
-//
-//        if(description->push_constant_count)
-//        {
-//            shader->description.push_constants = (struct r_shader_push_constant_t *)calloc(description->push_constant_count, sizeof(struct r_shader_push_constant_t));
-//            memcpy(shader->description.push_constants, description->push_constants, sizeof(struct r_shader_push_constant_t) * description->push_constant_count);
-//        }
-//        else
-//        {
-//            shader->description.push_constants = NULL;
-//        }
-//
-//        if(description->vertex_binding_count)
-//        {
-//            attrib_count = 0;
-//            for(uint32_t i = 0; i < description->vertex_binding_count; i++)
-//            {
-//                attrib_count += description->vertex_bindings[i].attrib_count;
-//            }
-//            alloc_size = attrib_count * sizeof(struct r_vertex_attrib_t);
-//            alloc_size += description->vertex_binding_count * sizeof(struct r_vertex_binding_t);
-//
-//            /* single memory block for bindings and attributes */
-//            shader->description.vertex_bindings = (struct r_vertex_binding_t *)calloc(1, alloc_size);
-//            /* attributes exist in memory right after the bindings */
-//            attribs = (struct r_vertex_attrib_t *)(shader->description.vertex_bindings + description->vertex_binding_count);
-//            memcpy(shader->description.vertex_bindings, description->vertex_bindings, sizeof(struct r_vertex_binding_t) *
-//                   description->vertex_binding_count);
-//            attrib_count = 0;
-//            for(uint32_t i = 0; i < description->vertex_binding_count; i++)
-//            {
-//                binding = shader->description.vertex_bindings + i;
-//                binding->attribs = attribs + attrib_count;
-//                attrib_count += binding->attrib_count;
-//
-//                memcpy(binding->attribs, description->vertex_bindings[i].attribs,
-//                    sizeof(struct r_vertex_attrib_t) * binding->attrib_count);
-//            }
-//        }
-//        else
-//        {
-//            shader->description.vertex_bindings = NULL;
-//        }
-//
-//        r_vk_CreateShader(shader);
+        if(description->vertex_binding_count)
+        {
+            attrib_count = 0;
+            for(uint32_t i = 0; i < description->vertex_binding_count; i++)
+            {
+                attrib_count += description->vertex_bindings[i].attrib_count;
+            }
+            alloc_size = attrib_count * sizeof(struct r_vertex_attrib_t);
+            alloc_size += description->vertex_binding_count * sizeof(struct r_vertex_binding_t);
+
+            /* single memory block for bindings and attributes */
+            shader->vertex_bindings = (struct r_vertex_binding_t *)calloc(1, alloc_size);
+            /* attributes exist in memory right after the bindings */
+            attribs = (struct r_vertex_attrib_t *)(shader->vertex_bindings + description->vertex_binding_count);
+            memcpy(shader->vertex_bindings, description->vertex_bindings, sizeof(struct r_vertex_binding_t) *
+                   description->vertex_binding_count);
+            attrib_count = 0;
+            for(uint32_t i = 0; i < description->vertex_binding_count; i++)
+            {
+                binding = shader->vertex_bindings + i;
+                binding->attribs = attribs + attrib_count;
+                attrib_count += binding->attrib_count;
+
+                memcpy(binding->attribs, description->vertex_bindings[i].attribs,
+                    sizeof(struct r_vertex_attrib_t) * binding->attrib_count);
+            }
+        }
+
+        if(description->resource_count)
+        {
+            layout_bindings = alloca(sizeof(VkDescriptorSetLayoutBinding) * description->resource_count);
+
+            for(uint32_t i = 0; i < description->resource_count; i++)
+            {
+                layout_binding = layout_bindings + i;
+                resource_binding = description->resources + i;
+
+                layout_binding->binding = i;
+                layout_binding->descriptorType = resource_binding->descriptor_type;
+                layout_binding->descriptorCount = resource_binding->count;
+                layout_binding->pImmutableSamplers = NULL;
+                layout_binding->stageFlags = description->stage;
+            }
+
+            VkDescriptorSetLayoutCreateInfo layout_create_info = {};
+            layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            layout_create_info.pNext = NULL;
+            layout_create_info.flags = 0;
+            layout_create_info.bindingCount = description->resource_count;
+            layout_create_info.pBindings = layout_bindings;
+            vkCreateDescriptorSetLayout(r_device, &layout_create_info, NULL, &shader->descriptor_set_layout);
+        }
+
+        VkShaderModuleCreateInfo module_create_info = {};
+        module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        module_create_info.pNext = NULL;
+        module_create_info.flags = 0;
+        module_create_info.codeSize = description->code_size;
+        module_create_info.pCode = description->code;
+        vkCreateShaderModule(r_device, &module_create_info, NULL, &shader->module);
     }
 
     return handle;

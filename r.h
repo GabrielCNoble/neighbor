@@ -40,7 +40,7 @@ struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle);
 =================================================================
 */
 
-void r_InitBuiltinTextures();
+void r_CreateDefaultTexture();
 
 struct r_texture_handle_t r_AllocTexture();
 
