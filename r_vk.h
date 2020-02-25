@@ -84,17 +84,17 @@ struct r_vk_swapchain_t
     VkImageView *image_views;
 };
 
-union r_vk_sampler_tag_t
-{
-    struct r_texture_sampler_params_t params;
-    uint16_t tag;
-};
+//union r_vk_sampler_tag_t
+//{
+//    struct r_texture_sampler_params_t params;
+//    uint16_t tag;
+//};
 
-struct r_vk_sampler_t
-{
-    VkSampler sampler;
-    union r_vk_sampler_tag_t tag;
-};
+//struct r_vk_sampler_t
+//{
+//    VkSampler sampler;
+//    union r_vk_sampler_tag_t tag;
+//};
 
 struct r_vk_renderer_t
 {
@@ -222,6 +222,10 @@ void r_vk_UnmapAlloc(struct r_alloc_handle_t handle);
 =================================================================
 =================================================================
 */
+
+void r_vk_CreateTexture(struct r_texture_t *texture);
+
+void r_vk_DestroyTexture(struct r_texture_t *texture);
 
 void r_vk_InitWithDefaultTexture(struct r_vk_texture_t *texture);
 

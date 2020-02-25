@@ -2,10 +2,22 @@
 #define R_H
 
 #include "r_common.h"
-#include "r_vk.h"
+//#include "r_vk.h"
 
 
 void r_InitRenderer();
+
+void r_InitVulkan();
+
+
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t properties);
 
 /*
 =================================================================
@@ -34,11 +46,23 @@ struct r_texture_handle_t r_AllocTexture();
 
 void r_FreeTexture(struct r_texture_handle_t handle);
 
-struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *texture_description);
+struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *description);
+
+struct r_sampler_t *r_TextureSampler(struct r_sampler_params_t *params);
+
+void r_SetImageLayout(VkImage image, uint32_t aspect_mask, uint32_t old_layout, uint32_t new_layout);
+
+void r_SetTextureLayout(struct r_texture_handle_t handle, uint32_t layout);
+
+void r_BlitImageToTexture(struct r_texture_handle_t handle, VkImage image);
+
+void r_LoadTextureData(struct r_texture_handle_t handle, void *data);
 
 struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
 
 struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
+
+struct r_texture_description_t *r_GetTextureDescriptionPointer(struct r_texture_handle_t handle);
 
 struct r_texture_t* r_GetDefaultTexturePointer();
 

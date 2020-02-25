@@ -9,6 +9,12 @@ union entity_handle_t player_handle;
 
 void g_Init()
 {
+    /*
+        TODO: add the prefix puppr_ to
+        *every* powerup variable
+    */
+
+
     player_handle = ENT_INVALID_ENTITY_HANDLE;
 
     in_RegisterKey(SDL_SCANCODE_W);

@@ -19,24 +19,25 @@ struct r_vk_renderer_t r_vk_renderer;
 PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSet;
 
 
-VkFilter filter_map[R_TEXTURE_FILTER_LAST] = {(VkFilter)R_TEXTURE_FILTER_LAST};
-VkSamplerMipmapMode mipmap_mode_map[R_TEXTURE_FILTER_LAST] = {(VkSamplerMipmapMode)R_TEXTURE_FILTER_LAST};
-VkSamplerAddressMode address_mode_map[R_TEXTURE_ADDRESS_MODE_LAST] = {(VkSamplerAddressMode)R_TEXTURE_ADDRESS_MODE_LAST};
-VkCompareOp compare_op_map[R_COMPARE_OP_LAST] = {(VkCompareOp)R_COMPARE_OP_LAST};
-VkStencilOp stencil_op_map[R_STENCIL_OP_LAST] = {(VkStencilOp)R_STENCIL_OP_LAST};
-VkPolygonMode polygon_mode_map[R_POLYGON_MODE_LAST] = {(VkPolygonMode)R_POLYGON_MODE_LAST};
-VkFrontFace front_face_map[R_FRONT_FACE_LAST] = {(VkFrontFace)R_FRONT_FACE_LAST};
-VkBlendOp blend_op_map[R_BLEND_OP_LAST] = {(VkBlendOp)R_BLEND_OP_LAST};
-VkBlendFactor blend_factor_map[R_BLEND_FACTOR_LAST] = {(VkBlendFactor)R_BLEND_FACTOR_LAST};
-VkCullModeFlags cull_mode_map[R_CULL_MODE_LAST] = {(VkCullModeFlags)R_CULL_MODE_LAST};
-VkFormat format_map[R_FORMAT_LAST] = {(VkFormat)R_FORMAT_LAST};
+VkFilter filter_map[R_TEXTURE_FILTER_LAST] = {VK_FILTER_MAX_ENUM};
+VkSamplerMipmapMode mipmap_mode_map[R_TEXTURE_FILTER_LAST] = {VK_SAMPLER_MIPMAP_MODE_MAX_ENUM};
+VkSamplerAddressMode address_mode_map[R_TEXTURE_ADDRESS_MODE_LAST] = {VK_SAMPLER_ADDRESS_MODE_MAX_ENUM};
+VkCompareOp compare_op_map[R_COMPARE_OP_LAST] = {VK_COMPARE_OP_MAX_ENUM};
+VkStencilOp stencil_op_map[R_STENCIL_OP_LAST] = {VK_STENCIL_OP_MAX_ENUM};
+VkPolygonMode polygon_mode_map[R_POLYGON_MODE_LAST] = {VK_POLYGON_MODE_MAX_ENUM};
+VkFrontFace front_face_map[R_FRONT_FACE_LAST] = {VK_FRONT_FACE_MAX_ENUM};
+VkBlendOp blend_op_map[R_BLEND_OP_LAST] = {VK_BLEND_OP_MAX_ENUM};
+VkBlendFactor blend_factor_map[R_BLEND_FACTOR_LAST] = {VK_BLEND_FACTOR_MAX_ENUM};
+VkCullModeFlags cull_mode_map[R_CULL_MODE_LAST] = {VK_CULL_MODE_FLAG_BITS_MAX_ENUM};
+VkFormat format_map[R_FORMAT_LAST] = {VK_FORMAT_MAX_ENUM};
 VkBool32 bool_map[] = {VK_FALSE, VK_TRUE};
-VkPrimitiveTopology primitive_topology_map[R_PRIMITIVE_TOPOLOGY_LAST] = {(VkPrimitiveTopology)R_PRIMITIVE_TOPOLOGY_LAST};
-VkImageType image_type_map[R_TEXTURE_TYPE_LAST] = {(VkImageType)R_TEXTURE_TYPE_LAST};
-VkShaderStageFlagBits shader_stage_map[R_SHADER_STAGE_LAST] = {(VkShaderStageFlagBits)R_SHADER_STAGE_LAST};
-VkImageLayout image_layout_map[R_LAYOUT_LAST] = {(VkImageLayout)R_LAYOUT_LAST};
-VkAttachmentLoadOp attachment_load_op_map[R_ATTACHMENT_LOAD_OP_LAST] = {(VkAttachmentLoadOp)R_ATTACHMENT_LOAD_OP_LAST};
-VkAttachmentStoreOp attachment_store_op_map[R_ATTACHMENT_STORE_OP_LAST] = {(VkAttachmentStoreOp)R_ATTACHMENT_STORE_OP_LAST};
+VkPrimitiveTopology primitive_topology_map[R_PRIMITIVE_TOPOLOGY_LAST] = {VK_PRIMITIVE_TOPOLOGY_MAX_ENUM};
+VkImageType image_type_map[R_TEXTURE_TYPE_LAST] = {VK_IMAGE_TYPE_MAX_ENUM};
+VkShaderStageFlagBits shader_stage_map[R_SHADER_STAGE_LAST] = {VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM};
+VkImageLayout image_layout_map[R_LAYOUT_LAST] = {VK_IMAGE_LAYOUT_MAX_ENUM};
+VkAttachmentLoadOp attachment_load_op_map[R_ATTACHMENT_LOAD_OP_LAST] = {VK_ATTACHMENT_LOAD_OP_MAX_ENUM};
+VkAttachmentStoreOp attachment_store_op_map[R_ATTACHMENT_STORE_OP_LAST] = {VK_ATTACHMENT_STORE_OP_MAX_ENUM};
+VkImageViewType image_to_image_view_type[R_TEXTURE_TYPE_LAST] = {VK_IMAGE_VIEW_TYPE_MAX_ENUM};
 
 void r_vk_InitRenderer()
 {
@@ -128,6 +129,12 @@ void r_vk_InitRenderer()
     image_layout_map[R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     image_layout_map[R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     image_layout_map[R_LAYOUT_PRESENT_SRC] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    image_to_image_view_type[R_TEXTURE_TYPE_1D] = VK_IMAGE_VIEW_TYPE_1D;
+    image_to_image_view_type[R_TEXTURE_TYPE_2D] = VK_IMAGE_VIEW_TYPE_2D;
+    image_to_image_view_type[R_TEXTURE_TYPE_3D] = VK_IMAGE_VIEW_TYPE_3D;
+    image_to_image_view_type[R_TEXTURE_TYPE_1D_ARRAY] = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+    image_to_image_view_type[R_TEXTURE_TYPE_2D_ARRAY] = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 
     attachment_load_op_map[R_ATTACHMENT_LOAD_OP_LOAD] = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment_load_op_map[R_ATTACHMENT_LOAD_OP_CLEAR] = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -623,6 +630,13 @@ void r_vk_InitPipeline()
 
     VkImageView depth_image_view;
     vkCreateImageView(r_vk_renderer.device, &image_view_create_info, NULL, &depth_image_view);
+
+
+
+
+
+
+
 
 
 
@@ -1852,6 +1866,58 @@ void r_vk_UnmapAlloc(struct r_alloc_handle_t handle)
 =================================================================
 =================================================================
 */
+
+void r_vk_CreateTexture(struct r_texture_t *texture)
+{
+    struct r_vk_texture_t *vk_texture;
+    vk_texture = (struct r_vk_texture_t *)texture;
+
+    VkImageCreateInfo image_create_info = {};
+    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_create_info.pNext = NULL;
+    image_create_info.flags = 0;
+    image_create_info.imageType = image_type_map[texture->description.type];
+    image_create_info.format = format_map[texture->description.format];
+    image_create_info.extent.width = texture->description.width;
+    image_create_info.extent.height = texture->description.height;
+    image_create_info.extent.depth = texture->description.depth;
+    image_create_info.mipLevels = texture->description.mip_levels;
+    image_create_info.arrayLayers = 1;
+    /* the texel upload routine will deal with taking
+    a linear tiled image and transferring it into the
+    optimally tiled image */
+    image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+
+    /* all textures can be used as source or destination
+    of transfer operations, as framebuffer attachments, or
+    as an sampleable texture in shaders. This is akin as
+    how textures work in OpenGL */
+    image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                              VK_IMAGE_USAGE_SAMPLED_BIT;
+
+    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    image_create_info.queueFamilyIndexCount = 0;
+    image_create_info.pQueueFamilyIndices = NULL;
+    /* as per spec */
+    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    vkCreateImage(r_vk_renderer.device, &image_create_info, NULL, &vk_texture->image);
+
+    VkImageViewCreateInfo image_view_create_info = {};
+    image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    image_view_create_info.pNext = NULL;
+    image_view_create_info.flags = 0;
+    image_view_create_info.image = vk_texture->image;
+    image_view_create_info.viewType = image_to_image_view_type[texture->description.type];
+    image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
+}
+
+void r_vk_DestroyTexture(struct r_texture_t *texture)
+{
+
+}
 
 void r_vk_InitWithDefaultTexture(struct r_vk_texture_t *texture)
 {

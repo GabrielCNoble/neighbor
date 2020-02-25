@@ -3,198 +3,204 @@
 
 #include <stdint.h>
 #include "SDL/include/SDL2/SDL.h"
+#include "SDL/include/SDL2/SDL_vulkan.h"
 #include "dstuff/containers/stack_list.h"
 #include "dstuff/containers/list.h"
 #include "dstuff/containers/ringbuffer.h"
 #include "dstuff/math/vector.h"
 #include "dstuff/math/matrix.h"
 
-enum R_STENCIL_OP
+#define VK_USE_PLATFORM_WIN32_KHR
+#include "vulkan/Include/vulkan/vulkan.h"
+
+
+
+//enum R_STENCIL_OP
+//{
+//    R_STENCIL_OP_KEEP = 0,
+//    R_STENCIL_OP_ZERO,
+//    R_STENCIL_OP_REPLACE,
+//    R_STENCIL_OP_INC_CLAMP,
+//    R_STENCIL_OP_DEC_CLAMP,
+//    R_STENCIL_OP_INVERT,
+//    R_STENCIL_OP_INC_WRAP,
+//    R_STENCIL_OP_DEC_WRAP,
+//    R_STENCIL_OP_LAST,
+//};
+
+//enum R_COMPARE_OP
+//{
+//    R_COMPARE_OP_NONE = 0,
+//    R_COMPARE_OP_ALWAYS,
+//    R_COMPARE_OP_LESS,
+//    R_COMPARE_OP_LEQUAL,
+//    R_COMPARE_OP_EQUAL,
+//    R_COMPARE_OP_NEQUAL,
+//    R_COMPARE_OP_GEQUAL,
+//    R_COMPARE_OP_GREATER,
+//    R_COMPARE_OP_NEVER,
+//    R_COMPARE_OP_LAST
+//};
+
+//enum R_POLYGON_MODE
+//{
+//    R_POLYGON_MODE_LINE = 0,
+//    R_POLYGON_MODE_POINT,
+//    R_POLYGON_MODE_FILL,
+//    R_POLYGON_MODE_LAST,
+//};
+
+//enum R_BLEND_OP
+//{
+//    R_BLEND_OP_ADD = 0,
+//    R_BLEND_OP_SUB,
+//    R_BLEND_OP_REV_SUB,
+//    R_BLEND_OP_MIN,
+//    R_BLEND_OP_MAX,
+//    R_BLEND_OP_LAST,
+//};
+
+//enum R_BLEND_FACTOR
+//{
+//    R_BLEND_FACTOR_ZERO = 0,
+//    R_BLEND_FACTOR_ONE,
+//    R_BLEND_FACTOR_SRC_COLOR,
+//    R_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+//    R_BLEND_FACTOR_DST_COLOR,
+//    R_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+//    R_BLEND_FACTOR_SRC_ALPHA,
+//    R_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+//    R_BLEND_FACTOR_DST_ALPHA,
+//    R_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+//    R_BLEND_FACTOR_LAST,
+//};
+
+//enum R_POLYGON_FACE
+//{
+//    R_POLYGON_FACE_FRONT = 0,
+//    R_POLYGON_FACE_BACK,
+//    R_POLYGON_FACE_FRONT_AND_BACK,
+//    R_POLYGON_FACE_LAST,
+//};
+
+//enum R_PRIMITIVE_TOPOLOGY
+//{
+//    R_PRIMITIVE_TOPOLOGY_POINT_LIST = 0,
+//    R_PRIMITIVE_TOPOLOGY_LINE_LIST,
+//    R_PRIMITIVE_TOPOLOGY_LINE_STRIP,
+//    R_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+//    R_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+//    R_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
+//    R_PRIMITIVE_TOPOLOGY_LAST,
+//};
+
+//enum R_CULL_MODE
+//{
+//    R_CULL_MODE_NONE = 0,
+//    R_CULL_MODE_BACK,
+//    R_CULL_MODE_FRONT,
+//    R_CULL_MODE_FRONT_AND_BACK,
+//    R_CULL_MODE_LAST,
+//};
+
+//enum R_FRONT_FACE
+//{
+//    R_FRONT_FACE_CW = 0,
+//    R_FRONT_FACE_CCW,
+//    R_FRONT_FACE_LAST
+//};
+
+//enum R_FORMAT
+//{
+//    R_FORMAT_UNDEFINED = 0,
+//    R_FORMAT_R8G8B8A8_UNORM,
+//    R_FORMAT_B8G8R8A8_UNORM,
+//    R_FORMAT_R32G32B32A32_SFLOAT,
+//    R_FORMAT_D32_SFLOAT,
+//    R_FORMAT_D24_UNORM_S8_UINT,
+//    R_FORMAT_LAST,
+//};
+
+//enum R_LAYOUT
+//{
+////    R_LAYOUT_USE_INITIAL = 0,
+//    R_LAYOUT_UNDEFINED = 0,
+//    R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+////    R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+//    R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+//    R_LAYOUT_PRESENT_SRC,
+//    R_LAYOUT_LAST
+//};
+
+//enum R_ATTACHMENT_LOAD_OP
+//{
+//    R_ATTACHMENT_LOAD_OP_LOAD = 0,
+//    R_ATTACHMENT_LOAD_OP_CLEAR,
+//    R_ATTACHMENT_LOAD_OP_DONT_CARE,
+//    R_ATTACHMENT_LOAD_OP_LAST
+//};
+
+//enum R_ATTACHMENT_STORE_OP
+//{
+//    R_ATTACHMENT_STORE_OP_STORE = 0,
+//    R_ATTACHMENT_STORE_OP_DONT_CARE,
+//    R_ATTACHMENT_STORE_OP_LAST
+//};
+//
+//enum R_TEXTURE_TYPE
+//{
+//    R_TEXTURE_TYPE_INVALID = 0,
+//    R_TEXTURE_TYPE_NONE,
+//    R_TEXTURE_TYPE_1D,
+//    R_TEXTURE_TYPE_1D_ARRAY,
+//    R_TEXTURE_TYPE_2D,
+//    R_TEXTURE_TYPE_2D_ARRAY,
+//    R_TEXTURE_TYPE_3D,
+//    R_TEXTURE_TYPE_3D_ARRAY,
+//    R_TEXTURE_TYPE_CUBEMAP,
+//    R_TEXTURE_TYPE_CUBEMAP_ARRAY,
+//    R_TEXTURE_TYPE_LAST
+//};
+
+enum R_IMAGE_FILTER
 {
-    R_STENCIL_OP_KEEP = 0,
-    R_STENCIL_OP_ZERO,
-    R_STENCIL_OP_REPLACE,
-    R_STENCIL_OP_INC_CLAMP,
-    R_STENCIL_OP_DEC_CLAMP,
-    R_STENCIL_OP_INVERT,
-    R_STENCIL_OP_INC_WRAP,
-    R_STENCIL_OP_DEC_WRAP,
-    R_STENCIL_OP_LAST,
+    R_IMAGE_FILTER_NEAREST,
+    R_IMAGE_FILTER_LINEAR,
+    R_IMAGE_FILTER_LAST
 };
 
-enum R_COMPARE_OP
+enum R_IMAGE_ADDRESS_MODE
 {
-    R_COMPARE_OP_NONE = 0,
-    R_COMPARE_OP_ALWAYS,
-    R_COMPARE_OP_LESS,
-    R_COMPARE_OP_LEQUAL,
-    R_COMPARE_OP_EQUAL,
-    R_COMPARE_OP_NEQUAL,
-    R_COMPARE_OP_GEQUAL,
-    R_COMPARE_OP_GREATER,
-    R_COMPARE_OP_NEVER,
-    R_COMPARE_OP_LAST
-};
-
-enum R_POLYGON_MODE
-{
-    R_POLYGON_MODE_LINE = 0,
-    R_POLYGON_MODE_POINT,
-    R_POLYGON_MODE_FILL,
-    R_POLYGON_MODE_LAST,
-};
-
-enum R_BLEND_OP
-{
-    R_BLEND_OP_ADD = 0,
-    R_BLEND_OP_SUB,
-    R_BLEND_OP_REV_SUB,
-    R_BLEND_OP_MIN,
-    R_BLEND_OP_MAX,
-    R_BLEND_OP_LAST,
-};
-
-enum R_BLEND_FACTOR
-{
-    R_BLEND_FACTOR_ZERO = 0,
-    R_BLEND_FACTOR_ONE,
-    R_BLEND_FACTOR_SRC_COLOR,
-    R_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
-    R_BLEND_FACTOR_DST_COLOR,
-    R_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
-    R_BLEND_FACTOR_SRC_ALPHA,
-    R_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-    R_BLEND_FACTOR_DST_ALPHA,
-    R_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-    R_BLEND_FACTOR_LAST,
-};
-
-enum R_POLYGON_FACE
-{
-    R_POLYGON_FACE_FRONT = 0,
-    R_POLYGON_FACE_BACK,
-    R_POLYGON_FACE_FRONT_AND_BACK,
-    R_POLYGON_FACE_LAST,
-};
-
-enum R_PRIMITIVE_TOPOLOGY
-{
-    R_PRIMITIVE_TOPOLOGY_POINT_LIST = 0,
-    R_PRIMITIVE_TOPOLOGY_LINE_LIST,
-    R_PRIMITIVE_TOPOLOGY_LINE_STRIP,
-    R_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-    R_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-    R_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
-    R_PRIMITIVE_TOPOLOGY_LAST,
-};
-
-enum R_CULL_MODE
-{
-    R_CULL_MODE_NONE = 0,
-    R_CULL_MODE_BACK,
-    R_CULL_MODE_FRONT,
-    R_CULL_MODE_FRONT_AND_BACK,
-    R_CULL_MODE_LAST,
-};
-
-enum R_FRONT_FACE
-{
-    R_FRONT_FACE_CW = 0,
-    R_FRONT_FACE_CCW,
-    R_FRONT_FACE_LAST
-};
-
-enum R_FORMAT
-{
-    R_FORMAT_UNDEFINED = 0,
-    R_FORMAT_R8G8B8A8_UNORM,
-    R_FORMAT_B8G8R8A8_UNORM,
-    R_FORMAT_R32G32B32A32_SFLOAT,
-    R_FORMAT_D32_SFLOAT,
-    R_FORMAT_D24_UNORM_S8_UINT,
-    R_FORMAT_LAST,
-};
-
-enum R_LAYOUT
-{
-//    R_LAYOUT_USE_INITIAL = 0,
-    R_LAYOUT_UNDEFINED = 0,
-    R_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-//    R_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-    R_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-    R_LAYOUT_PRESENT_SRC,
-    R_LAYOUT_LAST
-};
-
-enum R_ATTACHMENT_LOAD_OP
-{
-    R_ATTACHMENT_LOAD_OP_LOAD = 0,
-    R_ATTACHMENT_LOAD_OP_CLEAR,
-    R_ATTACHMENT_LOAD_OP_DONT_CARE,
-    R_ATTACHMENT_LOAD_OP_LAST
-};
-
-enum R_ATTACHMENT_STORE_OP
-{
-    R_ATTACHMENT_STORE_OP_STORE = 0,
-    R_ATTACHMENT_STORE_OP_DONT_CARE,
-    R_ATTACHMENT_STORE_OP_LAST
-};
-
-enum R_TEXTURE_TYPE
-{
-    R_TEXTURE_TYPE_INVALID = 0,
-    R_TEXTURE_TYPE_NONE,
-    R_TEXTURE_TYPE_1D,
-    R_TEXTURE_TYPE_1D_ARRAY,
-    R_TEXTURE_TYPE_2D,
-    R_TEXTURE_TYPE_2D_ARRAY,
-    R_TEXTURE_TYPE_3D,
-    R_TEXTURE_TYPE_3D_ARRAY,
-    R_TEXTURE_TYPE_CUBEMAP,
-    R_TEXTURE_TYPE_CUBEMAP_ARRAY,
-    R_TEXTURE_TYPE_LAST
-};
-
-enum R_TEXTURE_FILTER
-{
-    R_TEXTURE_FILTER_NEAREST,
-    R_TEXTURE_FILTER_LINEAR,
-    R_TEXTURE_FILTER_LAST
-};
-
-enum R_TEXTURE_ADDRESS_MODE
-{
-    R_TEXTURE_ADDRESS_MODE_CLAMP_TO_EDGE,
-    R_TEXTURE_ADDRESS_MODE_CLAMP_TO_BORDER,
-    R_TEXTURE_ADDRESS_MODE_REPEAT,
+    R_IMAGE_ADDRESS_MODE_CLAMP_TO_EDGE,
+    R_IMAGE_ADDRESS_MODE_CLAMP_TO_BORDER,
+    R_IMAGE_ADDRESS_MODE_REPEAT,
     // R_TEXTURE_ADDRESS_MODE_MIRROR,
-    R_TEXTURE_ADDRESS_MODE_LAST,
+    R_IMAGE_ADDRESS_MODE_LAST,
     // R_TEXTURE_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
 };
 
-enum R_TEXTURE_ANISOTROPY
+enum R_IMAGE_ANISOTROPY
 {
-    R_TEXTURE_ANISOTROPY_OFF,
-    R_TEXTURE_ANISOTROPY_1X,
-    R_TEXTURE_ANISOTROPY_2X,
-    R_TEXTURE_ANISOTROPY_4X,
-    R_TEXTURE_ANISOTROPY_8X,
+    R_IMAGE_ANISOTROPY_OFF,
+    R_IMAGE_ANISOTROPY_1X,
+    R_IMAGE_ANISOTROPY_2X,
+    R_IMAGE_ANISOTROPY_4X,
+    R_IMAGE_ANISOTROPY_8X,
 };
 
 enum R_SHADER_RESOURCE_TYPE
 {
     R_SHADER_RESOURCE_TYPE_TEXTURE = 0,
     R_SHADER_RESOURCE_TYPE_UNIFORM,
-    R_SHADER_RESOURCE_TYPE_PUSH_CONSTANT,
+//    R_SHADER_RESOURCE_TYPE_PUSH_CONSTANT,
 };
 
-enum R_SHADER_STAGE
-{
-    R_SHADER_STAGE_VERTEX = 0,
-    R_SHADER_STAGE_FRAGMENT,
-    R_SHADER_STAGE_LAST,
-};
+//enum R_SHADER_STAGE
+//{
+//    R_SHADER_STAGE_VERTEX = 0,
+//    R_SHADER_STAGE_FRAGMENT,
+//    R_SHADER_STAGE_LAST,
+//};
 
 /*
 =================================================================
@@ -267,8 +273,8 @@ struct r_shader_resource_t
 
 struct r_shader_push_constant_t
 {
- uint16_t size;
- uint16_t offset;
+    uint16_t size;
+    uint16_t offset;
 };
 
 struct r_shader_description_t
@@ -279,7 +285,7 @@ struct r_shader_description_t
     uint32_t resource_count;
     struct r_shader_resource_t *resources;
 
-    uint32_t push_constant_count;
+    uint32_t ranges_count;
     struct r_shader_push_constant_t *push_constants;
 
     uint32_t stage;
@@ -289,7 +295,13 @@ struct r_shader_description_t
 
 struct r_shader_t
 {
-    struct r_shader_description_t description;
+    uint32_t vertex_binding_count;
+    struct r_vertex_binding_t *vertex_bindings; /* necessary for creating a pipeline */
+
+    VkShaderModule module;
+    VkDescriptorSetLayout descriptor_set_layout;
+    uint32_t range_count;
+    VkPushConstantRange *ranges;
 };
 
 struct r_shader_handle_t
@@ -306,10 +318,19 @@ struct r_shader_handle_t
 =================================================================
 =================================================================
 */
+enum R_COMMAND_BUFFER_STATE
+{
+    R_COMMAND_BUFFER_STATE_INITIAL = 0,
+    R_COMMAND_BUFFER_STATE_RECORDING,
+    R_COMMAND_BUFFER_STATE_EXECUTABLE,
+    R_COMMAND_BUFFER_STATE_PENDING,
+    R_COMMAND_BUFFER_STATE_INVALID,
+};
 
 struct r_command_buffer_t
 {
-
+    VkCommandBuffer command_buffer;
+    uint8_t state;
 };
 
 /*
@@ -318,29 +339,35 @@ struct r_command_buffer_t
 =================================================================
 */
 
-struct r_attachment_description_t
-{
-    uint8_t format;
-    uint8_t load_op;
-    uint8_t store_op;
-    uint8_t stencil_load_op;
-    uint8_t stencil_store_op;
-    uint8_t initial_layout;
-    uint8_t final_layout;
-    uint8_t pad;
-};
+//struct r_attachment_description_t
+//{
+//    uint8_t format;
+//    uint8_t load_op;
+//    uint8_t store_op;
+//    uint8_t stencil_load_op;
+//    uint8_t stencil_store_op;
+//    uint8_t initial_layout;
+//    uint8_t final_layout;
+//    uint8_t pad;
+//};
 
 struct r_framebuffer_description_t
 {
-    struct r_attachment_description_t *attachments;
+//    struct r_attachment_description_t *attachments;
+    VkAttachmentDescription *attachments;
     struct r_render_pass_t *render_pass;
     uint8_t attachment_count;
-    uint8_t framebuffer_count;
+    uint8_t buffer_count;
+    uint8_t pad[1];
 };
 
 struct r_framebuffer_t
 {
-    struct r_framebuffer_description_t *description;
+//    struct r_framebuffer_description_t description;
+    VkFramebuffer *buffers;
+    struct r_texture_t *textures;
+    uint8_t texture_count;
+    uint8_t next_buffer;
 };
 
 struct r_framebuffer_handle_t
@@ -358,15 +385,14 @@ struct r_framebuffer_handle_t
 =================================================================
 */
 
-struct r_texture_sampler_params_t
+struct r_sampler_params_t
 {
-    unsigned min_filter : 1;
-    unsigned mag_filter : 1;
-    unsigned mip_filter : 1;
-    unsigned addr_mode_u : 2;
-    unsigned addr_mode_v : 2;
-    unsigned addr_mode_w : 2;
-    // unsigned anisotropy : 3;
+    VkFilter min_filter;
+    VkFilter mag_filter;
+    VkSamplerMipmapMode mipmap_mode;
+    VkSamplerAddressMode addr_mode_u;
+    VkSamplerAddressMode addr_mode_v;
+    VkSamplerAddressMode addr_mode_w;
 };
 
 struct r_texture_description_t
@@ -374,15 +400,28 @@ struct r_texture_description_t
     uint16_t width;
     uint16_t height;
     uint16_t depth;
+    uint16_t layers;
     uint8_t type;
     uint8_t format;
-    struct r_texture_sampler_params_t sampler_params;
+    uint8_t mip_levels;
+    uint8_t aspect_mask;
+    uint8_t layout;
+    struct r_sampler_params_t sampler_params;
+    char *name;
+};
+
+struct r_sampler_t
+{
+    VkSampler sampler;
+    struct r_sampler_params_t params;
 };
 
 struct r_texture_t
 {
-    char *name;
-    struct r_texture_description_t description;
+    struct r_sampler_t *sampler;
+    VkImage image;
+    VkImageView image_view;
+    VkDeviceMemory memory;
 };
 
 struct r_texture_handle_t
@@ -405,6 +444,15 @@ struct r_texture_handle_t
 =================================================================================
 */
 
+
+//struct r_command_buffer_t
+
+/*
+=================================================================================
+=================================================================================
+=================================================================================
+*/
+
 struct r_attachment_reference_t
 {
     uint8_t attachment;
@@ -416,6 +464,7 @@ struct r_subpass_description_t
     struct r_attachment_reference_t *color_references;
     struct r_attachment_reference_t *depth_stencil_reference;
     uint8_t color_reference_count;
+    uint8_t pad[3];
 };
 
 struct r_render_pass_description_t
@@ -424,6 +473,7 @@ struct r_render_pass_description_t
     struct r_subpass_description_t *subpasses;
     uint8_t attachment_count;
     uint8_t subpass_count;
+    uint8_t pad[2];
 };
 
 struct r_render_pass_t
@@ -440,6 +490,17 @@ struct r_render_pass_handle_t
 #define R_INVALID_RENDER_PASS_INDEX 0xffffffff
 #define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
 #define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
+
+/*
+=================================================================================
+=================================================================================
+=================================================================================
+*/
+
+struct r_render_config_t
+{
+
+};
 
 /*
 =================================================================================
@@ -521,6 +582,7 @@ struct r_pipeline_handle_t
 #define R_INVALID_PIPELINE_INDEX 0xffffffff
 #define R_PIPELINE_HANDLE(index) (struct r_pipeline_handle_t){index}
 #define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
+
 
 /*
 =================================================================
@@ -660,11 +722,11 @@ struct r_renderer_t
     struct stack_list_t allocd_blocks[2];
     struct list_t free_blocks[2];
 
-    struct stack_list_t textures;
+//    struct stack_list_t textures;
     struct stack_list_t materials;
     struct stack_list_t lights;
-    struct stack_list_t framebuffers;
-    struct stack_list_t render_passes;
+//    struct stack_list_t framebuffers;
+//    struct stack_list_t render_passes;
 
     SDL_SpinLock cmd_buffer_lock;
     struct ringbuffer_t cmd_buffer;
