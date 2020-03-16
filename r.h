@@ -25,13 +25,13 @@ uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t properties);
 =================================================================
 */
 
-struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* description);
-
-void r_DestroyPipeline(struct r_pipeline_handle_t handle);
-
-void r_BindPipeline(struct r_pipeline_handle_t handle);
-
-struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle);
+//struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* description);
+//
+//void r_DestroyPipeline(struct r_pipeline_handle_t handle);
+//
+//void r_BindPipeline(struct r_pipeline_handle_t handle);
+//
+//struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle);
 
 
 /*
@@ -48,7 +48,7 @@ void r_FreeTexture(struct r_texture_handle_t handle);
 
 struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *description);
 
-struct r_sampler_t *r_TextureSampler(struct r_sampler_params_t *params);
+VkSampler r_TextureSampler(struct r_sampler_params_t *params);
 
 void r_SetImageLayout(VkImage image, uint32_t aspect_mask, uint32_t old_layout, uint32_t new_layout);
 
@@ -87,11 +87,17 @@ struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle);
 =================================================================
 */
 
+uint32_t r_ExpandedReferencesSize(struct r_attachment_description_t *attachments, uint32_t count);
+
+void r_ExpandReferences(struct r_attachment_reference_t *expanded_references, uint32_t expanded_count, struct r_attachment_reference_t *references, uint32_t reference_count);
+
 struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_description_t *description);
 
 void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
 
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle);
+
+struct r_render_pass_set_handle_t r_CreateRenderPassSet(struct r_render_pass_set_description_t *description);
 
 /*
 =================================================================
@@ -99,11 +105,15 @@ struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t han
 =================================================================
 */
 
+struct r_framebuffer_handle_t r_AllocFramebuffer();
+
 struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description);
 
 void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle);
 
 struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_handle_t handle);
+
+struct r_framebuffer_description_t *r_GetFramebufferDescriptionPointer(struct r_framebuffer_handle_t handle);
 
 /*
 =================================================================

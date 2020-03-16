@@ -12,6 +12,7 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/Include/vulkan/vulkan.h"
+#include "vulkan/Include/vulkan/vulkan_core.h"
 
 enum R_SHADER_RESOURCE_TYPE
 {
@@ -160,14 +161,17 @@ struct r_command_buffer_t
 =================================================================
 */
 
+struct r_attachment_description_t
+{
+    uint8_t format;
+    uint8_t attachment;
+};
 
 struct r_framebuffer_description_t
 {
-    VkAttachmentDescription *attachments;
-    struct r_render_pass_t *render_pass;
+    struct r_attachment_description_t *attachments;
     uint8_t attachment_count;
     uint8_t buffer_count;
-    uint8_t pad[1];
 };
 
 struct r_framebuffer_t
@@ -195,12 +199,12 @@ struct r_framebuffer_handle_t
 
 struct r_sampler_params_t
 {
-    VkFilter min_filter;
-    VkFilter mag_filter;
-    VkSamplerMipmapMode mipmap_mode;
-    VkSamplerAddressMode addr_mode_u;
-    VkSamplerAddressMode addr_mode_v;
-    VkSamplerAddressMode addr_mode_w;
+    unsigned addr_mode_u : 3;
+    unsigned addr_mode_v : 3;
+    unsigned addr_mode_w : 3;
+    unsigned mipmap_mode : 1;
+    unsigned min_filter : 1;
+    unsigned mag_filter : 1;
 };
 
 struct r_texture_description_t
@@ -225,7 +229,8 @@ struct r_sampler_t
 
 struct r_texture_t
 {
-    struct r_sampler_t *sampler;
+
+    VkSampler sampler;
     VkImage image;
     VkImageView image_view;
     VkDeviceMemory memory;
@@ -252,33 +257,65 @@ struct r_texture_handle_t
 =================================================================================
 */
 
+//struct r_pipeline_state_t
+//{
+//    struct
+//    {
+//        uint8_t fail_op: 3;
+//        uint8_t depth_fail_op: 3;
+//        uint8_t pass_op: 3;
+//        uint8_t compare_op: 3;
+//        uint8_t test_enabled: 1;
+//    }stencil_state;
+//
+//    struct
+//    {
+//        uint8_t func: 3;
+//        uint8_t write_enabled: 1;
+//        uint8_t test_enabled: 1;
+//    }depth_state;
+//
+//    struct
+//    {
+//        uint8_t polygon_mode: 2;
+//        uint8_t front_face: 1;
+//        uint8_t cull_face: 2;
+//    }rasterizer_state;
+//
+//    struct
+//    {
+//        uint8_t topology: 4;
+//    }input_assembly_state;
+//};
+
 struct r_attachment_reference_t
 {
     uint8_t attachment;
     uint8_t layout;
 };
 
-struct r_subpass_description_t
-{
-    struct r_attachment_reference_t *color_references;
-    struct r_attachment_reference_t *depth_stencil_reference;
-    uint8_t color_reference_count;
-    uint8_t pad[3];
-};
+//struct r_subpass_description_t
+//{
+////    struct r_attachment_reference_t *color_references;
+////    struct r_attachment_reference_t *depth_stencil_reference;
+//    VkAttachmentReference *color_references;
+//    VkAttachmentReference *depth_stencil_reference;
+//    uint8_t color_reference_count;
+//};
 
 struct r_render_pass_description_t
 {
-    struct r_attachment_description_t *attachments;
-    struct r_subpass_description_t *subpasses;
+    VkGraphicsPipelineCreateInfo pipeline_description;
+    VkAttachmentDescription *attachments;
+    VkSubpassDescription *subpasses;
     uint8_t attachment_count;
     uint8_t subpass_count;
-    uint8_t pad[2];
 };
 
 struct r_render_pass_t
 {
-    struct r_render_pass_description_t description;
-    struct r_framebuffer_t *framebuffers;
+    VkRenderPass render_pass;
+    VkPipeline pipeline;
 };
 
 struct r_render_pass_handle_t
@@ -290,97 +327,111 @@ struct r_render_pass_handle_t
 #define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
 #define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
 
-/*
-=================================================================================
-=================================================================================
-=================================================================================
-*/
 
-struct r_render_config_t
+struct r_render_pass_set_description_t
 {
+    struct r_render_pass_description_t *render_passes;
+    struct r_attachment_description_t *attachments;
+    uint8_t attachment_count;
+    uint8_t render_pass_count;
+};
+
+struct r_render_pass_set_t
+{
+    uint32_t render_pass_count;
+    struct r_render_pass_handle_t *render_passes;
 
 };
 
-/*
-=================================================================================
-=================================================================================
-=================================================================================
-*/
-
-struct r_pipeline_description_t
-{
-    struct r_shader_t *vertex_shader;
-    struct r_shader_t *fragment_shader;
-    struct r_render_pass_t *render_pass;
-
-    struct
-    {
-        unsigned compare_op: 4;
-        unsigned test_enabled: 1;
-        unsigned write_enabled: 1;
-    }depth_state;
-
-    struct
-    {
-        unsigned compare_op: 4;
-        unsigned fail_op: 3;
-        unsigned depth_fail_op: 3;
-        unsigned pass_op: 3;
-        unsigned test_enabled: 1;
-    }stencil_state;
-
-    struct
-    {
-        unsigned blend_factor: 4;
-        unsigned blend_op: 3;
-    }blend_state;
-
-    struct
-    {
-        unsigned polygon_mode: 2;
-        unsigned front_face: 2;
-        unsigned cull_face: 2;
-    }rasterizer_state;
-
-    struct
-    {
-        unsigned topology;
-    }input_assembly_state;
-};
-
-struct r_pipeline_t
-{
-    struct r_pipeline_description_t description;
-
-    struct
-    {
-        uint8_t reference;
-        uint8_t write_mask;
-        uint8_t compare_mask;
-    }stencil_state;
-
-    struct
-    {
-        uint16_t viewport_x;
-        uint16_t viewport_y;
-        uint16_t viewport_w;
-        uint16_t viewport_h;
-
-        uint16_t scissor_x;
-        uint16_t scissor_y;
-        uint16_t scissor_w;
-        uint16_t scissor_h;
-    }viewport_state;
-};
-
-struct r_pipeline_handle_t
+struct r_render_pass_set_handle_t
 {
     uint32_t index;
 };
 
-#define R_INVALID_PIPELINE_INDEX 0xffffffff
-#define R_PIPELINE_HANDLE(index) (struct r_pipeline_handle_t){index}
-#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
+#define R_INVALID_RENDER_PASS_SET_INDEX 0xffffffff;
+#define R_RENDER_PASS_SET_HANDLE(index) (struct r_render_pass_set_handle_t){index}
+#define R_INVALID_RENDER_PASS_SET_HANDLE R_RENDER_PASS_SET_HANDLE(R_INVALID_RENDER_PASS_INDEX)
+
+/*
+=================================================================================
+=================================================================================
+=================================================================================
+*/
+
+//struct r_pipeline_description_t
+//{
+//    struct r_shader_t *vertex_shader;
+//    struct r_shader_t *fragment_shader;
+//    struct r_render_pass_t *render_pass;
+//
+//    struct
+//    {
+//        unsigned compare_op: 4;
+//        unsigned test_enabled: 1;
+//        unsigned write_enabled: 1;
+//    }depth_state;
+//
+//    struct
+//    {
+//        unsigned compare_op: 4;
+//        unsigned fail_op: 3;
+//        unsigned depth_fail_op: 3;
+//        unsigned pass_op: 3;
+//        unsigned test_enabled: 1;
+//    }stencil_state;
+//
+//    struct
+//    {
+//        unsigned blend_factor: 4;
+//        unsigned blend_op: 3;
+//    }blend_state;
+//
+//    struct
+//    {
+//        unsigned polygon_mode: 2;
+//        unsigned front_face: 2;
+//        unsigned cull_face: 2;
+//    }rasterizer_state;
+//
+//    struct
+//    {
+//        unsigned topology;
+//    }input_assembly_state;
+//};
+
+//struct r_pipeline_t
+//{
+//    struct r_pipeline_description_t description;
+//
+//    struct
+//    {
+//        uint8_t reference;
+//        uint8_t write_mask;
+//        uint8_t compare_mask;
+//    }stencil_state;
+//
+//    struct
+//    {
+//        uint16_t viewport_x;
+//        uint16_t viewport_y;
+//        uint16_t viewport_w;
+//        uint16_t viewport_h;
+//
+//        uint16_t scissor_x;
+//        uint16_t scissor_y;
+//        uint16_t scissor_w;
+//        uint16_t scissor_h;
+//    }viewport_state;
+//};
+
+//struct r_pipeline_handle_t
+//{
+//    uint32_t index;
+//};
+//
+//#define R_INVALID_PIPELINE_INDEX 0xffffffff
+//#define R_PIPELINE_HANDLE(index) (struct r_pipeline_handle_t){index}
+//#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
 
 
 /*
