@@ -124,6 +124,7 @@ struct r_shader_t
     /* necessary for creating the pipeline layout */
     uint32_t push_constant_count;
     struct r_push_constant_t *push_constants;
+    uint32_t stage;
 };
 
 struct r_shader_handle_t
@@ -176,7 +177,8 @@ struct r_framebuffer_description_t
 
 struct r_framebuffer_t
 {
-    VkFramebuffer *buffers;
+    VkFramebuffer *buffers; /* struct r_framebuffer_t object will group several VkFramebuffer objects.
+    This is to allow handling several VkFramebuffer objects with a single higher level object. */
     struct r_texture_t *textures;
     uint8_t texture_count;
     uint8_t next_buffer;
@@ -229,7 +231,6 @@ struct r_sampler_t
 
 struct r_texture_t
 {
-
     VkSampler sampler;
     VkImage image;
     VkImageView image_view;
@@ -257,65 +258,69 @@ struct r_texture_handle_t
 =================================================================================
 */
 
-//struct r_pipeline_state_t
-//{
-//    struct
-//    {
-//        uint8_t fail_op: 3;
-//        uint8_t depth_fail_op: 3;
-//        uint8_t pass_op: 3;
-//        uint8_t compare_op: 3;
-//        uint8_t test_enabled: 1;
-//    }stencil_state;
-//
-//    struct
-//    {
-//        uint8_t func: 3;
-//        uint8_t write_enabled: 1;
-//        uint8_t test_enabled: 1;
-//    }depth_state;
-//
-//    struct
-//    {
-//        uint8_t polygon_mode: 2;
-//        uint8_t front_face: 1;
-//        uint8_t cull_face: 2;
-//    }rasterizer_state;
-//
-//    struct
-//    {
-//        uint8_t topology: 4;
-//    }input_assembly_state;
-//};
-
-struct r_attachment_reference_t
+struct r_pipeline_description_t
 {
-    uint8_t attachment;
-    uint8_t layout;
-};
+    /* this struct only exists to allow passing struct r_shader_t
+    objects to the code that created a render pass. Having those is important
+    because they already have descriptor set layouts created for them. Creating
+    the pipeline layout from those is a ton easier. */
+    struct r_shader_t **shaders;
+    uint32_t shader_count;
 
-//struct r_subpass_description_t
-//{
-////    struct r_attachment_reference_t *color_references;
-////    struct r_attachment_reference_t *depth_stencil_reference;
-//    VkAttachmentReference *color_references;
-//    VkAttachmentReference *depth_stencil_reference;
-//    uint8_t color_reference_count;
-//};
+    /* the const qualifier got dropped here because it was being
+    a pain in the ass. We know what we're doing with those pointers.  */
+    VkPipelineVertexInputStateCreateInfo *vertex_input_state;
+    VkPipelineInputAssemblyStateCreateInfo *input_assembly_state;
+    VkPipelineTessellationStateCreateInfo *tesselation_state;
+    VkPipelineViewportStateCreateInfo *viewport_state;
+    VkPipelineRasterizationStateCreateInfo *rasterization_state;
+    VkPipelineMultisampleStateCreateInfo *multisample_state;
+    VkPipelineDepthStencilStateCreateInfo *depth_stencil_state;
+    VkPipelineColorBlendStateCreateInfo *color_blend_state;
+    VkPipelineDynamicStateCreateInfo *dynamic_state;
+};
 
 struct r_render_pass_description_t
 {
-    VkGraphicsPipelineCreateInfo pipeline_description;
     VkAttachmentDescription *attachments;
-    VkSubpassDescription *subpasses;
+
+    VkSubpassDescription *subpasses; /* this may be null. If that's the case a single subpass will
+    be created for it, which uses all attachments and don't cause any image layout transitions. */
+
+
+    struct r_pipeline_description_t *pipeline_descriptions; /* one could argue 'why not store the pipeline
+    description inside a render pass description?'. Although that'd be a perfectly valid way of organizing things,
+    that would force the caller to define a subpass every time. Having the pipeline descriptions outside the subpass
+    descriptions allows for reduced verbosity when creating a render pass, which is the ultimate goal of all this
+    code. Also, that's one less struct that copies all the fields of a Vk* struct, and only adds a few new ones. */
+
     uint8_t attachment_count;
-    uint8_t subpass_count;
+
+    uint8_t subpass_count; /* we assume that the arrays pipeline_descriptions and subpasses will have
+    the same length. */
+};
+
+struct r_pipeline_t
+{
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
 };
 
 struct r_render_pass_t
 {
     VkRenderPass render_pass;
-    VkPipeline pipeline;
+
+    union
+    {
+        /* since most of the time each render pass won't have
+        more than a single sub pass, the pipeline handle is stored
+        within the render pass struct. This is done to avoid tiny
+        heap allocations. */
+        struct r_pipeline_t *pipelines;
+        struct r_pipeline_t pipeline;
+    };
+
+    uint8_t pipeline_count;
 };
 
 struct r_render_pass_handle_t
@@ -327,17 +332,35 @@ struct r_render_pass_handle_t
 #define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
 #define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
 
+struct r_pipeline_reference_t
+{
+    uint8_t index;
+};
 
 struct r_render_pass_set_description_t
 {
     struct r_render_pass_description_t *render_passes;
-    struct r_attachment_description_t *attachments;
+    VkAttachmentDescription *attachments; /* all render passes created will inherit the attachments
+    passed to the render pass set. */
+
+    struct r_pipeline_description_t *pipelines; /* pipeline descriptions that may be shared across
+    different render passes */
+
+    struct r_pipeline_reference_t *pipeline_references; /* each entry represents a sub pass */
+
     uint8_t attachment_count;
     uint8_t render_pass_count;
+    uint8_t pipeline_count;
 };
 
 struct r_render_pass_set_t
 {
+    /* this groups render passes (as the name suggests). The primary
+    use case of this struct is to create a set of compatible render
+    passes. The use case for that is to be able to use a single
+    framebuffer with several render passes. The uses case for THAT
+    is to allow using the same depth / stencil buffers for different
+    render passes. */
     uint32_t render_pass_count;
     struct r_render_pass_handle_t *render_passes;
 
@@ -351,87 +374,6 @@ struct r_render_pass_set_handle_t
 #define R_INVALID_RENDER_PASS_SET_INDEX 0xffffffff;
 #define R_RENDER_PASS_SET_HANDLE(index) (struct r_render_pass_set_handle_t){index}
 #define R_INVALID_RENDER_PASS_SET_HANDLE R_RENDER_PASS_SET_HANDLE(R_INVALID_RENDER_PASS_INDEX)
-
-/*
-=================================================================================
-=================================================================================
-=================================================================================
-*/
-
-//struct r_pipeline_description_t
-//{
-//    struct r_shader_t *vertex_shader;
-//    struct r_shader_t *fragment_shader;
-//    struct r_render_pass_t *render_pass;
-//
-//    struct
-//    {
-//        unsigned compare_op: 4;
-//        unsigned test_enabled: 1;
-//        unsigned write_enabled: 1;
-//    }depth_state;
-//
-//    struct
-//    {
-//        unsigned compare_op: 4;
-//        unsigned fail_op: 3;
-//        unsigned depth_fail_op: 3;
-//        unsigned pass_op: 3;
-//        unsigned test_enabled: 1;
-//    }stencil_state;
-//
-//    struct
-//    {
-//        unsigned blend_factor: 4;
-//        unsigned blend_op: 3;
-//    }blend_state;
-//
-//    struct
-//    {
-//        unsigned polygon_mode: 2;
-//        unsigned front_face: 2;
-//        unsigned cull_face: 2;
-//    }rasterizer_state;
-//
-//    struct
-//    {
-//        unsigned topology;
-//    }input_assembly_state;
-//};
-
-//struct r_pipeline_t
-//{
-//    struct r_pipeline_description_t description;
-//
-//    struct
-//    {
-//        uint8_t reference;
-//        uint8_t write_mask;
-//        uint8_t compare_mask;
-//    }stencil_state;
-//
-//    struct
-//    {
-//        uint16_t viewport_x;
-//        uint16_t viewport_y;
-//        uint16_t viewport_w;
-//        uint16_t viewport_h;
-//
-//        uint16_t scissor_x;
-//        uint16_t scissor_y;
-//        uint16_t scissor_w;
-//        uint16_t scissor_h;
-//    }viewport_state;
-//};
-
-//struct r_pipeline_handle_t
-//{
-//    uint32_t index;
-//};
-//
-//#define R_INVALID_PIPELINE_INDEX 0xffffffff
-//#define R_PIPELINE_HANDLE(index) (struct r_pipeline_handle_t){index}
-//#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
 
 
 /*
