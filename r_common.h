@@ -181,7 +181,7 @@ struct r_texture_description_t
     uint8_t type;
     uint8_t format;
     uint8_t mip_levels;
-    uint8_t aspect_mask;
+//    uint8_t aspect_mask;
     struct r_sampler_params_t sampler_params;
     char *name;
 };
@@ -199,6 +199,7 @@ struct r_texture_t
     VkImageView image_view;
     VkDeviceMemory memory;
     uint8_t current_layout;
+    uint8_t aspect_mask;
 };
 
 struct r_texture_handle_t
@@ -221,10 +222,10 @@ struct r_texture_handle_t
 =================================================================================
 */
 
-struct r_pipeline_reference_t
-{
-    uint8_t index;
-};
+//struct r_pipeline_reference_t
+//{
+//    uint8_t index;
+//};
 
 struct r_pipeline_description_t
 {
@@ -266,23 +267,9 @@ struct r_subpass_description_t
 struct r_render_pass_description_t
 {
     VkAttachmentDescription *attachments;
-
-    struct r_subpass_description_t *subpasses; /* this may be null. If that's the case a single subpass will
-    be created for it, which uses all attachments and don't cause any image layout transitions. */
-
-
-//    struct r_pipeline_description_t *pipeline_descriptions;
-    /* one could argue 'why not store the pipeline
-    description inside a render pass description?'. Although that'd be a perfectly valid way of organizing things,
-    that would force the caller to define a subpass every time. Having the pipeline descriptions outside the subpass
-    descriptions allows for reduced verbosity when creating a render pass, which is the ultimate goal of all this
-    code. Also, that's one less struct that copies all the fields of a Vk* struct, and only adds a few new ones. */
-
-//    struct r_pipeline_reference_t *pipeline_references;
-
+    struct r_subpass_description_t *subpasses;
     uint8_t attachment_count;
-    uint8_t subpass_count; /* we assume that the arrays pipeline_descriptions and subpasses will have
-    the same length. */
+    uint8_t subpass_count;
 };
 
 struct r_pipeline_t
@@ -316,44 +303,6 @@ struct r_render_pass_handle_t
 #define R_INVALID_RENDER_PASS_INDEX 0xffffffff
 #define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
 #define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
-
-struct r_render_pass_set_description_t
-{
-    struct r_render_pass_description_t *render_passes;
-    VkAttachmentDescription *attachments; /* all render passes created will inherit the attachments
-    passed to the render pass set. */
-
-    struct r_pipeline_description_t *pipelines; /* pipeline descriptions that may be shared across
-    different render passes */
-
-    struct r_pipeline_reference_t *pipeline_references; /* each entry represents a sub pass */
-
-    uint8_t attachment_count;
-    uint8_t render_pass_count;
-    uint8_t pipeline_count;
-};
-
-struct r_render_pass_set_t
-{
-    /* this groups render passes (as the name suggests). The primary
-    use case of this struct is to create a set of compatible render
-    passes. The use case for that is to be able to use a single
-    framebuffer with several render passes. The uses case for THAT
-    is to allow using the same depth / stencil buffers for different
-    render passes. */
-    uint32_t render_pass_count;
-    struct r_render_pass_handle_t *render_passes;
-
-};
-
-struct r_render_pass_set_handle_t
-{
-    uint32_t index;
-};
-
-#define R_INVALID_RENDER_PASS_SET_INDEX 0xffffffff;
-#define R_RENDER_PASS_SET_HANDLE(index) (struct r_render_pass_set_handle_t){index}
-#define R_INVALID_RENDER_PASS_SET_HANDLE R_RENDER_PASS_SET_HANDLE(R_INVALID_RENDER_PASS_INDEX)
 
 
 /*

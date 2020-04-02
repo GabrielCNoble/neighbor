@@ -25,21 +25,6 @@ uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t properties);
 =================================================================
 */
 
-//struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* description);
-//
-//void r_DestroyPipeline(struct r_pipeline_handle_t handle);
-//
-//void r_BindPipeline(struct r_pipeline_handle_t handle);
-//
-//struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle);
-
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
 void r_CreateDefaultTexture();
 
 struct r_texture_handle_t r_AllocTexture();
@@ -197,114 +182,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
 
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle);
-
-
-/*
-    The purpose of a render pass set is to create a set of compatible render passes. Compatible
-    render passes are required in order to use the same framebuffer to perform different passes.
-    Although it's perfectly possible to create compatible render passes by just passing the same
-    set of attachments to all of them, creating them through render pass sets allows for reduced
-    verbosity. For instance, the creation of two compatible render passes would be something like,
-
-    struct r_render_pass_description_t description0 = (struct r_render_pass_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT_D32_SFLOAT},
-        }
-    };
-
-    struct r_render_pass_description_t description1 = (struct r_render_pass_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT_D32_SFLOAT},
-        }
-    }
-
-    The above declarations are fairly straightforward, although there's a lot of repeated stuff.
-    Also, this is the best case scenario, where both render passes use all the attachments, so
-    the sub passes are created automatically. If one of the render passes were to not use all of the
-    attachments, then describing a sub pass or sub passes would be required. For example,
-
-    struct r_render_pass_description_t description0 = (struct r_render_pass_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT_D32_SFLOAT},
-        }
-    };
-
-    struct r_render_pass_description_t description1 = (struct r_render_pass_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT_D32_SFLOAT},
-        },
-        .subpass_count = 1,
-        .subpasses = (VkSubpassDescription []) {
-                {
-                .colorAttachmentCount = 1,
-                .pColorAttachments = (VkAttachmentReference []){
-                    {.attachment = 3}
-                },
-                .pDepthStencilAttachment = (VkAttachmentReference []){
-                    {.attachment = 4}
-                }
-            }
-        }
-    }
-
-    The second render pass only uses attachments 3 and 4, so a sub pass has to be
-    added to describe this configuration, which makes the declaration become quite
-    involved. And things can get uglier fast with this approach. However, creating
-    those two render passes using a render pass set is quite cleaner.
-
-    struct r_render_pass_set_description_t description = (struct r_render_pass_set_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT_D32_SFLOAT},
-        },
-        .render_pass_count = 2,
-        .render_passes = (struct r_render_pass_description_t []){
-                {
-                [1] = {
-                    .subpasses = (VkSubpassDescription []){
-                            {
-                            .colorAttachmentCount = 1,
-                            .pColorAttachments = (VkAttachmentReference []){
-                                {.attachment = 3}
-                            },
-                            .pDepthStencilAttachment = (VkAttachmentReference []){
-                                {.attachment = 4}
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Although the sub pass description still is necessary, there's no repeated initialization. Also,
-    notice that the first render pass is not even being described. Its whole description is being
-    zero initialized. In this case, the render pass will use all attachments, and will have a single
-    sub pass. Also notice that subpass_count is zero initialized. This means that if this render pass
-    has a something different than NULL in its subpasses field, this sub pass description will be
-    describing the attachments used.
-*/
-
-//struct r_render_pass_set_handle_t r_CreateRenderPassSet(struct r_render_pass_set_description_t *description);
 
 /*
 =================================================================

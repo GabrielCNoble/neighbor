@@ -47,7 +47,7 @@ void r_InitRenderer()
     FILE *file;
     struct r_shader_description_t vertex_description = {};
     struct r_shader_description_t fragment_description = {};
-    struct r_render_pass_description_t render_pass = {};
+    struct r_render_pass_description_t render_pass_description = {};
 
     r_renderer.allocd_blocks[0] = create_stack_list(sizeof(struct r_alloc_t), 512);
     r_renderer.allocd_blocks[1] = create_stack_list(sizeof(struct r_alloc_t), 512);
@@ -136,9 +136,7 @@ void r_InitRenderer()
     struct r_shader_t *fragment_shader = r_GetShaderPointer(r_CreateShader(&fragment_description));
     free(fragment_description.code);
 
-
-
-    render_pass = (struct r_render_pass_description_t){
+    render_pass_description = (struct r_render_pass_description_t){
         .attachments = (VkAttachmentDescription []){
             {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
             {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
@@ -190,7 +188,18 @@ void r_InitRenderer()
         },
     };
 
-    r_CreateRenderPass(&render_pass);
+    struct r_render_pass_handle_t render_pass = r_CreateRenderPass(&render_pass_description);
+
+    struct r_framebuffer_description_t framebuffer_description = (struct r_framebuffer_description_t){
+        .attachment_count = render_pass_description.attachment_count,
+        .attachments = render_pass_description.attachments,
+        .frame_count = 2,
+        .width = 800,
+        .height = 600,
+        .render_pass = r_GetRenderPassPointer(render_pass)
+    };
+
+    struct r_framebuffer_handle_t framebuffer = r_CreateFramebuffer(&framebuffer_description);
 
 
 
@@ -436,53 +445,6 @@ uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t properties)
     return 0xffffffff;
 }
 
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-//struct r_pipeline_handle_t r_CreatePipeline(struct r_pipeline_description_t* description)
-//{
-//    struct r_pipeline_handle_t handle = R_INVALID_PIPELINE_HANDLE;
-//    struct r_pipeline_t* pipeline;
-//    struct r_vertex_binding_t *bindings;
-//
-//    handle.index = add_stack_list_element(&r_renderer.pipelines, NULL);
-//    pipeline = (struct r_pipeline_t*)get_stack_list_element(&r_renderer.pipelines, handle.index);
-//
-//    memcpy(&pipeline->description, description, sizeof(struct r_pipeline_description_t));
-    // pipeline->description.input_state.bindings = (struct r_vertex_binding_t*)calloc(description->input_state.binding_count,
-        // sizeof(struct r_vertex_binding_t));
-    // bindings = pipeline->description.input_state.bindings;
-    // for(uint32_t i = 0; i < pipeline->description.input_state.binding_count; i++)
-    // {
-    //     memcpy(bindings + i, description->input_state.bindings + i, sizeof(struct r_vertex_binding_t));
-    //     bindings[i].attribs = (struct r_vertex_attrib_t*)calloc(bindings[i].attrib_count, sizeof(struct r_vertex_attrib_t));
-    //     memcpy(bindings[i].attribs, description->input_state.bindings[i].attribs, sizeof(struct r_vertex_attrib_t) * bindings[i].attrib_count);
-    // }
-
-//    r_vk_CreatePipeline(pipeline);
-
-//    return handle;
-//}
-
-//void r_DestroyPipeline(struct r_pipeline_handle_t handle)
-//{
-//
-//}
-//
-//void r_BindPipeline(struct r_pipeline_handle_t handle)
-//{
-//
-//}
-
-//struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_handle_t handle)
-//{
-//    return NULL;
-//}
-
 /*
 =================================================================
 =================================================================
@@ -531,7 +493,7 @@ struct r_texture_handle_t r_AllocTexture()
     SDL_AtomicUnlock(&r_resource_spinlock);
 
     description = get_stack_list_element(&r_texture_descriptions, handle.index);
-    description->aspect_mask = 0;
+//    description->aspect_mask = 0;
 
     return handle;
 }
@@ -550,7 +512,7 @@ void r_FreeTexture(struct r_texture_handle_t handle)
         vkFreeMemory(r_device, texture->memory, NULL);
 
         texture->image = VK_NULL_HANDLE;
-        description->aspect_mask = (uint8_t)VK_IMAGE_ASPECT_FLAG_BITS_MAX_ENUM;
+//        description->aspect_mask = (uint8_t)VK_IMAGE_ASPECT_FLAG_BITS_MAX_ENUM;
         SDL_AtomicLock(&r_resource_spinlock);
         remove_stack_list_element(&r_textures, handle.index);
         remove_stack_list_element(&r_texture_descriptions, handle.index);
@@ -612,19 +574,19 @@ struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *descri
         {
             case VK_FORMAT_D16_UNORM:
             case VK_FORMAT_D32_SFLOAT:
-                texture_description->aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT;
+                texture->aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT;
                 usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
             break;
 
             case VK_FORMAT_D16_UNORM_S8_UINT:
             case VK_FORMAT_D24_UNORM_S8_UINT:
             case VK_FORMAT_D32_SFLOAT_S8_UINT:
-                texture_description->aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+                texture->aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
                 usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
             break;
 
             default:
-                texture_description->aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
+                texture->aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;
                 usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
             break;
         }
@@ -697,7 +659,7 @@ struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *descri
         image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
         image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
 
-        image_view_create_info.subresourceRange.aspectMask = texture_description->aspect_mask;
+        image_view_create_info.subresourceRange.aspectMask = texture->aspect_mask;
         image_view_create_info.subresourceRange.baseArrayLayer = 0;
         image_view_create_info.subresourceRange.baseMipLevel = 0;
         image_view_create_info.subresourceRange.levelCount = texture_description->mip_levels;
@@ -791,8 +753,7 @@ void r_SetTextureLayout(struct r_texture_handle_t handle, uint32_t layout)
     texture = r_GetTexturePointer(handle);
     if(texture)
     {
-        description = r_GetTextureDescriptionPointer(handle);
-        r_SetImageLayout(texture->image, description->aspect_mask, texture->current_layout, layout);
+        r_SetImageLayout(texture->image, texture->aspect_mask, texture->current_layout, layout);
         texture->current_layout = layout;
     }
 }
@@ -809,7 +770,7 @@ void r_BlitImageToTexture(struct r_texture_handle_t handle, VkImage image)
     {
         description = r_GetTextureDescriptionPointer(handle);
 
-        region.srcSubresource.aspectMask = description->aspect_mask;
+        region.srcSubresource.aspectMask = texture->aspect_mask;
         region.srcSubresource.baseArrayLayer = 0;
         region.srcSubresource.mipLevel = 0;
         region.srcSubresource.layerCount = 1;
@@ -881,7 +842,7 @@ void r_LoadTextureData(struct r_texture_handle_t handle, void *data)
         VkSubresourceLayout subresource_layout;
         VkImageSubresource subresource = {};
         subresource.arrayLayer = 0;
-        subresource.aspectMask = description->aspect_mask;
+        subresource.aspectMask = texture->aspect_mask;
         subresource.mipLevel = 0;
         vkGetImageSubresourceLayout(r_device, copy_texture, &subresource, &subresource_layout);
 
@@ -901,7 +862,7 @@ void r_LoadTextureData(struct r_texture_handle_t handle, void *data)
 
         vkResetCommandBuffer(r_command_buffers[1], 0);
         vkBeginCommandBuffer(r_command_buffers[1], &begin_info);
-        r_SetImageLayout(copy_texture, description->aspect_mask, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        r_SetImageLayout(copy_texture, texture->aspect_mask, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         r_SetTextureLayout(handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         r_BlitImageToTexture(handle, copy_texture);
         r_SetTextureLayout(handle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -987,11 +948,11 @@ struct r_texture_description_t *r_GetTextureDescriptionPointer(struct r_texture_
 {
     struct r_texture_description_t *description;
     description = get_stack_list_element(&r_texture_descriptions, handle.index);
-
-    if(description && description->aspect_mask == (uint8_t)VK_IMAGE_ASPECT_FLAG_BITS_MAX_ENUM)
-    {
-        description = NULL;
-    }
+//
+//    if(description && description->aspect_mask == (uint8_t)VK_IMAGE_ASPECT_FLAG_BITS_MAX_ENUM)
+//    {
+//        description = NULL;
+//    }
 
     return description;
 }
@@ -1628,76 +1589,16 @@ void r_DestroyRenderPass(struct r_render_pass_handle_t handle)
 
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle)
 {
-//    struct r_render_pass_t *render_pass;
-////
-//    render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_renderer.render_passes, handle.index);
+    struct r_render_pass_t *render_pass;
+
+    render_pass = get_stack_list_element(&r_render_passes, handle.index);
 //
 //    if(render_pass && !(render_pass->description.attachment_count && render_pass->description.subpass_count))
 //    {
 //        render_pass = NULL;
 //    }
-//
-//    return render_pass;
-}
 
-struct r_render_pass_set_handle_t r_CreateRenderPassSet(struct r_render_pass_set_description_t *description)
-{
-//    struct r_render_pass_description_t render_pass_description;
-//    struct r_render_pass_set_handle_t handle = R_INVALID_RENDER_PASS_SET_HANDLE;
-//    struct r_render_pass_set_t *render_pass_set;
-//    struct r_pipeline_description_t *pipeline_descriptions;
-//    uint32_t max_pipeline_descriptions = 0;
-//    uint32_t pipeline_reference_index = 0;
-//
-//    if(description)
-//    {
-//        handle.index = add_stack_list_element(&r_render_pass_sets, NULL);
-//        render_pass_set = get_stack_list_element(&r_render_pass_sets, handle.index);
-//
-//        render_pass_set->render_pass_count = description->render_pass_count;
-//        render_pass_set->render_passes = calloc(description->render_pass_count, sizeof(struct r_render_pass_handle_t));
-//
-//        for(uint32_t render_pass_index = 0; render_pass_index < description->render_pass_count; render_pass_index++)
-//        {
-//            uint32_t pipeline_count = description->render_passes[render_pass_index].subpass_count;
-//
-//            if(!description->render_passes[render_pass_index].subpasses)
-//            {
-//                pipeline_count = 1;
-//            }
-//
-//            if(pipeline_count > max_pipeline_descriptions)
-//            {
-//                max_pipeline_descriptions = pipeline_count;
-//            }
-//        }
-//
-//        pipeline_descriptions = alloca(sizeof(struct r_pipeline_description_t ) * max_pipeline_descriptions);
-//
-//        for(uint32_t render_pass_index = 0; render_pass_index < description->render_pass_count; render_pass_index++)
-//        {
-//            memcpy(&render_pass_description, description->render_passes + render_pass_index, sizeof(struct r_render_pass_description_t));
-//            render_pass_description.attachments = description->attachments;
-//            render_pass_description.attachment_count = description->attachment_count;
-//            render_pass_description.pipeline_descriptions = pipeline_descriptions;
-//
-//            if(!render_pass_description.subpasses)
-//            {
-//                render_pass_description.subpass_count = 1;
-//            }
-//
-//            for(uint32_t subpass_index = 0; subpass_index < render_pass_description.subpass_count; subpass_index++)
-//            {
-//                memcpy(render_pass_description.pipeline_descriptions + subpass_index,
-//                       description->pipelines + description->pipeline_references[pipeline_reference_index].index,
-//                            sizeof(struct r_pipeline_description_t));
-//
-//                pipeline_reference_index++;
-//            }
-//
-//            render_pass_set->render_passes[render_pass_index] = r_CreateRenderPass(&render_pass_description);
-//        }
-//    }
+    return render_pass;
 }
 
 /*
@@ -1725,46 +1626,56 @@ struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_descripti
 {
     struct r_framebuffer_handle_t handle = R_INVALID_FRAMEBUFFER_HANDLE;
     struct r_framebuffer_t *framebuffer;
+    struct r_texture_description_t texture_description = {};
+    struct r_texture_handle_t *textures;
+    struct r_texture_t *texture;
     VkFramebufferCreateInfo framebuffer_create_info = {};
+    VkAttachmentDescription *attachment_description;
 
     if(description)
     {
         handle.index = add_stack_list_element(&r_framebuffers, NULL);
         framebuffer = get_stack_list_element(&r_framebuffers, handle.index);
         framebuffer->buffers = calloc(description->frame_count, sizeof(VkFramebuffer));
-
+        framebuffer->textures = calloc(description->attachment_count * description->frame_count, sizeof(struct r_texture_handle_t));
 
         framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebuffer_create_info.pNext = NULL;
         framebuffer_create_info.flags = 0;
         framebuffer_create_info.renderPass = description->render_pass->render_pass;
         framebuffer_create_info.attachmentCount = description->attachment_count;
+        framebuffer_create_info.pAttachments = alloca(sizeof(VkImageView) * description->attachment_count);
         framebuffer_create_info.width = description->width;
         framebuffer_create_info.height = description->height;
         framebuffer_create_info.layers = 1;
 
+        texture_description.width = description->width;
+        texture_description.height = description->height;
+        texture_description.depth = 1;
+        texture_description.layers = 1;
+        texture_description.type = VK_IMAGE_TYPE_2D;
+        texture_description.mip_levels = 1;
+        texture_description.sampler_params.addr_mode_u = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        texture_description.sampler_params.addr_mode_v = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        texture_description.sampler_params.addr_mode_w = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        texture_description.sampler_params.mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        texture_description.sampler_params.min_filter = VK_FILTER_NEAREST;
+        texture_description.sampler_params.mag_filter = VK_FILTER_NEAREST;
 
         for(uint32_t frame_index = 0; frame_index < description->frame_count; frame_index++)
         {
+            textures = framebuffer->textures + frame_index * description->attachment_count;
+            for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
+            {
+                attachment_description = description->attachments + attachment_index;
+                texture_description.format = attachment_description->format;
+                textures[attachment_index] = r_CreateTexture(&texture_description);
+                texture = r_GetTexturePointer(textures[attachment_index]);
+                *(VkImageView *)(framebuffer_create_info.pAttachments + attachment_index) = texture->image_view;
+            }
 
+            vkCreateFramebuffer(r_device, &framebuffer_create_info, NULL, framebuffer->buffers + frame_index);
         }
-
-
-//        framebuffer_create_info
-
-
-
-//        desc = r_GetFramebufferPointer(handle);
-//        memcpy(&framebuffer->description, description, sizeof(struct r_framebuffer_description_t));
-//
-//        framebuffer->description.attachments = (struct r_attachment_description_t *)calloc(description->attachment_count,
-//                                                                        sizeof(struct r_attachment_description_t));
-//
-//        memcpy(framebuffer->description.attachments, description->attachments, sizeof(struct r_attachment_description_t) *
-//                                                                        description->attachment_count);
-
-
-
     }
 
     return handle;
@@ -1777,15 +1688,15 @@ void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle)
 
 struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_handle_t handle)
 {
-//    struct r_framebuffer_t *framebuffer;
+    struct r_framebuffer_t *framebuffer;
 //
-//    framebuffer = (struct r_framebuffer_t *)get_stack_list_element(&r_renderer.framebuffers, handle.index);
+    framebuffer = get_stack_list_element(&r_framebuffers, handle.index);
 //    if(framebuffer && framebuffer->description.attachment_count == 0xff)
 //    {
 //        framebuffer = NULL;
 //    }
 //
-//    return framebuffer;
+    return framebuffer;
 }
 
 //struct r_framebuffer_description_t *r_GetFramebufferDescriptionPointer(struct r_framebuffer_handle_t handle)
