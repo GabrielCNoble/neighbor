@@ -162,43 +162,6 @@ struct r_command_buffer_t
 =================================================================
 */
 
-struct r_attachment_description_t
-{
-    uint8_t format;
-    uint8_t attachment;
-};
-
-struct r_framebuffer_description_t
-{
-    struct r_attachment_description_t *attachments;
-    uint8_t attachment_count;
-    uint8_t buffer_count;
-};
-
-struct r_framebuffer_t
-{
-    VkFramebuffer *buffers; /* struct r_framebuffer_t object will group several VkFramebuffer objects.
-    This is to allow handling several VkFramebuffer objects with a single higher level object. */
-    struct r_texture_t *textures;
-    uint8_t texture_count;
-    uint8_t next_buffer;
-};
-
-struct r_framebuffer_handle_t
-{
-    uint32_t index;
-};
-
-#define R_INVALID_FRAMEBUFFER_INDEX 0xffffffff
-#define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_handle_t){index}
-#define R_INVALID_FRAMEBUFFER_HANDLE R_FRAMEBUFFER_HANDLE(R_INVALID_FRAMEBUFFER_INDEX)
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
 struct r_sampler_params_t
 {
     unsigned addr_mode_u : 3;
@@ -258,6 +221,11 @@ struct r_texture_handle_t
 =================================================================================
 */
 
+struct r_pipeline_reference_t
+{
+    uint8_t index;
+};
+
 struct r_pipeline_description_t
 {
     /* this struct only exists to allow passing struct r_shader_t
@@ -280,22 +248,39 @@ struct r_pipeline_description_t
     VkPipelineDynamicStateCreateInfo *dynamic_state;
 };
 
+struct r_subpass_description_t
+{
+    VkSubpassDescriptionFlags flags;
+    VkPipelineBindPoint pipeline_bind_point;
+    uint32_t input_attachment_count;
+    VkAttachmentReference *input_attachments;
+    uint32_t color_attachment_count;
+    VkAttachmentReference *color_attachments;
+    VkAttachmentReference *resolve_attachments;
+    VkAttachmentReference *depth_stencil_attachment;
+    uint32_t preserve_attachment_count;
+    uint32_t *preserve_attachments;
+    struct r_pipeline_description_t *pipeline_description;
+};
+
 struct r_render_pass_description_t
 {
     VkAttachmentDescription *attachments;
 
-    VkSubpassDescription *subpasses; /* this may be null. If that's the case a single subpass will
+    struct r_subpass_description_t *subpasses; /* this may be null. If that's the case a single subpass will
     be created for it, which uses all attachments and don't cause any image layout transitions. */
 
 
-    struct r_pipeline_description_t *pipeline_descriptions; /* one could argue 'why not store the pipeline
+//    struct r_pipeline_description_t *pipeline_descriptions;
+    /* one could argue 'why not store the pipeline
     description inside a render pass description?'. Although that'd be a perfectly valid way of organizing things,
     that would force the caller to define a subpass every time. Having the pipeline descriptions outside the subpass
     descriptions allows for reduced verbosity when creating a render pass, which is the ultimate goal of all this
     code. Also, that's one less struct that copies all the fields of a Vk* struct, and only adds a few new ones. */
 
-    uint8_t attachment_count;
+//    struct r_pipeline_reference_t *pipeline_references;
 
+    uint8_t attachment_count;
     uint8_t subpass_count; /* we assume that the arrays pipeline_descriptions and subpasses will have
     the same length. */
 };
@@ -331,11 +316,6 @@ struct r_render_pass_handle_t
 #define R_INVALID_RENDER_PASS_INDEX 0xffffffff
 #define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
 #define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
-
-struct r_pipeline_reference_t
-{
-    uint8_t index;
-};
 
 struct r_render_pass_set_description_t
 {
@@ -382,6 +362,40 @@ struct r_render_pass_set_handle_t
 =================================================================
 */
 
+
+struct r_framebuffer_description_t
+{
+    VkAttachmentDescription *attachments;
+    struct r_render_pass_t *render_pass;
+    uint16_t width;
+    uint16_t height;
+    uint8_t attachment_count;
+    uint8_t frame_count;
+};
+
+struct r_framebuffer_t
+{
+    VkFramebuffer *buffers; /* struct r_framebuffer_t object will group several VkFramebuffer objects.
+    This is to allow handling several VkFramebuffer objects with a single higher level object. */
+    struct r_texture_handle_t *textures;
+    uint8_t texture_count;
+    uint8_t next_buffer;
+};
+
+struct r_framebuffer_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_FRAMEBUFFER_INDEX 0xffffffff
+#define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_handle_t){index}
+#define R_INVALID_FRAMEBUFFER_HANDLE R_FRAMEBUFFER_HANDLE(R_INVALID_FRAMEBUFFER_INDEX)
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
 
 enum R_MATERIAL_FLAGS
 {

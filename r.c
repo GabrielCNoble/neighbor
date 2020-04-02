@@ -34,10 +34,9 @@ SDL_SpinLock r_resource_spinlock;
 struct stack_list_t r_textures;
 struct stack_list_t r_texture_descriptions;
 struct stack_list_t r_framebuffers;
-struct stack_list_t r_framebuffer_descriptions;
 struct stack_list_t r_render_passes;
-struct stack_list_t r_render_pass_sets;
-//struct stack_list_t r_render_pass_set_descriptions;
+//struct stack_list_t r_render_pass_descriptions;
+//struct stack_list_t r_render_pass_sets;
 struct stack_list_t r_samplers;
 struct stack_list_t r_shaders;
 
@@ -74,7 +73,6 @@ void r_InitRenderer()
     r_samplers = create_stack_list(sizeof(struct r_sampler_t), 16);
     r_shaders = create_stack_list(sizeof(struct r_shader_t), 128);
     r_render_passes = create_stack_list(sizeof(struct r_render_pass_t), 16);
-    r_render_pass_sets = create_stack_list(sizeof(struct r_render_pass_set_t), 8);
 
     r_renderer.z_far = 1000.0;
     r_renderer.z_near = 0.01;
@@ -149,25 +147,21 @@ void r_InitRenderer()
         },
         .attachment_count = 4,
         .subpass_count = 1,
-        .subpasses = (VkSubpassDescription []){
+        .subpasses = (struct r_subpass_description_t[]){
             {
-                .colorAttachmentCount = 1,
-                .pColorAttachments = (VkAttachmentReference []){
+                .color_attachment_count = 1,
+                .color_attachments = (VkAttachmentReference []){
                     {.attachment = 2}
                 },
-                .pDepthStencilAttachment = (VkAttachmentReference []){
-                    {.attachment = 3}
-                }
-            }
-        },
-        .pipeline_descriptions = (struct r_pipeline_description_t []){
-            {
-                .shader_count = 2,
-                .shaders = (struct r_shader_t *[]){
-                    vertex_shader, fragment_shader
+                .depth_stencil_attachment = &(VkAttachmentReference){
+                    .attachment = 3
                 },
-                .vertex_input_state = (VkPipelineVertexInputStateCreateInfo []){
-                    {
+                .pipeline_description = &(struct r_pipeline_description_t){
+                    .shader_count = 2,
+                    .shaders = (struct r_shader_t *[]){
+                        vertex_shader, fragment_shader
+                    },
+                    .vertex_input_state = &(VkPipelineVertexInputStateCreateInfo){
                         .vertexBindingDescriptionCount = 1,
                         .pVertexBindingDescriptions = (VkVertexInputBindingDescription []){
                             {.stride = sizeof(struct vertex_t)}
@@ -191,92 +185,13 @@ void r_InitRenderer()
                             }
                         }
                     }
-                }
+                },
             }
-        }
+        },
     };
 
     r_CreateRenderPass(&render_pass);
 
-    struct r_render_pass_set_description_t render_pass_set_description = (struct r_render_pass_set_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
-            {.format = VK_FORMAT_D32_SFLOAT},
-        },
-        .pipelines = (struct r_pipeline_description_t []){
-            {
-                .shader_count = 2,
-                .shaders = (struct r_shader_t *[]){vertex_shader,fragment_shader},
-                .vertex_input_state = (VkPipelineVertexInputStateCreateInfo []){
-                    [0] = {
-                        .vertexBindingDescriptionCount = 1,
-                        .pVertexBindingDescriptions = (VkVertexInputBindingDescription []){
-                            [0] = {
-                                .binding = 0,
-                                .stride = sizeof(struct vertex_t),
-                                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-                            }
-                        },
-                        .vertexAttributeDescriptionCount = 3,
-                        .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription []){
-                            [0] = {
-                                .location = 0,
-                                .binding = 0,
-                                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                .offset = offsetof(struct vertex_t, position)
-                            },
-                            [1] = {
-                                .location = 1,
-                                .binding = 0,
-                                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                .offset = offsetof(struct vertex_t, normal)
-                            },
-                            [2] = {
-                                .location = 2,
-                                .binding = 0,
-                                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                .offset = offsetof(struct vertex_t, tex_coords)
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        .pipeline_references = (struct r_pipeline_reference_t []){
-            {.index = 0},{.index = 0}
-        },
-        .render_pass_count = 1,
-        .render_passes = (struct r_render_pass_description_t []){
-            {
-                .subpass_count = 2,
-                .subpasses = (VkSubpassDescription []){
-                    {
-                        .colorAttachmentCount = 1,
-                        .pColorAttachments = (VkAttachmentReference []){
-                            {.attachment = 1}
-                        },
-                        .pDepthStencilAttachment = (VkAttachmentReference []){
-                            {.attachment = 3}
-                        }
-                    },{
-                        .colorAttachmentCount = 1,
-                        .pColorAttachments = (VkAttachmentReference []){
-                            {.attachment = 2}
-                        },
-                        .pDepthStencilAttachment = (VkAttachmentReference []){
-                            {.attachment = 3}
-                        }
-                    }
-
-                }
-            }
-        },
-    };
-
-    struct r_render_pass_set_handle_t render_pass_set = r_CreateRenderPassSet(&render_pass_set_description);
 
 
 //    r_LoadTexture("doggo.png", "doggo0");
@@ -1287,10 +1202,10 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     struct r_render_pass_description_t *description_copy;
     struct r_pipeline_description_t pipeline_description;
 
-    VkSubpassDescription *subpass_descriptions; /* will contain the subpass descriptions that came
+    struct r_subpass_description_t *subpass_descriptions; /* will contain the subpass descriptions that came
     in, or the one that was created in here in the case one wasn't provided by the caller */
 
-    VkSubpassDescription *subpass_description; /* used to iterate over the subpass_descriptions array */
+    struct r_subpass_description_t *subpass_description; /* used to iterate over the subpass_descriptions array */
 
     VkAttachmentReference *color_attachment_references;
     VkAttachmentReference *depth_stencil_attachment_references;
@@ -1389,56 +1304,8 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     handle.index = add_stack_list_element(&r_render_passes, NULL);
     render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_render_passes, handle.index);
 
-    if(description->subpasses)
-    {
-        subpass_descriptions = alloca(sizeof(VkSubpassDescription) * description->subpass_count);
-        memcpy(subpass_descriptions, description->subpasses, sizeof(VkSubpassDescription) * description->subpass_count);
-    }
-    else
-    {
-        /* no subpasses given, so create one that uses all attachments,
-        and don't cause any layout transitions */
-
-
-        /* make a copy of the description so we can freely modify it without causing
-        problems outside */
-        description_copy = alloca(sizeof(struct r_render_pass_description_t ));
-        memcpy(description_copy, description, sizeof(struct r_render_pass_description_t));
-        description = description_copy;
-
-        description->subpasses = alloca(sizeof(VkSubpassDescription));
-        description->subpass_count = 1;
-        subpass_descriptions = description->subpasses;
-        memset(subpass_descriptions, 0, sizeof(VkSubpassDescription));
-
-        /* a single block of memory for all color references and
-        depth_stencil reference */
-        subpass_descriptions->pColorAttachments = alloca(sizeof(VkAttachmentReference) * description->attachment_count);
-        memset((void *)subpass_descriptions->pColorAttachments, 0, sizeof(VkAttachmentReference) * description->attachment_count);
-
-        for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
-        {
-            attachment_description = description->attachments + attachment_index;
-
-            if(r_IsDepthStencilFormat(attachment_description->format))
-            {
-                depth_stencil_index = attachment_index;
-                continue;
-            }
-
-            attachment_reference = (VkAttachmentReference *)subpass_descriptions->pColorAttachments + subpass_descriptions->colorAttachmentCount;
-            subpass_descriptions->colorAttachmentCount++;
-            attachment_reference->attachment = attachment_index;
-        }
-
-        if(depth_stencil_index != 0xffffffff)
-        {
-            attachment_description = description->attachments + depth_stencil_index;
-            attachment_reference = (VkAttachmentReference *)subpass_descriptions->pColorAttachments + subpass_descriptions->colorAttachmentCount;
-            attachment_reference->attachment = depth_stencil_index;
-            subpass_descriptions->pDepthStencilAttachment = attachment_reference;
-        }
-    }
+    subpass_descriptions = alloca(sizeof(struct r_subpass_description_t) * description->subpass_count);
+    memcpy(subpass_descriptions, description->subpasses, sizeof(struct r_subpass_description_t) * description->subpass_count);
 
     for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
     {
@@ -1483,14 +1350,17 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         uint32_t vertex_binding_count = 0;
         uint32_t vertex_attribute_count = 0;
 
-        if(description->pipeline_descriptions[subpass_index].shader_count > pipeline_create_info.stageCount)
+        subpass_description = subpass_descriptions + subpass_index;
+        subpass_description->pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+        if(subpass_description->pipeline_description->shader_count > pipeline_create_info.stageCount)
         {
-            pipeline_create_info.stageCount = description->pipeline_descriptions[subpass_index].shader_count;
+            pipeline_create_info.stageCount = subpass_description->pipeline_description->shader_count;
         }
 
-        for(uint32_t shader_index = 0; shader_index < description->pipeline_descriptions[subpass_index].shader_count; shader_index++)
+        for(uint32_t shader_index = 0; shader_index < subpass_description->pipeline_description->shader_count; shader_index++)
         {
-            struct r_shader_t *shader = description->pipeline_descriptions[subpass_index].shaders[shader_index];
+            struct r_shader_t *shader = subpass_description->pipeline_description->shaders[shader_index];
             set_layout_count += shader->descriptor_set_layout != VK_NULL_HANDLE;
             push_constant_count += shader->push_constant_count;
         }
@@ -1504,16 +1374,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         {
             pipeline_layout_create_info.pushConstantRangeCount = push_constant_count;
         }
-    }
-
-    pipeline_create_info.pStages = alloca(sizeof(VkPipelineShaderStageCreateInfo) * pipeline_create_info.stageCount);
-    pipeline_layout_create_info.pSetLayouts = alloca(sizeof(VkDescriptorSetLayout) * pipeline_layout_create_info.setLayoutCount);
-    pipeline_layout_create_info.pPushConstantRanges = alloca(sizeof(VkPushConstantRange) * pipeline_layout_create_info.pushConstantRangeCount);
-
-    for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
-    {
-        subpass_description = subpass_descriptions + subpass_index;
-        subpass_description->pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
         VkAttachmentReference *attachment_references = color_attachment_references;
 
@@ -1533,12 +1393,12 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
             attachment_reference->attachment = VK_ATTACHMENT_UNUSED;
             attachment_reference->layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-            for(uint32_t reference_index = 0; reference_index < subpass_description->colorAttachmentCount; reference_index++)
+            for(uint32_t reference_index = 0; reference_index < subpass_description->color_attachment_count; reference_index++)
             {
                 /* if this sub pass uses no color reference all the references will be marked as unused */
-                if(attachment_index == subpass_description->pColorAttachments[reference_index].attachment)
+                if(attachment_index == subpass_description->color_attachments[reference_index].attachment)
                 {
-                    memcpy(attachment_reference, subpass_description->pColorAttachments + reference_index, sizeof(VkAttachmentReference));
+                    memcpy(attachment_reference, subpass_description->color_attachments + reference_index, sizeof(VkAttachmentReference));
                     if(attachment_reference->layout == VK_IMAGE_LAYOUT_UNDEFINED)
                     {
                         /* since VK_IMAGE_LAYOUT_UNDEFINED is 0, this means this attachment
@@ -1549,19 +1409,17 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
             }
         }
 
-        subpass_description->pColorAttachments = attachment_references ;
-        subpass_description->colorAttachmentCount = color_attachment_count;
+        subpass_description->color_attachments = attachment_references;
+        subpass_description->color_attachment_count = color_attachment_count;
         color_attachment_references += description->attachment_count;
-
-
 
         attachment_reference = depth_stencil_attachment_references;
         attachment_reference->attachment = VK_ATTACHMENT_UNUSED;
         attachment_reference->layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-        if(subpass_description->pDepthStencilAttachment)
+        if(subpass_description->depth_stencil_attachment)
         {
-            memcpy(attachment_reference, subpass_description->pDepthStencilAttachment, sizeof(VkAttachmentReference));
+            memcpy(attachment_reference, subpass_description->depth_stencil_attachment, sizeof(VkAttachmentReference));
             if(attachment_reference->layout == VK_IMAGE_LAYOUT_UNDEFINED)
             {
                 /* since VK_IMAGE_LAYOUT_UNDEFINED is 0, this means this attachment
@@ -1569,7 +1427,7 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
                 attachment_reference->layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             }
         }
-        subpass_description->pDepthStencilAttachment = depth_stencil_attachment_references;
+        subpass_description->depth_stencil_attachment = depth_stencil_attachment_references;
         depth_stencil_attachment_references++;
     }
 
@@ -1609,7 +1467,25 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     }
 
     render_pass_create_info.subpassCount = description->subpass_count;
-    render_pass_create_info.pSubpasses = subpass_descriptions;
+    render_pass_create_info.pSubpasses = alloca(sizeof(VkSubpassDescription) * description->subpass_count);
+    memset(render_pass_create_info.pSubpasses, 0, sizeof(VkSubpassDescription) * description->subpass_count);
+
+    for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
+    {
+        subpass_description = subpass_descriptions + subpass_index;
+        VkSubpassDescription *subpass = render_pass_create_info.pSubpasses + subpass_index;
+
+        subpass->pipelineBindPoint = subpass_description->pipeline_bind_point;
+        subpass->inputAttachmentCount = subpass_description->input_attachment_count;
+        subpass->pInputAttachments = subpass_description->input_attachments;
+        subpass->colorAttachmentCount = subpass_description->color_attachment_count;
+        subpass->pColorAttachments = subpass_description->color_attachments;
+        subpass->pResolveAttachments = subpass_description->resolve_attachments;
+        subpass->pDepthStencilAttachment = subpass_description->depth_stencil_attachment;
+        subpass->preserveAttachmentCount = subpass_description->preserve_attachment_count;
+        subpass->pPreserveAttachments = subpass_description->preserve_attachments;
+    }
+
     vkCreateRenderPass(r_device, &render_pass_create_info, NULL, &render_pass->render_pass);
 
     if(description->subpass_count > 1)
@@ -1622,6 +1498,10 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         pipelines = &render_pass->pipeline;
     }
 
+    pipeline_create_info.pStages = alloca(sizeof(VkPipelineShaderStageCreateInfo) * pipeline_create_info.stageCount);
+    pipeline_layout_create_info.pSetLayouts = alloca(sizeof(VkDescriptorSetLayout) * pipeline_layout_create_info.setLayoutCount);
+    pipeline_layout_create_info.pPushConstantRanges = alloca(sizeof(VkPushConstantRange) * pipeline_layout_create_info.pushConstantRangeCount);
+
     for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
     {
         /* create a pipeline object for each subpass in this render pass to reduce verbosity
@@ -1632,9 +1512,11 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         pipeline_layout_create_info.pushConstantRangeCount = 0;
         pipeline_create_info.stageCount = 0;
 
-        for(uint32_t shader_index = 0; shader_index < description->pipeline_descriptions[subpass_index].shader_count; shader_index++)
+        subpass_description = subpass_descriptions + subpass_index;
+
+        for(uint32_t shader_index = 0; shader_index < subpass_description->pipeline_description->shader_count; shader_index++)
         {
-            struct r_shader_t *shader = description->pipeline_descriptions[subpass_index].shaders[shader_index];
+            struct r_shader_t *shader = subpass_description->pipeline_description->shaders[shader_index];
             if(shader->descriptor_set_layout != VK_NULL_HANDLE)
             {
                 VkDescriptorSetLayout *layout = (VkDescriptorSetLayout *)pipeline_layout_create_info.pSetLayouts + pipeline_layout_create_info.setLayoutCount;
@@ -1666,11 +1548,9 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         }
 
         vkCreatePipelineLayout(r_device, &pipeline_layout_create_info, NULL, &pipelines[subpass_index].layout);
-
-        subpass_description = subpass_descriptions + subpass_index;
         /* copy the pipeline description to a local variable so zero initialized fields can be filled
         without affecting the description passed in. */
-        memcpy(&pipeline_description, description->pipeline_descriptions + subpass_index, sizeof(struct r_pipeline_description_t));
+        memcpy(&pipeline_description, subpass_description->pipeline_description, sizeof(struct r_pipeline_description_t));
 
         memcpy(&vertex_input_state, pipeline_description.vertex_input_state, sizeof(VkPipelineVertexInputStateCreateInfo));
         vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1705,8 +1585,8 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
             it by default if there's a depth-stencil attachment reference in this subpass.
             Stencil test remains disabled by default. */
             pipeline_description.depth_stencil_state = &depth_stencil_state;
-            depth_stencil_state.depthTestEnable = subpass_description->pDepthStencilAttachment != NULL;
-            depth_stencil_state.depthWriteEnable = subpass_description->pDepthStencilAttachment != NULL;
+            depth_stencil_state.depthTestEnable = subpass_description->depth_stencil_attachment != NULL;
+            depth_stencil_state.depthWriteEnable = subpass_description->depth_stencil_attachment!= NULL;
         }
 
         if(!pipeline_description.color_blend_state)
@@ -1762,62 +1642,62 @@ struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t han
 
 struct r_render_pass_set_handle_t r_CreateRenderPassSet(struct r_render_pass_set_description_t *description)
 {
-    struct r_render_pass_description_t render_pass_description;
-    struct r_render_pass_set_handle_t handle = R_INVALID_RENDER_PASS_SET_HANDLE;
-    struct r_render_pass_set_t *render_pass_set;
-    struct r_pipeline_description_t *pipeline_descriptions;
-    uint32_t max_pipeline_descriptions = 0;
-    uint32_t pipeline_reference_index = 0;
-
-    if(description)
-    {
-        handle.index = add_stack_list_element(&r_render_pass_sets, NULL);
-        render_pass_set = get_stack_list_element(&r_render_pass_sets, handle.index);
-
-        render_pass_set->render_pass_count = description->render_pass_count;
-        render_pass_set->render_passes = calloc(description->render_pass_count, sizeof(struct r_render_pass_handle_t));
-
-        for(uint32_t render_pass_index = 0; render_pass_index < description->render_pass_count; render_pass_index++)
-        {
-            uint32_t pipeline_count = description->render_passes[render_pass_index].subpass_count;
-
-            if(!description->render_passes[render_pass_index].subpasses)
-            {
-                pipeline_count = 1;
-            }
-
-            if(pipeline_count > max_pipeline_descriptions)
-            {
-                max_pipeline_descriptions = pipeline_count;
-            }
-        }
-
-        pipeline_descriptions = alloca(sizeof(struct r_pipeline_description_t ) * max_pipeline_descriptions);
-
-        for(uint32_t render_pass_index = 0; render_pass_index < description->render_pass_count; render_pass_index++)
-        {
-            memcpy(&render_pass_description, description->render_passes + render_pass_index, sizeof(struct r_render_pass_description_t));
-            render_pass_description.attachments = description->attachments;
-            render_pass_description.attachment_count = description->attachment_count;
-            render_pass_description.pipeline_descriptions = pipeline_descriptions;
-
-            if(!render_pass_description.subpasses)
-            {
-                render_pass_description.subpass_count = 1;
-            }
-
-            for(uint32_t subpass_index = 0; subpass_index < render_pass_description.subpass_count; subpass_index++)
-            {
-                memcpy(render_pass_description.pipeline_descriptions + subpass_index,
-                       description->pipelines + description->pipeline_references[pipeline_reference_index].index,
-                            sizeof(struct r_pipeline_description_t));
-
-                pipeline_reference_index++;
-            }
-
-            render_pass_set->render_passes[render_pass_index] = r_CreateRenderPass(&render_pass_description);
-        }
-    }
+//    struct r_render_pass_description_t render_pass_description;
+//    struct r_render_pass_set_handle_t handle = R_INVALID_RENDER_PASS_SET_HANDLE;
+//    struct r_render_pass_set_t *render_pass_set;
+//    struct r_pipeline_description_t *pipeline_descriptions;
+//    uint32_t max_pipeline_descriptions = 0;
+//    uint32_t pipeline_reference_index = 0;
+//
+//    if(description)
+//    {
+//        handle.index = add_stack_list_element(&r_render_pass_sets, NULL);
+//        render_pass_set = get_stack_list_element(&r_render_pass_sets, handle.index);
+//
+//        render_pass_set->render_pass_count = description->render_pass_count;
+//        render_pass_set->render_passes = calloc(description->render_pass_count, sizeof(struct r_render_pass_handle_t));
+//
+//        for(uint32_t render_pass_index = 0; render_pass_index < description->render_pass_count; render_pass_index++)
+//        {
+//            uint32_t pipeline_count = description->render_passes[render_pass_index].subpass_count;
+//
+//            if(!description->render_passes[render_pass_index].subpasses)
+//            {
+//                pipeline_count = 1;
+//            }
+//
+//            if(pipeline_count > max_pipeline_descriptions)
+//            {
+//                max_pipeline_descriptions = pipeline_count;
+//            }
+//        }
+//
+//        pipeline_descriptions = alloca(sizeof(struct r_pipeline_description_t ) * max_pipeline_descriptions);
+//
+//        for(uint32_t render_pass_index = 0; render_pass_index < description->render_pass_count; render_pass_index++)
+//        {
+//            memcpy(&render_pass_description, description->render_passes + render_pass_index, sizeof(struct r_render_pass_description_t));
+//            render_pass_description.attachments = description->attachments;
+//            render_pass_description.attachment_count = description->attachment_count;
+//            render_pass_description.pipeline_descriptions = pipeline_descriptions;
+//
+//            if(!render_pass_description.subpasses)
+//            {
+//                render_pass_description.subpass_count = 1;
+//            }
+//
+//            for(uint32_t subpass_index = 0; subpass_index < render_pass_description.subpass_count; subpass_index++)
+//            {
+//                memcpy(render_pass_description.pipeline_descriptions + subpass_index,
+//                       description->pipelines + description->pipeline_references[pipeline_reference_index].index,
+//                            sizeof(struct r_pipeline_description_t));
+//
+//                pipeline_reference_index++;
+//            }
+//
+//            render_pass_set->render_passes[render_pass_index] = r_CreateRenderPass(&render_pass_description);
+//        }
+//    }
 }
 
 /*
@@ -1841,32 +1721,54 @@ struct r_framebuffer_handle_t r_AllocFramebuffer()
 //    return handle;
 }
 
-//struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description)
-//{
-//    struct r_framebuffer_handle_t handle = R_INVALID_FRAMEBUFFER_HANDLE;
-//    struct r_framebuffer_t *framebuffer;
-//    struct r_framebuffer_description_t *desc;
-//    VkRenderPasscreateInfo render_pass_create_info = {};
+struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description)
+{
+    struct r_framebuffer_handle_t handle = R_INVALID_FRAMEBUFFER_HANDLE;
+    struct r_framebuffer_t *framebuffer;
+    VkFramebufferCreateInfo framebuffer_create_info = {};
 
-//    if(description)
-//    {
-//        handle.index = r_AllocFramebuffer();
-//        framebuffer = r_GetFramebufferPointer(handle);
+    if(description)
+    {
+        handle.index = add_stack_list_element(&r_framebuffers, NULL);
+        framebuffer = get_stack_list_element(&r_framebuffers, handle.index);
+        framebuffer->buffers = calloc(description->frame_count, sizeof(VkFramebuffer));
+
+
+        framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebuffer_create_info.pNext = NULL;
+        framebuffer_create_info.flags = 0;
+        framebuffer_create_info.renderPass = description->render_pass->render_pass;
+        framebuffer_create_info.attachmentCount = description->attachment_count;
+        framebuffer_create_info.width = description->width;
+        framebuffer_create_info.height = description->height;
+        framebuffer_create_info.layers = 1;
+
+
+        for(uint32_t frame_index = 0; frame_index < description->frame_count; frame_index++)
+        {
+
+        }
+
+
+//        framebuffer_create_info
+
+
+
 //        desc = r_GetFramebufferPointer(handle);
 //        memcpy(&framebuffer->description, description, sizeof(struct r_framebuffer_description_t));
-
+//
 //        framebuffer->description.attachments = (struct r_attachment_description_t *)calloc(description->attachment_count,
 //                                                                        sizeof(struct r_attachment_description_t));
-
+//
 //        memcpy(framebuffer->description.attachments, description->attachments, sizeof(struct r_attachment_description_t) *
 //                                                                        description->attachment_count);
-//
 
 
-//    }
 
-//    return handle;
-//}
+    }
+
+    return handle;
+}
 
 void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle)
 {

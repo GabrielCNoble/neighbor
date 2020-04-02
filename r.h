@@ -304,7 +304,7 @@ struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t han
     describing the attachments used.
 */
 
-struct r_render_pass_set_handle_t r_CreateRenderPassSet(struct r_render_pass_set_description_t *description);
+//struct r_render_pass_set_handle_t r_CreateRenderPassSet(struct r_render_pass_set_description_t *description);
 
 /*
 =================================================================
@@ -312,7 +312,7 @@ struct r_render_pass_set_handle_t r_CreateRenderPassSet(struct r_render_pass_set
 =================================================================
 */
 
-struct r_framebuffer_handle_t r_AllocFramebuffer();
+//struct r_framebuffer_handle_t r_AllocFramebuffer();
 
 struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description);
 
