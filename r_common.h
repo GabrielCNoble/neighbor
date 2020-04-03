@@ -141,26 +141,58 @@ struct r_shader_handle_t
 =================================================================
 =================================================================
 */
-enum R_COMMAND_BUFFER_STATE
-{
-    R_COMMAND_BUFFER_STATE_INITIAL = 0,
-    R_COMMAND_BUFFER_STATE_RECORDING,
-    R_COMMAND_BUFFER_STATE_EXECUTABLE,
-    R_COMMAND_BUFFER_STATE_PENDING,
-    R_COMMAND_BUFFER_STATE_INVALID,
-};
-
-struct r_command_buffer_t
-{
-    VkCommandBuffer command_buffer;
-    uint8_t state;
-};
-
 /*
-=================================================================
-=================================================================
-=================================================================
+    - create a struct called r_image_t, which will
+    contain the image object (VkImage), the backing memory
+    (VkDeviceMemory), and the current layout. This will
+    represent an image and its memory, without an VkImageView.
+    This struct cannot be sampled, but can be used for transfer
+    operations.
+
+    - create a function called r_CreateImage, to create an
+    r_image_t object.
+
+    - create a function called r_CreateImageFrom, which also
+    creates a r_image_t, but takes as arguments the VkImage
+    and VkDeviceMemory to be used. This is to allow creating
+    a r_image_t from a VkSwapchainKHR image. The use case for
+    this is to allow blitting an image to a VkSwapchainKHR image.
+
+    - create a function called r_BlitImage, which takes as
+    arguments two r_image_t objects. This function will
+    set their layouts for the transfer operation and then
+    restore it to its previous value afterwards. This function
+    will block until the operation is complete. The use case
+    for this is to allow blitting to a VkSwapchainKHR image.
+
+    - modify the struct r_texture_t to be an r_image_t with a
+    VkImageView. This will represent an object that can be
+    sampled by shaders.
+
+    - modify r_CreateTexture accordingly
+
 */
+
+struct r_image_t
+{
+    VkImage image;
+    VkDeviceMemory memory;
+//    uint16_t width;
+//    uint16_t height;
+//    uint16_t depth;
+//    uint8_t format;
+    uint32_t current_layout;
+    uint8_t aspect_mask;
+};
+
+struct r_image_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_IMAGE_INDEX 0xffffffff
+#define R_IMAGE_HANDLE(index) (struct r_image_handle_t){index}
+#define R_INVALID_IMAGE_HANDLE R_IMAGE_HANDLE(R_INVALID_IMAGE_INDEX)
 
 struct r_sampler_params_t
 {
@@ -174,14 +206,30 @@ struct r_sampler_params_t
 
 struct r_texture_description_t
 {
-    uint16_t width;
-    uint16_t height;
-    uint16_t depth;
-    uint16_t layers;
-    uint8_t type;
-    uint8_t format;
-    uint8_t mip_levels;
+//    uint16_t width;
+//    uint16_t height;
+//    uint16_t depth;
+//    uint16_t layers;
+//    uint8_t type;
+//    uint8_t format;
+//    uint8_t mip_levels;
 //    uint8_t aspect_mask;
+    VkStructureType s_type;
+    const void *next;
+    VkImageCreateFlags flags;
+    VkImageType image_type;
+    VkFormat  format;
+    VkExtent3D  extent;
+    uint32_t mip_levels;
+    uint32_t array_layers;
+    VkSampleCountFlagBits samples;
+    VkImageTiling tiling;
+    VkImageUsageFlags usage;
+    VkSharingMode sharing_mode;
+    uint32_t queueFamilyIndexCount;
+    uint32_t *pQueueFamilyIndices;
+    VkImageLayout initial_layout;
+    /* ======================================= */
     struct r_sampler_params_t sampler_params;
     char *name;
 };
@@ -195,11 +243,9 @@ struct r_sampler_t
 struct r_texture_t
 {
     VkSampler sampler;
-    VkImage image;
     VkImageView image_view;
-    VkDeviceMemory memory;
-    uint8_t current_layout;
-    uint8_t aspect_mask;
+    struct r_image_handle_t image;
+    char *name;
 };
 
 struct r_texture_handle_t
@@ -229,15 +275,13 @@ struct r_texture_handle_t
 
 struct r_pipeline_description_t
 {
-    /* this struct only exists to allow passing struct r_shader_t
-    objects to the code that created a render pass. Having those is important
-    because they already have descriptor set layouts created for them. Creating
-    the pipeline layout from those is a ton easier. */
-    struct r_shader_t **shaders;
-    uint32_t shader_count;
-
     /* the const qualifier got dropped here because it was being
     a pain in the ass. We know what we're doing with those pointers.  */
+    VkStructureType type;
+    const void *next;
+    VkPipelineCreateFlags flags;
+    uint32_t stage_count;
+    VkPipelineShaderStageCreateInfo *stages;
     VkPipelineVertexInputStateCreateInfo *vertex_input_state;
     VkPipelineInputAssemblyStateCreateInfo *input_assembly_state;
     VkPipelineTessellationStateCreateInfo *tesselation_state;
@@ -247,6 +291,13 @@ struct r_pipeline_description_t
     VkPipelineDepthStencilStateCreateInfo *depth_stencil_state;
     VkPipelineColorBlendStateCreateInfo *color_blend_state;
     VkPipelineDynamicStateCreateInfo *dynamic_state;
+    /*=====================================================*/
+    /* this struct only exists to allow passing struct r_shader_t
+    objects to the code that created a render pass. Having those is important
+    because they already have descriptor set layouts created for them. Creating
+    the pipeline layout from those is a ton easier. */
+    struct r_shader_t **shaders;
+    uint32_t shader_count;
 };
 
 struct r_subpass_description_t
@@ -261,6 +312,7 @@ struct r_subpass_description_t
     VkAttachmentReference *depth_stencil_attachment;
     uint32_t preserve_attachment_count;
     uint32_t *preserve_attachments;
+    /* ====================================================== */
     struct r_pipeline_description_t *pipeline_description;
 };
 
@@ -300,6 +352,20 @@ struct r_render_pass_handle_t
     uint32_t index;
 };
 
+struct r_render_pass_begin_info_t
+{
+    VkStructureType type;
+    const void *next;
+    VkRenderPass render_pass;
+    VkFramebuffer framebuffer;
+    VkRect2D render_area;
+    uint32_t clear_value_count;
+    VkClearValue *clear_values;
+    /* ============================================ */
+    struct r_render_pass_handle_t render_pass_handle;
+    struct r_framebuffer_handle_t framebuffer_handle;
+};
+
 #define R_INVALID_RENDER_PASS_INDEX 0xffffffff
 #define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
 #define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
@@ -328,7 +394,7 @@ struct r_framebuffer_t
     This is to allow handling several VkFramebuffer objects with a single higher level object. */
     struct r_texture_handle_t *textures;
     uint8_t texture_count;
-    uint8_t next_buffer;
+    uint8_t current_buffer;
 };
 
 struct r_framebuffer_handle_t
@@ -339,6 +405,29 @@ struct r_framebuffer_handle_t
 #define R_INVALID_FRAMEBUFFER_INDEX 0xffffffff
 #define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_handle_t){index}
 #define R_INVALID_FRAMEBUFFER_HANDLE R_FRAMEBUFFER_HANDLE(R_INVALID_FRAMEBUFFER_INDEX)
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_swapchain_t
+{
+    VkSwapchainKHR swapchain;
+    struct r_image_handle_t *images;
+    uint8_t image_count;
+    uint8_t current_image;
+};
+
+struct r_swapchain_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_SWAPCHAIN_INDEX 0xffffffff
+#define R_SWAPCHAIN_HANDLE(index) (struct r_swapchain_handle_t){index}
+#define R_INVALID_SWAPCHAIN_HANDLE R_SWAPCHAIN_HANDLE(R_INVALID_SWAPCHAIN_INDEX)
 
 /*
 =================================================================

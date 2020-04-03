@@ -17,7 +17,7 @@ void r_InitVulkan();
 =================================================================
 */
 
-uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t properties);
+uint32_t r_MemoryIndexWithProperties(uint32_t type_bits, uint32_t properties);
 
 /*
 =================================================================
@@ -25,29 +25,46 @@ uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t properties);
 =================================================================
 */
 
+struct r_image_handle_t r_CreateImage(VkImageCreateInfo *description);
+
+struct r_image_handle_t r_AllocImage(VkImageCreateInfo *description);
+
+void r_AllocImageMemory(struct r_image_handle_t handle);
+
+struct r_image_handle_t r_CreateImageFrom(struct r_image_t *image);
+
+void r_DestroyImage(struct r_image_handle_t handle);
+
+struct r_image_t *r_GetImagePointer(struct r_image_handle_t handle);
+
+VkImageCreateInfo *r_GetImageDescriptionPointer(struct r_image_handle_t handle);
+
+void r_BlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+
+void r_CmdBlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+
+void r_CmdSetImageLayout(struct r_image_handle_t handle, uint32_t new_layout);
+
+void r_LoadImageData(struct r_image_handle_t handle, void *data);
+
+VkImageAspectFlagBits r_GetFormatAspectFlags(VkFormat format);
+
+uint32_t r_GetFormatPixelPitch(VkFormat format);
+
+
+
+
 void r_CreateDefaultTexture();
-
-struct r_texture_handle_t r_AllocTexture();
-
-void r_FreeTexture(struct r_texture_handle_t handle);
 
 struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *description);
 
+void r_DestroyTexture(struct r_texture_handle_t handle);
+
 VkSampler r_TextureSampler(struct r_sampler_params_t *params);
-
-void r_SetImageLayout(VkImage image, uint32_t aspect_mask, uint32_t old_layout, uint32_t new_layout);
-
-void r_SetTextureLayout(struct r_texture_handle_t handle, uint32_t layout);
-
-void r_BlitImageToTexture(struct r_texture_handle_t handle, VkImage image);
-
-void r_LoadTextureData(struct r_texture_handle_t handle, void *data);
 
 struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
 
 struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
-
-struct r_texture_description_t *r_GetTextureDescriptionPointer(struct r_texture_handle_t handle);
 
 struct r_texture_t* r_GetDefaultTexturePointer();
 
@@ -183,6 +200,8 @@ void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
 
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle);
 
+void r_CmdBeginRenderPass(struct r_render_pass_handle_t handle)
+
 /*
 =================================================================
 =================================================================
@@ -197,7 +216,21 @@ void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle);
 
 struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_handle_t handle);
 
-struct r_framebuffer_description_t *r_GetFramebufferDescriptionPointer(struct r_framebuffer_handle_t handle);
+void r_PresentFramebuffer(struct r_framebuffer_handle_t handle);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_swapchain_handle_t r_CreateSwapchain(VkSwapchainCreateInfoKHR *description);
+
+void r_DestroySwapchain(struct r_swapchain_handle_t handle);
+
+struct r_swapchain_t *r_GetSwapchainPointer(struct r_swapchain_handle_t handle);
+
+void r_NextImage(struct r_swapchain_handle_t handle);
 
 /*
 =================================================================
