@@ -19,6 +19,10 @@ void r_InitVulkan();
 
 uint32_t r_MemoryIndexWithProperties(uint32_t type_bits, uint32_t properties);
 
+uint32_t r_IsDepthStencilFormat(VkFormat format);
+
+uint32_t r_ImageUsageFromFormat(VkFormat format);
+
 /*
 =================================================================
 =================================================================
@@ -41,11 +45,11 @@ VkImageCreateInfo *r_GetImageDescriptionPointer(struct r_image_handle_t handle);
 
 void r_BlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
 
-void r_CmdBlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+void r_CmdBlitImage(VkCommandBuffer command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
 
-void r_CmdSetImageLayout(struct r_image_handle_t handle, uint32_t new_layout);
+void r_CmdSetImageLayout(VkCommandBuffer command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
 
-void r_LoadImageData(struct r_image_handle_t handle, void *data);
+void r_FillImage(struct r_image_handle_t handle, void *data);
 
 VkImageAspectFlagBits r_GetFormatAspectFlags(VkFormat format);
 
@@ -88,8 +92,6 @@ struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle);
 =================================================================
 =================================================================
 */
-
-uint32_t r_IsDepthStencilFormat(VkFormat format);
 
 /*
     The amount of stuff filled in the description may vary. To reduce the verbosity
@@ -158,9 +160,12 @@ uint32_t r_IsDepthStencilFormat(VkFormat format);
         .subpass_count = 1,
         .subpasses = (VkSubpassDescription []){
                 {
-                .colorAttachmentCount = 1,
-                .pColorAttachments = (VkAttachmentReference []){
+                .color_attachment_count = 1,
+                .color_attachments = (VkAttachmentReference []){
                     {.attachment = 2}
+                },
+                .pipeline_description = &(struct r_pipeline_description_t){
+                    ...
                 }
             }
         }
@@ -177,14 +182,17 @@ uint32_t r_IsDepthStencilFormat(VkFormat format);
             {.format = VK_FORMAT...},
         },
         .subpass_count = 1,
-        .subpasses = (VkSubpassDescription []){
+        .subpasses = (struct r_subpass_description_t[]){
                 {
-                .colorAttachmentCount = 4,
-                .pColorAttachments = (VkAttachmentReference []){
+                .color_attachment_count = 4,
+                .color_attachments = (VkAttachmentReference []){
                     {.attachment = VK_ATTACHMENT_UNUSED},
                     {.attachment = VK_ATTACHMENT_UNUSED},
                     {.attachment = 2},
                     {.attachment = VK_ATTACHMENT_UNUSED},
+                },
+                .pipeline_description = &(struct r_pipeline_description_t ){
+                    ...
                 }
             }
         }
@@ -200,15 +208,11 @@ void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
 
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle);
 
-void r_CmdBeginRenderPass(struct r_render_pass_handle_t handle)
-
 /*
 =================================================================
 =================================================================
 =================================================================
 */
-
-//struct r_framebuffer_handle_t r_AllocFramebuffer();
 
 struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description);
 
@@ -238,6 +242,30 @@ void r_NextImage(struct r_swapchain_handle_t handle);
 =================================================================
 */
 
+struct stack_list_t *r_GetHeapListFromType(uint32_t type);
+
+struct r_heap_handle_t r_CreateHeap(uint32_t size, uint32_t type);
+
+struct r_heap_handle_t r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint32_t size);
+
+void r_DestroyHeap(struct r_heap_handle_t handle);
+
+struct r_heap_t *r_GetHeapPointer(struct r_heap_handle_t handle);
+
+void r_DefragHeap(struct r_heap_handle_t handle, uint32_t move_allocs);
+
+struct r_chunk_handle_t r_AllocChunk(struct r_heap_handle_t handle, uint32_t size, uint32_t align);
+
+void r_FreeChunk(struct r_chunk_handle_t handle);
+
+struct r_chunk_t *r_GetChunkPointer(struct r_chunk_handle_t handle);
+
+//void r_FillChunk(struct r_chunk_handle_t handle, void *data, uint32_t size, uint32_t offset);
+
+
+
+
+
 struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc);
 
 struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle);
@@ -245,6 +273,18 @@ struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle);
 void r_Free(struct r_alloc_handle_t handle);
 
 void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_LockQueue(struct r_queue_t *queue);
+
+void r_UnlockQueue(struct r_queue_t *queue);
+
+void r_QueueSubmit(struct r_queue_t *queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence);
 
 /*
 =================================================================

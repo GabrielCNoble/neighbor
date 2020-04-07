@@ -46,6 +46,74 @@ struct view_def_t
 =================================================================
 */
 
+struct r_queue_t
+{
+    VkQueue queue;
+    SDL_SpinLock spinlock;
+};
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+
+enum R_HEAP_TYPE
+{
+    R_HEAP_TYPE_BASE = 0,
+    R_HEAP_TYPE_BUFFER,
+    R_HEAP_TYPE_IMAGE,
+};
+
+struct r_heap_t
+{
+    struct stack_list_t alloc_chunks;
+    struct list_t free_chunks;
+    SDL_SpinLock spinlock; /* thread safety */
+    uint32_t size;
+    uint32_t type;
+};
+
+struct r_image_heap_t
+{
+    struct stack_list_t alloc_chunks;
+    struct list_t free_chunks;
+    SDL_SpinLock spinlock;
+    uint32_t size;
+    VkDeviceMemory memory;
+    VkFormat *supported_formats;
+    uint32_t supported_format_count;
+};
+
+struct r_heap_handle_t
+{
+    uint8_t index;
+    uint8_t type;
+};
+
+#define R_INVALID_HEAP_INDEX 0xffff
+#define R_HEAP_HANDLE(index, type) (struct r_heap_handle_t){index, type}
+#define R_INVALID_HEAP_HANDLE R_HEAP_HANDLE(R_INVALID_HEAP_INDEX, R_HEAP_TYPE_BASE)
+
+struct r_chunk_t
+{
+    uint32_t size;
+    uint32_t start;
+    uint32_t align;
+};
+
+struct r_chunk_handle_t
+{
+    uint32_t index;
+    struct r_heap_handle_t heap;
+};
+
+#define R_INVALID_CHUNK_INDEX 0xffffffff
+#define R_CHUNK_HANDLE(index, heap) (struct r_chunk_handle_t){index, heap}
+#define R_INVALID_CHUNK_HANDLE R_CHUNK_HANDLE(R_INVALID_CHUNK_INDEX, R_INVALID_HEAP_HANDLE)
+
+
 struct r_alloc_t
 {
     uint32_t size;
@@ -77,12 +145,12 @@ struct r_vertex_attrib_t
     uint8_t pad;
 };
 
- struct r_vertex_binding_t
- {
-     uint32_t attrib_count;
-     uint32_t size;
-     struct r_vertex_attrib_t *attribs;
- };
+struct r_vertex_binding_t
+{
+ uint32_t attrib_count;
+ uint32_t size;
+ struct r_vertex_attrib_t *attribs;
+};
 
 struct r_resource_binding_t
 {
@@ -141,46 +209,18 @@ struct r_shader_handle_t
 =================================================================
 =================================================================
 */
+
 /*
-    - create a struct called r_image_t, which will
-    contain the image object (VkImage), the backing memory
-    (VkDeviceMemory), and the current layout. This will
-    represent an image and its memory, without an VkImageView.
-    This struct cannot be sampled, but can be used for transfer
-    operations.
-
-    - create a function called r_CreateImage, to create an
-    r_image_t object.
-
-    - create a function called r_CreateImageFrom, which also
-    creates a r_image_t, but takes as arguments the VkImage
-    and VkDeviceMemory to be used. This is to allow creating
-    a r_image_t from a VkSwapchainKHR image. The use case for
-    this is to allow blitting an image to a VkSwapchainKHR image.
-
-    - create a function called r_BlitImage, which takes as
-    arguments two r_image_t objects. This function will
-    set their layouts for the transfer operation and then
-    restore it to its previous value afterwards. This function
-    will block until the operation is complete. The use case
-    for this is to allow blitting to a VkSwapchainKHR image.
-
-    - modify the struct r_texture_t to be an r_image_t with a
-    VkImageView. This will represent an object that can be
-    sampled by shaders.
-
-    - modify r_CreateTexture accordingly
-
+    modify r_CreateImage to set the struct r_image_t VkImage to the
+    default texture VkImage, so the data upload can happen in a
+    separate thread.
 */
 
 struct r_image_t
 {
     VkImage image;
-    VkDeviceMemory memory;
-//    uint16_t width;
-//    uint16_t height;
-//    uint16_t depth;
-//    uint8_t format;
+//    VkDeviceMemory memory;
+    struct r_chunk_handle_t memory;
     uint32_t current_layout;
     uint8_t aspect_mask;
 };
@@ -352,19 +392,19 @@ struct r_render_pass_handle_t
     uint32_t index;
 };
 
-struct r_render_pass_begin_info_t
-{
-    VkStructureType type;
-    const void *next;
-    VkRenderPass render_pass;
-    VkFramebuffer framebuffer;
-    VkRect2D render_area;
-    uint32_t clear_value_count;
-    VkClearValue *clear_values;
-    /* ============================================ */
-    struct r_render_pass_handle_t render_pass_handle;
-    struct r_framebuffer_handle_t framebuffer_handle;
-};
+//struct r_render_pass_begin_info_t
+//{
+//    VkStructureType type;
+//    const void *next;
+//    VkRenderPass render_pass;
+//    VkFramebuffer framebuffer;
+//    VkRect2D render_area;
+//    uint32_t clear_value_count;
+//    VkClearValue *clear_values;
+//    /* ============================================ */
+//    struct r_render_pass_handle_t render_pass_handle;
+//    struct r_framebuffer_handle_t framebuffer_handle;
+//};
 
 #define R_INVALID_RENDER_PASS_INDEX 0xffffffff
 #define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}

@@ -129,12 +129,13 @@ int main(int argc, char *argv[])
     while(1)
     {
         in_ReadInput();
-        g_UpdateEntities();
-        r_QueueCmd(R_CMD_TYPE_BEGIN_FRAME, NULL, 0);
-        draw_things(things, sizeof(things) / sizeof(things[0]));
-        ent_DrawEntities();
-        r_QueueCmd(R_CMD_TYPE_END_FRAME, NULL, 0);
-        r_WaitEmptyQueue();
+        SDL_Delay(16);
+//        g_UpdateEntities();
+//        r_QueueCmd(R_CMD_TYPE_BEGIN_FRAME, NULL, 0);
+//        draw_things(things, sizeof(things) / sizeof(things[0]));
+//        ent_DrawEntities();
+//        r_QueueCmd(R_CMD_TYPE_END_FRAME, NULL, 0);
+//        r_WaitEmptyQueue();
     }
 
     return 0;
