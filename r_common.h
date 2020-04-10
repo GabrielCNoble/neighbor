@@ -59,6 +59,14 @@ struct r_queue_t
 */
 
 
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+
 enum R_HEAP_TYPE
 {
     R_HEAP_TYPE_BASE = 0,
@@ -66,24 +74,31 @@ enum R_HEAP_TYPE
     R_HEAP_TYPE_IMAGE,
 };
 
+#define BASE_HEAP_FIELDS \
+    struct stack_list_t alloc_chunks; \
+    struct list_t free_chunks; \
+    SDL_SpinLock spinlock; \
+    uint32_t size; \
+    uint32_t type
+
 struct r_heap_t
 {
-    struct stack_list_t alloc_chunks;
-    struct list_t free_chunks;
-    SDL_SpinLock spinlock; /* thread safety */
-    uint32_t size;
-    uint32_t type;
+    BASE_HEAP_FIELDS;
 };
 
 struct r_image_heap_t
 {
-    struct stack_list_t alloc_chunks;
-    struct list_t free_chunks;
-    SDL_SpinLock spinlock;
-    uint32_t size;
+    BASE_HEAP_FIELDS;
     VkDeviceMemory memory;
     VkFormat *supported_formats;
     uint32_t supported_format_count;
+};
+
+struct r_buffer_heap_t
+{
+    BASE_HEAP_FIELDS;
+    VkDeviceMemory memory;
+    VkBuffer buffer;
 };
 
 struct r_heap_handle_t
@@ -186,6 +201,11 @@ struct r_shader_t
     uint32_t vertex_binding_count;
     struct r_vertex_binding_t *vertex_bindings;
 
+    /* necessary for estimating the number of descriptors
+    to be allocated from the pipeline descriptor pool */
+    uint32_t resource_count;
+    struct r_resource_binding_t *resources;
+
     VkShaderModule module;
     VkDescriptorSetLayout descriptor_set_layout;
 
@@ -210,6 +230,33 @@ struct r_shader_handle_t
 =================================================================
 */
 
+struct r_buffer_t
+{
+    VkBuffer buffer;
+    struct r_chunk_handle_t memory;
+};
+
+struct r_buffer_handle_t
+{
+    uint32_t index;
+};
+
+struct r_staging_buffer_t
+{
+    VkBuffer buffer;
+    VkBufferUsageFlags usage;
+};
+
+#define R_INVALID_BUFFER_INDEX 0xffffffff
+#define R_BUFFER_HANDLE(index) (struct r_buffer_handle_t){index}
+#define R_INVALID_BUFFER_HANDLE R_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 /*
     modify r_CreateImage to set the struct r_image_t VkImage to the
     default texture VkImage, so the data upload can happen in a
@@ -219,7 +266,6 @@ struct r_shader_handle_t
 struct r_image_t
 {
     VkImage image;
-//    VkDeviceMemory memory;
     struct r_chunk_handle_t memory;
     uint32_t current_layout;
     uint8_t aspect_mask;
@@ -228,6 +274,12 @@ struct r_image_t
 struct r_image_handle_t
 {
     uint32_t index;
+};
+
+struct r_staging_image_t
+{
+    struct r_image_handle_t image;
+    VkFormat format;
 };
 
 #define R_INVALID_IMAGE_INDEX 0xffffffff
@@ -313,6 +365,33 @@ struct r_texture_handle_t
 //    uint8_t index;
 //};
 
+struct r_descriptor_pool_t
+{
+    VkDescriptorPool descriptor_pool;
+    /* TODO: investigate better command execution ordering. If two or more threads are
+    sourcing descriptor sets from the same pool concurrently, and it gets depleted,
+    the thread that first locks the spinlock will get to store its fence in the pool.
+    However, the commands from the thread that stored its fence in the pool may finish
+    executing before other threads that were also allocating descriptor sets from this pool.
+    This means that the pool may get reset while the descriptor sets are being used by gpu. */
+
+    VkFence submission_fence; /* once a pool gets depleted, it gets put in an used
+    pools list. To know when it's safe to recycle it, the fence used in the submission
+    that depleted this pool gets stored here. A pool can be used in several submissions,
+    but only the one that depleted it is enough to tell whether it's safe to recycle it. */
+    uint32_t set_count;
+    uint32_t free_count;
+};
+
+struct r_descriptor_pool_list_t
+{
+    SDL_SpinLock spinlock;
+    struct list_t free_pools;
+    struct list_t used_pools;
+    uint32_t current_pool; /* current pool being used to allocate descriptor sets */
+    uint32_t next_pool_check; /* next pool to be checked for recycling */
+};
+
 struct r_pipeline_description_t
 {
     /* the const qualifier got dropped here because it was being
@@ -364,10 +443,24 @@ struct r_render_pass_description_t
     uint8_t subpass_count;
 };
 
+
+/* each pipeline will have a list of command pools,
+and all command pools will use the same descriptor set layout.
+The amount of descriptors available will be a multiple of the
+number of descriptors used across all shader stages. Once a
+descriptor pool runs out of descriptors, it will receive the
+VkFence of the submission it happened. Next time a descriptor
+set is allocated, the status of this fence will be tested. If
+it's signaled, the command pool gets reset and added to the free
+list once more. */
 struct r_pipeline_t
 {
+    struct r_shader_t *vertex_shader;
+    struct r_shader_t *fragment_shader;
+
     VkPipeline pipeline;
     VkPipelineLayout layout;
+    struct r_descriptor_pool_list_t pool_lists[2];
 };
 
 struct r_render_pass_t
@@ -376,15 +469,12 @@ struct r_render_pass_t
 
     union
     {
-        /* since most of the time each render pass won't have
-        more than a single sub pass, the pipeline handle is stored
-        within the render pass struct. This is done to avoid tiny
-        heap allocations. */
         struct r_pipeline_t *pipelines;
         struct r_pipeline_t pipeline;
     };
 
-    uint8_t pipeline_count;
+    uint8_t subpass_count;
+    uint8_t current_subpass;
 };
 
 struct r_render_pass_handle_t
@@ -625,8 +715,8 @@ struct r_renderer_t
 
     struct r_draw_cmd_buffer_t *submiting_draw_cmd_buffer;
 
-    struct stack_list_t pipelines;
-    struct stack_list_t shaders;
+//    struct stack_list_t pipelines;
+//    struct stack_list_t shaders;
 };
 
 #endif

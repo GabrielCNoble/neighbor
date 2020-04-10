@@ -8,7 +8,7 @@
 SDL_Event event;
 uint16_t keys[SDL_NUM_SCANCODES];
 uint16_t registered_keys[SDL_NUM_SCANCODES];
-uint32_t registered_keys_count = 0; 
+uint32_t registered_keys_count = 0;
 struct key_state_t key_states[SDL_NUM_SCANCODES];
 float normalized_x = 0.0;
 float normalized_y = 0.0;
@@ -34,13 +34,13 @@ void in_ReadInput()
 
     normalized_dx = ((float)mouse_x / (float)window_width) * 2.0 - 1.0;
     normalized_dy = -((float)mouse_y / (float)window_height) * 2.0 + 1.0;
-    SDL_WarpMouseInWindow(r_renderer.window, window_width >> 1, window_height >> 1);
+//    SDL_WarpMouseInWindow(r_renderer.window, window_width >> 1, window_height >> 1);
 
- 
+
 
     for(uint32_t i = 0; i < registered_keys_count; i++)
     {
-        scancode = registered_keys[i]; 
+        scancode = registered_keys[i];
         key_state = key_states + scancode;
 
         key_state->flags &= ~(IN_INPUT_STATE_JUST_PRESSED | IN_INPUT_STATE_JUST_RELEASED);

@@ -23,6 +23,59 @@ uint32_t r_IsDepthStencilFormat(VkFormat format);
 
 uint32_t r_ImageUsageFromFormat(VkFormat format);
 
+VkImageAspectFlagBits r_GetFormatAspectFlags(VkFormat format);
+
+uint32_t r_GetFormatPixelPitch(VkFormat format);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+
+struct stack_list_t *r_GetHeapListFromType(uint32_t type);
+
+struct r_heap_handle_t r_CreateHeap(uint32_t size, uint32_t type);
+
+struct r_heap_handle_t r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint32_t size);
+
+struct r_heap_handle_t r_CreateBufferHeap(uint32_t usage, uint32_t size);
+
+void r_DestroyHeap(struct r_heap_handle_t handle);
+
+struct r_heap_t *r_GetHeapPointer(struct r_heap_handle_t handle);
+
+void r_DefragHeap(struct r_heap_handle_t handle, uint32_t move_allocs);
+
+struct r_chunk_handle_t r_AllocChunk(struct r_heap_handle_t handle, uint32_t size, uint32_t align);
+
+void r_FreeChunk(struct r_chunk_handle_t handle);
+
+struct r_chunk_t *r_GetChunkPointer(struct r_chunk_handle_t handle);
+
+struct r_image_handle_t r_GetCompatibleStagingImage(VkImageCreateInfo *description);
+
+//struct r_buffer_handle_t r_GetCompatibleStagingBuffer()
+
+void r_FillImageChunk(struct r_image_handle_t handle, void *data, uint32_t size, uint32_t offset);
+
+void r_FillBufferChunk(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_buffer_handle_t r_CreateBuffer(VkBufferCreateInfo *description);
+
+void r_DestroyBuffer(struct r_buffer_handle_t handle);
+
+struct r_buffer_t *r_GetBufferPointer(struct r_buffer_handle_t handle);
+
+void r_FillBuffer(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
+
 /*
 =================================================================
 =================================================================
@@ -50,10 +103,6 @@ void r_CmdBlitImage(VkCommandBuffer command_buffer, struct r_image_handle_t src_
 void r_CmdSetImageLayout(VkCommandBuffer command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
 
 void r_FillImage(struct r_image_handle_t handle, void *data);
-
-VkImageAspectFlagBits r_GetFormatAspectFlags(VkFormat format);
-
-uint32_t r_GetFormatPixelPitch(VkFormat format);
 
 
 
@@ -134,8 +183,8 @@ struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle);
     samples = VK_SAMPLE_COUNT_1_BIT,
     loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
     storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-    stencilLoadOp = VK_ATTACHMENT_LOAD_OP,
-    stencolStoreOp = VK_ATTACHMENT_STORE_OP,
+    stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+    stencolStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
     initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL if color format.
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL if depth / stencil format.
@@ -208,6 +257,16 @@ void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
 
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle);
 
+struct r_descriptor_pool_list_t *r_GetDescriptorPoolListPointer(struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage);
+
+VkDescriptorSet r_AllocateDescriptorSet(struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage, VkFence submission_fence);
+
+void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline);
+
+//r_CmdBindPipeline(VkCommandBuffer command_buffer, struct r_pipeline_t *pipeline);
+
+//void r_CmdBeginSubpass(VkCommandBuffer command_buffer )
+
 /*
 =================================================================
 =================================================================
@@ -241,29 +300,6 @@ void r_NextImage(struct r_swapchain_handle_t handle);
 =================================================================
 =================================================================
 */
-
-struct stack_list_t *r_GetHeapListFromType(uint32_t type);
-
-struct r_heap_handle_t r_CreateHeap(uint32_t size, uint32_t type);
-
-struct r_heap_handle_t r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint32_t size);
-
-void r_DestroyHeap(struct r_heap_handle_t handle);
-
-struct r_heap_t *r_GetHeapPointer(struct r_heap_handle_t handle);
-
-void r_DefragHeap(struct r_heap_handle_t handle, uint32_t move_allocs);
-
-struct r_chunk_handle_t r_AllocChunk(struct r_heap_handle_t handle, uint32_t size, uint32_t align);
-
-void r_FreeChunk(struct r_chunk_handle_t handle);
-
-struct r_chunk_t *r_GetChunkPointer(struct r_chunk_handle_t handle);
-
-//void r_FillChunk(struct r_chunk_handle_t handle, void *data, uint32_t size, uint32_t offset);
-
-
-
 
 
 struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc);

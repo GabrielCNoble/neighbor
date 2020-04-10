@@ -149,7 +149,7 @@ struct model_handle_t mdl_LoadModel(char *file_name)
                 if(batch->diffuse_texture[0] != '\0')
                 {
                     texture_handle = r_GetTextureHandle(batch->diffuse_texture);
-        
+
                     if(texture_handle.index == R_INVALID_TEXTURE_INDEX)
                     {
                         texture_name = get_file_name_no_ext(get_file_from_path(batch->diffuse_texture));
@@ -158,10 +158,10 @@ struct model_handle_t mdl_LoadModel(char *file_name)
 
                     material->diffuse_texture = r_GetTexturePointer(texture_handle);
                 }
-                
+
                 if(!material->diffuse_texture)
                 {
-                    material->diffuse_texture = r_GetDefaultTexturePointer();   
+                    material->diffuse_texture = r_GetDefaultTexturePointer();
                 }
 
                 if(batch->normal_texture[0] != '\0')
