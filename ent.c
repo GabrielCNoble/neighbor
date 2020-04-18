@@ -183,25 +183,25 @@ struct stack_list_t* ent_GetEntityList()
 
 void ent_DrawEntities()
 {
-    struct entity_t* entity;
-    struct model_t* model;
-    struct model_batch_t* batch;
-    r_BeginSubmission(&r_renderer.view_projection_matrix, &r_renderer.view_matrix);
-    for(uint32_t i = 0; i < entities.cursor; i++)
-    {
-        entity = ent_GetEntityPointer(ENT_ENTITY_HANDLE(i));
-        if(entity)
-        {
-            model = mdl_GetModelPointer(entity->model);
-            if(model)
-            {
-                for(uint32_t j = 0; j < model->batch_count; j++)
-                {
-                    batch = model->batches + j;
-                    r_SubmitDrawCmd(&entity->transform, batch->material, batch->range.start, batch->range.count);
-                }
-            }
-        }
-    }
-    r_EndSubmission();
+//    struct entity_t* entity;
+//    struct model_t* model;
+//    struct model_batch_t* batch;
+//    r_BeginSubmission(&r_renderer.view_projection_matrix, &r_renderer.view_matrix);
+//    for(uint32_t i = 0; i < entities.cursor; i++)
+//    {
+//        entity = ent_GetEntityPointer(ENT_ENTITY_HANDLE(i));
+//        if(entity)
+//        {
+//            model = mdl_GetModelPointer(entity->model);
+//            if(model)
+//            {
+//                for(uint32_t j = 0; j < model->batch_count; j++)
+//                {
+//                    batch = model->batches + j;
+//                    r_SubmitDrawCmd(&entity->transform, batch->material, batch->range.start, batch->range.count);
+//                }
+//            }
+//        }
+//    }
+//    r_EndSubmission();
 }

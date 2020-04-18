@@ -1,9 +1,6 @@
 .vscode
 lib
-build.bat
-obj
-textures
-models
+tests
 *.bsp
 *.exe
 *.o

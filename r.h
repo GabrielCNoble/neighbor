@@ -5,9 +5,11 @@
 //#include "r_vk.h"
 
 
-void r_InitRenderer();
+void r_Init();
 
 void r_InitDevice();
+
+void r_Shutdown();
 
 
 
@@ -302,13 +304,13 @@ void r_NextImage(struct r_swapchain_handle_t handle);
 */
 
 
-struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc);
-
-struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle);
-
-void r_Free(struct r_alloc_handle_t handle);
-
-void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size);
+//struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc);
+//
+//struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle);
+//
+//void r_Free(struct r_alloc_handle_t handle);
+//
+//void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size);
 
 /*
 =================================================================

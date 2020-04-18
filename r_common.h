@@ -693,41 +693,4 @@ struct r_draw_cmd_buffer_t
 
 
 
-struct r_renderer_t
-{
-    SDL_Window *window;
-
-    float z_near;
-    float z_far;
-    float fov_y;
-
-    uint32_t width;
-    uint32_t height;
-
-    struct stack_list_t allocd_blocks[2];
-    struct list_t free_blocks[2];
-
-//    struct stack_list_t textures;
-    struct stack_list_t materials;
-    struct stack_list_t lights;
-//    struct stack_list_t framebuffers;
-//    struct stack_list_t render_passes;
-
-    SDL_SpinLock cmd_buffer_lock;
-    struct ringbuffer_t cmd_buffer;
-    struct ringbuffer_t cmd_buffer_data;
-
-    mat4_t projection_matrix;
-    mat4_t view_matrix;
-    mat4_t model_matrix;
-    mat4_t view_projection_matrix;
-    mat4_t model_view_projection_matrix;
-    uint32_t outdated_view_projection_matrix;
-
-    struct r_draw_cmd_buffer_t *submiting_draw_cmd_buffer;
-
-//    struct stack_list_t pipelines;
-//    struct stack_list_t shaders;
-};
-
 #endif

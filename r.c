@@ -10,7 +10,7 @@
 #include "SDL/include/SDL2/SDL_atomic.h"
 #include "SDL/include/SDL2/SDL_vulkan.h"
 
-struct r_renderer_t r_renderer;
+//struct r_renderer_t r_renderer;
 
 
 struct
@@ -74,6 +74,45 @@ struct
 
 
 
+
+struct
+{
+    SDL_Window *window;
+
+    float z_near;
+    float z_far;
+    float fov_y;
+
+    uint32_t width;
+    uint32_t height;
+
+//    struct stack_list_t allocd_blocks[2];
+//    struct list_t free_blocks[2];
+
+//    struct stack_list_t textures;
+    struct stack_list_t materials;
+    struct stack_list_t lights;
+//    struct stack_list_t framebuffers;
+//    struct stack_list_t render_passes;
+
+    SDL_SpinLock cmd_buffer_lock;
+    struct ringbuffer_t cmd_buffer;
+    struct ringbuffer_t cmd_buffer_data;
+
+    mat4_t projection_matrix;
+    mat4_t view_matrix;
+    mat4_t model_matrix;
+    mat4_t view_projection_matrix;
+    mat4_t model_view_projection_matrix;
+    uint32_t outdated_view_projection_matrix;
+
+    struct r_draw_cmd_buffer_t *submiting_draw_cmd_buffer;
+
+//    struct stack_list_t pipelines;
+//    struct stack_list_t shaders;
+}r_renderer;
+
+
 //VkDevice r_device;
 //VkSurfaceKHR r_surface;
 
@@ -113,7 +152,7 @@ mat4_t projection_matrix;
 SDL_SpinLock r_resource_spinlock;
 
 
-void r_InitRenderer()
+void r_Init()
 {
     struct r_alloc_t free_alloc;
     SDL_Thread *renderer_thread;
@@ -122,20 +161,20 @@ void r_InitRenderer()
     struct r_shader_description_t fragment_description = {};
     struct r_render_pass_description_t render_pass_description = {};
 
-    r_renderer.allocd_blocks[0] = create_stack_list(sizeof(struct r_alloc_t), 512);
-    r_renderer.allocd_blocks[1] = create_stack_list(sizeof(struct r_alloc_t), 512);
-    r_renderer.free_blocks[0] = create_list(sizeof(struct r_alloc_t), 512);
-    r_renderer.free_blocks[1] = create_list(sizeof(struct r_alloc_t), 512);
+//    r_renderer.allocd_blocks[0] = create_stack_list(sizeof(struct r_alloc_t), 512);
+//    r_renderer.allocd_blocks[1] = create_stack_list(sizeof(struct r_alloc_t), 512);
+//    r_renderer.free_blocks[0] = create_list(sizeof(struct r_alloc_t), 512);
+//    r_renderer.free_blocks[1] = create_list(sizeof(struct r_alloc_t), 512);
     r_renderer.cmd_buffer = create_ringbuffer(sizeof(struct r_cmd_t), 8192);
     r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 8192 * 10);
     r_renderer.submiting_draw_cmd_buffer = NULL;
     r_renderer.materials = create_stack_list(sizeof(struct r_material_t), 256);
     r_renderer.lights = create_stack_list(sizeof(struct r_light_t), 256);
-    free_alloc.start = 0;
-    free_alloc.size = R_HEAP_SIZE;
-    free_alloc.align = 0;
-    add_list_element(&r_renderer.free_blocks[0], &free_alloc);
-    add_list_element(&r_renderer.free_blocks[1], &free_alloc);
+//    free_alloc.start = 0;
+//    free_alloc.size = R_HEAP_SIZE;
+//    free_alloc.align = 0;
+//    add_list_element(&r_renderer.free_blocks[0], &free_alloc);
+//    add_list_element(&r_renderer.free_blocks[1], &free_alloc);
     mat4_t_identity(&r_renderer.view_matrix);
     mat4_t_identity(&r_renderer.projection_matrix);
 
@@ -192,7 +231,7 @@ void r_InitRenderer()
 //    r_FillBuffer(r_vertex_buffer, data, DATA_SIZE, DATA_SIZE * 3);
 
 
-    file = fopen("shader.vert.spv", "rb");
+    file = fopen("shaders/shader.vert.spv", "rb");
     read_file(file, &vertex_description.code, &vertex_description.code_size);
     fclose(file);
     vertex_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -228,7 +267,7 @@ void r_InitRenderer()
     struct r_shader_t *vertex_shader = r_GetShaderPointer(r_CreateShader(&vertex_description));
     free(vertex_description.code);
 
-    fopen("shader.frag.spv", "rb");
+    fopen("shaders/shader.frag.spv", "rb");
     read_file(file, &fragment_description.code, &fragment_description.code_size);
     fclose(file);
     fragment_description.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -578,6 +617,11 @@ void r_InitDevice()
     r_device.limits.max_image_dimension_1D = physical_device_properties.limits.maxImageDimension1D;
     r_device.limits.max_image_dimension_2D = physical_device_properties.limits.maxImageDimension2D;
     r_device.limits.max_image_array_layers = physical_device_properties.limits.maxImageArrayLayers;
+}
+
+void r_Shutdown()
+{
+
 }
 
 /*
@@ -2828,133 +2872,133 @@ void r_NextImage(struct r_swapchain_handle_t handle)
 
 
 
-struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc)
-{
-    struct r_alloc_t *alloc;
-    struct r_alloc_t new_alloc;
-    struct r_alloc_handle_t handle = R_INVALID_ALLOC_HANDLE;
-    uint32_t start;
-    uint32_t block_size;
-    struct list_t *free_blocks;
-
-    index_alloc = index_alloc && 1;
-    // align--;
-
-    free_blocks = &r_renderer.free_blocks[index_alloc];
-
-    for(uint32_t i = 0; i < free_blocks->cursor; i++)
-    {
-        alloc = (struct r_alloc_t *)get_list_element(free_blocks, i);
-        /* align the start of the allocation to the desired alignment */
-        // start = (alloc->start + align) & (~align);
-
-        start = alloc->start;
-
-        while(start % align)
-        {
-            start += align - (start % align);
-        }
-
-        /* subtract the bytes before the aligned start from
-        the total size */
-        block_size = alloc->size - (start - alloc->start);
-
-        if(block_size >= size)
-        {
-            /* compute the how many bytes of alignment we need */
-            align = start - alloc->start;
-
-            if(block_size == size)
-            {
-                /* taking away the aligment bytes, this buffer is just the right size for
-                the allocation required, so just move this allocation header from the
-                free list to the allocation list*/
-                alloc->align = align;
-                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], alloc);
-                remove_list_element(free_blocks, i);
-            }
-            else
-            {
-                /* this buffer is bigger than the requested
-                size, even after adjusting for alignment */
-                block_size = size + align;
-
-                /* we'll create a new allocation header to add
-                in the allocations list */
-                new_alloc.start = alloc->start;
-                new_alloc.size = block_size;
-                new_alloc.align = align;
-
-                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], &new_alloc);
-
-                /* chop a chunk of this free block */
-                alloc->start += block_size;
-                alloc->size -= block_size;
-            }
-
-            // handle.alloc_index = i;
-            handle.is_index = index_alloc;
-            break;
-        }
-    }
-
-    return handle;
-}
-
-struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle)
-{
-    struct r_alloc_t *alloc;
-    alloc = (struct r_alloc_t *)get_stack_list_element(&r_renderer.allocd_blocks[handle.is_index], handle.alloc_index);
-
-    if(alloc && !alloc->size)
-    {
-        /* zero sized allocs are considered invalid */
-        alloc = NULL;
-    }
-
-    return alloc;
-}
-
-void r_Free(struct r_alloc_handle_t handle)
-{
-    struct r_alloc_t *alloc = r_GetAllocPointer(handle);
-
-    if(alloc)
-    {
-        add_list_element(&r_renderer.free_blocks[handle.is_index], alloc);
-
-        /* zero sized allocs are considered invalid */
-        alloc->size = 0;
-    }
-}
-
-void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size)
-{
-    void *memory;
-    struct r_alloc_t *alloc;
-    uint32_t alloc_size;
-
-    alloc = r_GetAllocPointer(handle);
-
-    if(alloc)
-    {
-//        alloc_size = alloc->size - alloc->align;
+//struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc)
+//{
+//    struct r_alloc_t *alloc;
+//    struct r_alloc_t new_alloc;
+//    struct r_alloc_handle_t handle = R_INVALID_ALLOC_HANDLE;
+//    uint32_t start;
+//    uint32_t block_size;
+//    struct list_t *free_blocks;
 //
-//        if(size > alloc_size)
+//    index_alloc = index_alloc && 1;
+//    // align--;
+//
+//    free_blocks = &r_renderer.free_blocks[index_alloc];
+//
+//    for(uint32_t i = 0; i < free_blocks->cursor; i++)
+//    {
+//        alloc = (struct r_alloc_t *)get_list_element(free_blocks, i);
+//        /* align the start of the allocation to the desired alignment */
+//        // start = (alloc->start + align) & (~align);
+//
+//        start = alloc->start;
+//
+//        while(start % align)
 //        {
-//            size = alloc_size;
+//            start += align - (start % align);
 //        }
 //
-//        /* backend specific mapping function. It's necessary to pass both
-//        the handle and the alloc, as the backend doesn't use any of the
-//        interface's functions, and can't get the alloc pointer from the
-//        handle. It also needs the handle to know whether it's an vertex
-//        or and index alloc. */
-//        memory = r_vk_MapAlloc(handle, alloc);
-//        memcpy(memory, data, size);
-//        r_vk_UnmapAlloc(handle);
-    }
-}
+//        /* subtract the bytes before the aligned start from
+//        the total size */
+//        block_size = alloc->size - (start - alloc->start);
+//
+//        if(block_size >= size)
+//        {
+//            /* compute the how many bytes of alignment we need */
+//            align = start - alloc->start;
+//
+//            if(block_size == size)
+//            {
+//                /* taking away the aligment bytes, this buffer is just the right size for
+//                the allocation required, so just move this allocation header from the
+//                free list to the allocation list*/
+//                alloc->align = align;
+//                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], alloc);
+//                remove_list_element(free_blocks, i);
+//            }
+//            else
+//            {
+//                /* this buffer is bigger than the requested
+//                size, even after adjusting for alignment */
+//                block_size = size + align;
+//
+//                /* we'll create a new allocation header to add
+//                in the allocations list */
+//                new_alloc.start = alloc->start;
+//                new_alloc.size = block_size;
+//                new_alloc.align = align;
+//
+//                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], &new_alloc);
+//
+//                /* chop a chunk of this free block */
+//                alloc->start += block_size;
+//                alloc->size -= block_size;
+//            }
+//
+//            // handle.alloc_index = i;
+//            handle.is_index = index_alloc;
+//            break;
+//        }
+//    }
+//
+//    return handle;
+//}
+
+//struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle)
+//{
+//    struct r_alloc_t *alloc;
+//    alloc = (struct r_alloc_t *)get_stack_list_element(&r_renderer.allocd_blocks[handle.is_index], handle.alloc_index);
+//
+//    if(alloc && !alloc->size)
+//    {
+//        /* zero sized allocs are considered invalid */
+//        alloc = NULL;
+//    }
+//
+//    return alloc;
+//}
+
+//void r_Free(struct r_alloc_handle_t handle)
+//{
+//    struct r_alloc_t *alloc = r_GetAllocPointer(handle);
+//
+//    if(alloc)
+//    {
+//        add_list_element(&r_renderer.free_blocks[handle.is_index], alloc);
+//
+//        /* zero sized allocs are considered invalid */
+//        alloc->size = 0;
+//    }
+//}
+//
+//void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size)
+//{
+//    void *memory;
+//    struct r_alloc_t *alloc;
+//    uint32_t alloc_size;
+//
+//    alloc = r_GetAllocPointer(handle);
+//
+//    if(alloc)
+//    {
+////        alloc_size = alloc->size - alloc->align;
+////
+////        if(size > alloc_size)
+////        {
+////            size = alloc_size;
+////        }
+////
+////        /* backend specific mapping function. It's necessary to pass both
+////        the handle and the alloc, as the backend doesn't use any of the
+////        interface's functions, and can't get the alloc pointer from the
+////        handle. It also needs the handle to know whether it's an vertex
+////        or and index alloc. */
+////        memory = r_vk_MapAlloc(handle, alloc);
+////        memcpy(memory, data, size);
+////        r_vk_UnmapAlloc(handle);
+//    }
+//}
 
 /*
 =================================================================

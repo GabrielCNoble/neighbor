@@ -15,81 +15,81 @@ struct stack_list_t models;
 
 void mdl_Init()
 {
-    models = create_stack_list(sizeof(struct model_t), 512);
+//    models = create_stack_list(sizeof(struct model_t), 512);
 }
 
 void mdl_Shutdown()
 {
-    destroy_stack_list(&models);
+//    destroy_stack_list(&models);
 }
 
 struct model_handle_t mdl_AllocModel()
 {
-    struct model_t *model;
-    struct model_handle_t handle;
-
-    handle.model_index = add_stack_list_element(&models, NULL);
-    model = (struct model_t*)get_stack_list_element(&models, handle.model_index);
-
-    model->lod_count = 0;
-    model->batch_count = 0;
-    model->batches = NULL;
-    model->name = NULL;
-
-    return handle;
+//    struct model_t *model;
+//    struct model_handle_t handle;
+//
+//    handle.model_index = add_stack_list_element(&models, NULL);
+//    model = (struct model_t*)get_stack_list_element(&models, handle.model_index);
+//
+//    model->lod_count = 0;
+//    model->batch_count = 0;
+//    model->batches = NULL;
+//    model->name = NULL;
+//
+//    return handle;
 }
 
 struct model_handle_t mdl_GetModelHandle(char* name)
 {
-    struct model_t* model = NULL;
-    for(uint32_t i = 0; i < models.cursor; i++)
-    {
-        model = mdl_GetModelPointer(MDL_MODEL_HANDLE(i));
-        if(model && !strcmp(model->name, name))
-        {
-            return MDL_MODEL_HANDLE(i);
-        }
-    }
-    return MDL_INVALID_MODEL_HANDLE;
+//    struct model_t* model = NULL;
+//    for(uint32_t i = 0; i < models.cursor; i++)
+//    {
+//        model = mdl_GetModelPointer(MDL_MODEL_HANDLE(i));
+//        if(model && !strcmp(model->name, name))
+//        {
+//            return MDL_MODEL_HANDLE(i);
+//        }
+//    }
+//    return MDL_INVALID_MODEL_HANDLE;
 }
 struct model_t *mdl_GetModelPointer(struct model_handle_t handle)
 {
-    struct model_t *model;
-
-    model = (struct model_t*)get_stack_list_element(&models, handle.model_index);
-
-    if(model && model->lod_count == MDL_INVALID_LOD_COUNT)
-    {
-        model = NULL;
-    }
-
-    return model;
+//    struct model_t *model;
+//
+//    model = (struct model_t*)get_stack_list_element(&models, handle.model_index);
+//
+//    if(model && model->lod_count == MDL_INVALID_LOD_COUNT)
+//    {
+//        model = NULL;
+//    }
+//
+//    return model;
 }
 
 struct model_batch_t *mdl_GetModelLod(struct model_t *model, uint32_t lod)
 {
-    if(lod >= model->lod_count)
-    {
-        lod = model->lod_count - 1;
-    }
-
-    return model->batches + model->batch_count * lod;
+//    if(lod >= model->lod_count)
+//    {
+//        lod = model->lod_count - 1;
+//    }
+//
+//    return model->batches + model->batch_count * lod;
 }
 
 void mdl_FreeModel(struct model_handle_t handle)
 {
-    struct model_t *model;
-    model = mdl_GetModelPointer(handle);
-
-    if(model)
-    {
-        r_Free(model->alloc);
-        free(model->batches);
-        free(model->name);
-
-        model->lod_count = MDL_INVALID_LOD_COUNT;
-        remove_stack_list_element(&models, handle.model_index);
-    }
+//    struct model_t *model;
+//    model = mdl_GetModelPointer(handle);
+//
+//    if(model)
+//    {
+//        r_Free(model->alloc);
+//        free(model->batches);
+//        free(model->name);
+//
+//        model->lod_count = MDL_INVALID_LOD_COUNT;
+//        remove_stack_list_element(&models, handle.model_index);
+//    }
 }
 
 struct model_handle_t mdl_LoadModel(char *file_name)
