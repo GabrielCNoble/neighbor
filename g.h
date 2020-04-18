@@ -22,7 +22,7 @@ struct player_entity_props_t
     float gun_y;
     float gun_z;
     float gun_dx;
-    float gun_dy; 
+    float gun_dy;
     struct collider_handle_t collider;
     union entity_handle_t gun;
 };

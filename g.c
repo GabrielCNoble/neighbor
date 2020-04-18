@@ -22,7 +22,7 @@ void g_Init()
     in_RegisterKey(SDL_SCANCODE_A);
     in_RegisterKey(SDL_SCANCODE_D);
 
-    init_physics();
+//    init_physics();
 
     mdl_LoadModel("gun.obj");
     mdl_LoadModel("platform.obj");

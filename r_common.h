@@ -58,7 +58,11 @@ struct r_queue_t
 =================================================================
 */
 
-
+struct r_viewport_t
+{
+    VkViewport viewport;
+    VkRect2D scissor;
+};
 
 /*
 =================================================================
@@ -285,6 +289,7 @@ struct r_staging_image_t
 #define R_INVALID_IMAGE_INDEX 0xffffffff
 #define R_IMAGE_HANDLE(index) (struct r_image_handle_t){index}
 #define R_INVALID_IMAGE_HANDLE R_IMAGE_HANDLE(R_INVALID_IMAGE_INDEX)
+#define R_IS_VALID_IMAGE_HANDLE(handle) (handle.index != R_INVALID_IMAGE_INDEX)
 
 struct r_sampler_params_t
 {
@@ -381,6 +386,12 @@ struct r_descriptor_pool_t
     but only the one that depleted it is enough to tell whether it's safe to recycle it. */
     uint32_t set_count;
     uint32_t free_count;
+};
+
+struct r_descriptor_set_t
+{
+    VkDescriptorSet descriptor_set;
+
 };
 
 struct r_descriptor_pool_list_t

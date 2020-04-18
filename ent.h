@@ -60,4 +60,4 @@ struct stack_list_t* ent_GetEntityList();
 void ent_DrawEntities();
 
 
-#endif 
+#endif

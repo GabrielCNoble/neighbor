@@ -14,3 +14,6 @@
 #include "dstuff/containers/list.h"
 #include "dstuff/containers/stack_list.h"
 #include "dstuff/containers/ringbuffer.h"
+
+#define DSTUFF_FILE_PATH_IMPLEMENTATION
+#include "dstuff/file/path.h"

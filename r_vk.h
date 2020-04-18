@@ -1,167 +1,16 @@
-#ifndef R_VK_H
-#define R_VK_H
 
-#define VK_USE_PLATFORM_WIN32_KHR
-#include "vulkan/Include/vulkan/vulkan.h"
+#ifndef R_H
+#define R_H
+
 #include "r_common.h"
-
-// #define WIDTH 800
-// #define HEIGHT 600
-
-// struct vk_image_t
-// {
-//     VkImage image;
-//     VkImageView image_view;
-//     VkDeviceMemory image_memory;
-// };
-
-#define R_VK_AVAILABLE_CMD_BUFFERS 128
-// #define R_VK_CMD_BUFFER_MAX_DRAW_CMDS 128
-
-struct rVkShader
-{
-    uint32_t size;
-    uint32_t *shader;
-};
-
-// struct r_vk_shader_t
-// {
-
-// };
-
-struct r_vk_buffer_t
-{
-    VkBuffer buffer;
-    VkDeviceMemory memory;
-};
-
-// struct rVkImage
-// {
-//     VkImage image;
-//     VkImageView image_view;
-//     VkDeviceMemory memory;
-// };
-
-struct r_vk_pipeline_t
-{
-    struct r_pipeline_t base;
-    VkPipelineLayout layout;
-    VkPipeline pipeline;
-};
-struct r_vk_texture_t
-{
-    struct r_texture_t base;
-    VkImage image;
-    VkImageView image_view;
-    VkDeviceMemory memory;
-    uint32_t sampler_index;
-};
-
-struct r_vk_shader_t
-{
-    struct r_shader_t base;
-    VkShaderModule module;
-    VkDescriptorSetLayout descriptor_set_layout;
-};
-
-struct r_vk_framebuffer_t
-{
-    struct r_framebuffer_t base;
-    VkFramebuffer *framebuffers;
-};
-
-struct r_vk_render_pass_t
-{
-    struct r_render_pass_t base;
-    VkRenderPass render_pass;
-};
-
-struct r_vk_swapchain_t
-{
-    VkSwapchainKHR swapchain;
-    uint32_t image_count;
-    VkImage *images;
-    VkImageView *image_views;
-};
-
-//union r_vk_sampler_tag_t
-//{
-//    struct r_texture_sampler_params_t params;
-//    uint16_t tag;
-//};
-
-//struct r_vk_sampler_t
-//{
-//    VkSampler sampler;
-//    union r_vk_sampler_tag_t tag;
-//};
-
-struct r_vk_renderer_t
-{
-    VkInstance instance;
-    VkPhysicalDevice physical_device;
-    VkDevice device;
-    VkSurfaceKHR surface;
-    struct r_vk_swapchain_t swapchain;
-    // VkSwapchainKHR swapchain;
-    uint32_t graphics_queue_index;
-    uint32_t present_queue_index;
-    VkFramebuffer *framebuffers;
-    VkPhysicalDeviceMemoryProperties memory_properties;
-
-    // VkCommandBuffer command_buffer;
-    VkDescriptorSet descriptor_sets[2];
-    VkDescriptorPool descriptor_pool;
-    VkRenderPass render_pass;
-    VkQueue queue;
-
-    VkShaderModule vertex_shader_module;
-    VkShaderModule fragment_shader_module;
-    struct r_vk_buffer_t uniform_buffer;
-    // struct rVkBuffer uniform_buffer;
-    struct r_vk_buffer_t vertex_buffer;
-    struct r_vk_buffer_t index_buffer;
-
-    VkPipelineLayout pipeline_layout;
-    VkPipeline graphics_pipeline;
-    VkSemaphore image_aquire_semaphore;
-    VkFence submit_fence;
-
-    // struct rVkImage texture;
-    // VkSampler samplers[R_SAMPLER_COUNT];
-    struct list_t samplers;
-    uint32_t current_image;
-
-    struct
-    {
-        VkCommandPool command_pool;
-        VkCommandBuffer *command_buffers;
-        // uint32_t command_buffer_count;
-        uint32_t current_command_buffer;
-        uint32_t current_command_buffer_draw_cmds;
-        uint32_t max_command_buffer_draw_cmds;
-    }command_state;
-};
+//#include "r_vk.h"
 
 
-void r_vk_InitRenderer();
+void r_InitRenderer();
 
-void r_vk_InitDevice();
-
-void r_vk_InitSwapchain();
-
-void r_vk_InitUniformBuffer();
-
-void r_vk_InitHeap();
-
-void r_vk_InitDescriptorSets();
-
-void r_vk_InitCommandPool();
-
-void r_vk_InitPipeline();
+void r_InitDevice();
 
 
-// void r_vk_InitExtensions();
 
 /*
 =================================================================
@@ -169,21 +18,15 @@ void r_vk_InitPipeline();
 =================================================================
 */
 
-void r_vk_CreatePipeline(struct r_pipeline_t* pipeline);
+uint32_t r_MemoryIndexWithProperties(uint32_t type_bits, uint32_t properties);
 
-void r_vk_DestroyPipeline(struct r_pipeline_t *pipeline);
+uint32_t r_IsDepthStencilFormat(VkFormat format);
 
-void r_vk_BindPipeline(struct r_pipeline_t *pipeline);
+uint32_t r_ImageUsageFromFormat(VkFormat format);
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
+VkImageAspectFlagBits r_GetFormatAspectFlags(VkFormat format);
 
-void r_vk_CreateShader(struct r_shader_t *shader);
-
-void r_vk_DestroyShader(struct r_shader_t *shader);
+uint32_t r_GetFormatPixelPitch(VkFormat format);
 
 /*
 =================================================================
@@ -191,47 +34,34 @@ void r_vk_DestroyShader(struct r_shader_t *shader);
 =================================================================
 */
 
-void r_vk_CreateRenderPass(struct r_render_pass_t *render_pass);
 
-void r_vk_DestroyRenderPass(struct r_render_pass_t *render_pass);
+struct stack_list_t *r_GetHeapListFromType(uint32_t type);
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
+struct r_heap_handle_t r_CreateHeap(uint32_t size, uint32_t type);
 
-void r_vk_CreateFramebuffer(struct r_framebuffer_t *framebuffer);
+struct r_heap_handle_t r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint32_t size);
 
-void r_vk_DestroyFramebuffer(struct r_framebuffer_t *framebuffer);
+struct r_heap_handle_t r_CreateBufferHeap(uint32_t usage, uint32_t size);
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
+void r_DestroyHeap(struct r_heap_handle_t handle);
 
-VkResult r_vk_CreateBuffer(struct r_vk_buffer_t *buffer, uint32_t size, uint32_t usage);
+struct r_heap_t *r_GetHeapPointer(struct r_heap_handle_t handle);
 
-void *r_vk_MapAlloc(struct r_alloc_handle_t handle, struct r_alloc_t *alloc);
+void r_DefragHeap(struct r_heap_handle_t handle, uint32_t move_allocs);
 
-void r_vk_UnmapAlloc(struct r_alloc_handle_t handle);
+struct r_chunk_handle_t r_AllocChunk(struct r_heap_handle_t handle, uint32_t size, uint32_t align);
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
+void r_FreeChunk(struct r_chunk_handle_t handle);
 
-void r_vk_CreateTexture(struct r_texture_t *texture);
+struct r_chunk_t *r_GetChunkPointer(struct r_chunk_handle_t handle);
 
-void r_vk_DestroyTexture(struct r_texture_t *texture);
+//struct r_image_handle_t r_GetCompatibleStagingImage(VkImageCreateInfo *description);
 
-void r_vk_InitWithDefaultTexture(struct r_vk_texture_t *texture);
+//struct r_buffer_handle_t r_GetCompatibleStagingBuffer()
 
-void r_vk_LoadTextureData(struct r_vk_texture_t *texture, unsigned char *pixels);
+void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy);
 
-void r_vk_TextureSamplerIndex(struct r_vk_texture_t *texture);
+void r_FillBufferChunk(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
 
 /*
 =================================================================
@@ -239,7 +69,13 @@ void r_vk_TextureSamplerIndex(struct r_vk_texture_t *texture);
 =================================================================
 */
 
-void r_vk_SetMaterial(struct r_material_t *material);
+struct r_buffer_handle_t r_CreateBuffer(VkBufferCreateInfo *description);
+
+void r_DestroyBuffer(struct r_buffer_handle_t handle);
+
+struct r_buffer_t *r_GetBufferPointer(struct r_buffer_handle_t handle);
+
+//void r_FillBuffer(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
 
 /*
 =================================================================
@@ -247,15 +83,47 @@ void r_vk_SetMaterial(struct r_material_t *material);
 =================================================================
 */
 
-void r_vk_BeginFrame();
+struct r_image_handle_t r_CreateImage(VkImageCreateInfo *description);
 
-void r_vk_PushViewMatrix(mat4_t *view_matrix);
+struct r_image_handle_t r_AllocImage(VkImageCreateInfo *description);
 
-void r_vk_Draw(struct r_material_t *material, mat4_t *view_projection_matrix, struct r_draw_cmd_t *draw_cmds, uint32_t count);
+void r_AllocImageMemory(struct r_image_handle_t handle);
 
-void r_vk_EndFrame();
+struct r_image_handle_t r_CreateImageFrom(struct r_image_t *image);
 
-uint32_t r_AcquireNextImage();
+void r_DestroyImage(struct r_image_handle_t handle);
+
+struct r_image_t *r_GetImagePointer(struct r_image_handle_t handle);
+
+VkImageCreateInfo *r_GetImageDescriptionPointer(struct r_image_handle_t handle);
+
+void r_BlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+
+void r_CmdBlitImage(VkCommandBuffer command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+
+void r_CmdSetImageLayout(VkCommandBuffer command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
+
+//void r_FillImage(struct r_image_handle_t handle, void *data);
+
+
+
+
+void r_CreateDefaultTexture();
+
+struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *description);
+
+void r_DestroyTexture(struct r_texture_handle_t handle);
+
+VkSampler r_TextureSampler(struct r_sampler_params_t *params);
+
+struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
+
+struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
+
+struct r_texture_t* r_GetDefaultTexturePointer();
+
+struct r_texture_handle_t r_GetTextureHandle(char *name);
+
 
 /*
 =================================================================
@@ -263,7 +131,11 @@ uint32_t r_AcquireNextImage();
 =================================================================
 */
 
-void r_vk_DrawPoint(vec3_t* position, vec3_t* color);
+struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *description);
+
+void r_DestroyShader(struct r_shader_handle_t handle);
+
+struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle);
 
 /*
 =================================================================
@@ -271,13 +143,186 @@ void r_vk_DrawPoint(vec3_t* position, vec3_t* color);
 =================================================================
 */
 
-uint32_t r_MemoryTypeFromProperties(uint32_t type_bits, uint32_t requirement);
+/*
+    The amount of stuff filled in the description may vary. To reduce the verbosity
+    of Vulkan, it's possible to only pass the attachments used, and a sub pass description
+    will be created automatically, which will use all attachments, and won't cause any
+    image layout transitions. For example,
 
-char *r_vk_ResultString(VkResult error);
+    struct r_render_pass_description_t description = (struct r_render_pass_description_t){
+        .attachment_count = 3,
+        .attachments = (VkAttachmentDescription []){
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...}
+        }
+    };
 
-struct rVkShader r_LoadShader(const char *file_name);
+    Is the same as
 
-void r_vk_AdjustProjectionMatrix(mat4_t *projection_matrix);
+    struct r_render_pass_description description = (struct r_render_pass_description_t){
+        .attachment_count = 3,
+        .attachments = (VkAttachmentDescription []){
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...}
+        },
+        .subpasses = (VkSubpassDescription []){
+            .colorAttachmentCount = 3,
+            .pColorAttachments = (VkAttachmentReference []){
+                {.attachment = 0},
+                {.attachment = 1},
+                {.attachment = 2}
+            }
+        }
+    }
+
+    Also notice that the attachments are not being described fully here. Only their formats are
+    being given. In this case, zero initialized fields will receive default values. The default
+    values are as follows:
+
+    samples = VK_SAMPLE_COUNT_1_BIT,
+    loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+    storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+    stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+    stencolStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+    initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL if color format.
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL if depth / stencil format.
+
+    The attachment references also don't need to be fully described. Whenever layout
+    is zero (VK_IMAGE_LAYOUT_UNDEFINED), it will be filled based on the format of the
+    attachment it references. If the attachment is a color attachment, the layout will
+    be VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL. If it's a depth / stencil format,
+    the value will be VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL.
+
+    In the case where sub passes are given, the pColorAttachment array will be filled with
+    unused references, so it'll always have the same length as pColorAttachments. For example,
+
+    struct r_render_pass_description_t description = (struct r_render_pass_description_t){
+        .attachment_count = 4,
+        .attachments = (VkAttachmentDescription []){
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...},
+        },
+        .subpass_count = 1,
+        .subpasses = (VkSubpassDescription []){
+                {
+                .color_attachment_count = 1,
+                .color_attachments = (VkAttachmentReference []){
+                    {.attachment = 2}
+                },
+                .pipeline_description = &(struct r_pipeline_description_t){
+                    ...
+                }
+            }
+        }
+    }
+
+    will be the same as
+
+    struct r_render_pass_description_t description = (struct r_render_pass_description_t){
+        .attachment_count = 4,
+        .attachments = (VkAttachmentDescription []){
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...},
+            {.format = VK_FORMAT...}
+            {.format = VK_FORMAT...},
+        },
+        .subpass_count = 1,
+        .subpasses = (struct r_subpass_description_t[]){
+                {
+                .color_attachment_count = 4,
+                .color_attachments = (VkAttachmentReference []){
+                    {.attachment = VK_ATTACHMENT_UNUSED},
+                    {.attachment = VK_ATTACHMENT_UNUSED},
+                    {.attachment = 2},
+                    {.attachment = VK_ATTACHMENT_UNUSED},
+                },
+                .pipeline_description = &(struct r_pipeline_description_t ){
+                    ...
+                }
+            }
+        }
+    }
+
+    This is to allow render passes created from the same set of attachments to be compatible
+    with one another.
+
+ */
+struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_description_t *description);
+
+void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
+
+struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle);
+
+struct r_descriptor_pool_list_t *r_GetDescriptorPoolListPointer(struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage);
+
+VkDescriptorSet r_AllocateDescriptorSet(struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage, VkFence submission_fence);
+
+void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline);
+
+//r_CmdBindPipeline(VkCommandBuffer command_buffer, struct r_pipeline_t *pipeline);
+
+//void r_CmdBeginSubpass(VkCommandBuffer command_buffer )
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description);
+
+void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle);
+
+struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_handle_t handle);
+
+void r_PresentFramebuffer(struct r_framebuffer_handle_t handle);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_swapchain_handle_t r_CreateSwapchain(VkSwapchainCreateInfoKHR *description);
+
+void r_DestroySwapchain(struct r_swapchain_handle_t handle);
+
+struct r_swapchain_t *r_GetSwapchainPointer(struct r_swapchain_handle_t handle);
+
+void r_NextImage(struct r_swapchain_handle_t handle);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+
+struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc);
+
+struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle);
+
+void r_Free(struct r_alloc_handle_t handle);
+
+void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_LockQueue(struct r_queue_t *queue);
+
+void r_UnlockQueue(struct r_queue_t *queue);
+
+void r_QueueSubmit(struct r_queue_t *queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence);
+
 
 
 #endif

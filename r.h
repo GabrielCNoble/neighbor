@@ -7,7 +7,7 @@
 
 void r_InitRenderer();
 
-void r_InitVulkan();
+void r_InitDevice();
 
 
 
@@ -54,11 +54,11 @@ void r_FreeChunk(struct r_chunk_handle_t handle);
 
 struct r_chunk_t *r_GetChunkPointer(struct r_chunk_handle_t handle);
 
-struct r_image_handle_t r_GetCompatibleStagingImage(VkImageCreateInfo *description);
+//struct r_image_handle_t r_GetCompatibleStagingImage(VkImageCreateInfo *description);
 
 //struct r_buffer_handle_t r_GetCompatibleStagingBuffer()
 
-void r_FillImageChunk(struct r_image_handle_t handle, void *data, uint32_t size, uint32_t offset);
+void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy);
 
 void r_FillBufferChunk(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
 
@@ -74,7 +74,7 @@ void r_DestroyBuffer(struct r_buffer_handle_t handle);
 
 struct r_buffer_t *r_GetBufferPointer(struct r_buffer_handle_t handle);
 
-void r_FillBuffer(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
+//void r_FillBuffer(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
 
 /*
 =================================================================
@@ -102,7 +102,7 @@ void r_CmdBlitImage(VkCommandBuffer command_buffer, struct r_image_handle_t src_
 
 void r_CmdSetImageLayout(VkCommandBuffer command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
 
-void r_FillImage(struct r_image_handle_t handle, void *data);
+//void r_FillImage(struct r_image_handle_t handle, void *data);
 
 
 

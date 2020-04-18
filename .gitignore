@@ -1,8 +1,5 @@
 .vscode
-SDL
-stb
-vulkan
-dstuff
+lib
 build.bat
 obj
 textures
