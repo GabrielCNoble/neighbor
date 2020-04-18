@@ -142,8 +142,6 @@ struct r_framebuffer_handle_t r_framebuffer;
 
 struct r_buffer_handle_t r_vertex_buffer;
 struct r_texture_handle_t r_doggo_texture;
-struct r_texture_handle_t r_starlight_texture;
-struct r_texture_handle_t animation[36];
 
 mat4_t projection_matrix;
 
@@ -193,19 +191,6 @@ void r_Init()
     char file_name[256];
 
     r_CreateDefaultTexture();
-
-    for(uint32_t i = 0; i < 36; i++)
-    {
-        strcpy(path, "sprites/");
-        sprintf(file_name, "running%04d.png", i + 1);
-        strcat(path, file_name);
-        animation[i] = r_LoadTexture(path, NULL);
-    }
-
-    r_starlight_texture = r_LoadTexture("sprites/starlight.png", "starlight");
-//    animation[0] = r_LoadTexture("idle0001.png", "idle1");
-
-
 
     struct vertex_t *data = (struct vertex_t []){
         {.position = (vec4_t){-3.5, -3.5, -10.0, 1.0},.tex_coords = (vec4_t){0.0, 1.0, 0.0, 0.0}},
@@ -3366,10 +3351,7 @@ int r_ExecuteCmds(void *data)
         struct r_render_pass_t *render_pass = r_GetRenderPassPointer(r_render_pass);
         struct r_framebuffer_t *framebuffer = r_GetFramebufferPointer(r_framebuffer);
         struct r_texture_t *framebuffer_texture = r_GetTexturePointer(framebuffer->textures[0]);
-//        struct r_texture_t *default_texture = r_GetDefaultTexturePointer();
-//        struct r_texture_t *default_texture = r_GetTexturePointer(r_doggo_texture);
-        struct r_texture_t *default_texture = r_GetTexturePointer(animation[frame]);
-        struct r_texture_t *starlight_texture = r_GetTexturePointer(r_starlight_texture);
+        struct r_texture_t *default_texture = r_GetDefaultTexturePointer();
         struct r_swapchain_t *swapchain = r_GetSwapchainPointer(r_device.swapchain);
 
         frame = (frame + 1) % 36;
@@ -3411,15 +3393,15 @@ int r_ExecuteCmds(void *data)
         heap = r_GetHeapPointer(r_device.buffer_heap);
         r_NextImage(r_device.swapchain);
         vkBeginCommandBuffer(r_device.draw_command_buffer, &command_buffer_begin_info);
-        r_CmdSetImageLayout(r_device.draw_command_buffer, starlight_texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        r_CmdSetImageLayout(r_device.draw_command_buffer, default_texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         vkCmdBeginRenderPass(r_device.draw_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(r_device.draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pass->pipeline.pipeline);
 
         descriptor_set = r_AllocateDescriptorSet(&render_pass->pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, r_device.draw_fence);
 
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_info.imageView = starlight_texture->image_view;
-        image_info.sampler = starlight_texture->sampler;
+        image_info.imageView = default_texture->image_view;
+        image_info.sampler = default_texture->sampler;
 
         write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write_descriptor_set.dstSet = descriptor_set;
