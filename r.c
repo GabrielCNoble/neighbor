@@ -2,6 +2,7 @@
 #include "dstuff/file/path.h"
 //#include "r_vk.h"
 #include "dstuff/containers/stack_list.h"
+#include "dstuff/containers/ringbuffer.h"
 #include "dstuff/containers/list.h"
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,11 @@
 
 //struct r_renderer_t r_renderer;
 
+struct r_command_buffer_t
+{
+    VkCommandBuffer command_buffer;
+    VkFence submit_fence;
+};
 
 struct
 {
@@ -26,14 +32,18 @@ struct
         VkDeviceMemory staging_memory;
         uint32_t staging_memory_size;
         void *staging_pointer;
-//        struct list_t cached_staging_images;
-//        struct list_t cached_staging_buffers;
+        SDL_SpinLock staging_spinlock;
     }staging;
 
+    struct
+    {
+        VkCommandPool command_pool;
+        struct stack_list_t command_buffers;
+        struct list_t pending_command_buffers;
+        SDL_SpinLock spinlock;
+    }draw_command_pool;
 
-
-    VkCommandPool draw_command_pool;
-    VkCommandBuffer draw_command_buffer;
+//    VkCommandBuffer draw_command_buffer;
     VkFence draw_fence;
     VkCommandPool transfer_command_pool;
     VkCommandBuffer transfer_command_buffer;
@@ -73,8 +83,6 @@ struct
 }r_device;
 
 
-
-
 struct
 {
     SDL_Window *window;
@@ -86,8 +94,8 @@ struct
     uint32_t width;
     uint32_t height;
 
-//    struct stack_list_t allocd_blocks[2];
-//    struct list_t free_blocks[2];
+    struct stack_list_t allocd_blocks[2];
+    struct list_t free_blocks[2];
 
 //    struct stack_list_t textures;
     struct stack_list_t materials;
@@ -99,14 +107,14 @@ struct
     struct ringbuffer_t cmd_buffer;
     struct ringbuffer_t cmd_buffer_data;
 
-    mat4_t projection_matrix;
-    mat4_t view_matrix;
-    mat4_t model_matrix;
-    mat4_t view_projection_matrix;
-    mat4_t model_view_projection_matrix;
-    uint32_t outdated_view_projection_matrix;
+//    mat4_t projection_matrix;
+//    mat4_t view_matrix;
+//    mat4_t model_matrix;
+//    mat4_t view_projection_matrix;
+//    mat4_t model_view_projection_matrix;
+//    uint32_t outdated_view_projection_matrix;
 
-    struct r_draw_cmd_buffer_t *submiting_draw_cmd_buffer;
+//    struct r_draw_cmd_buffer_t *submiting_draw_cmd_buffer;
 
 //    struct stack_list_t pipelines;
 //    struct stack_list_t shaders;
@@ -135,211 +143,110 @@ struct
 
 uint32_t r_supports_push_descriptors = 0;
 PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSet = NULL;
-VkDeviceMemory r_texture_copy_memory;
+//VkDeviceMemory r_texture_copy_memory;
 
-struct r_render_pass_handle_t r_render_pass;
-struct r_framebuffer_handle_t r_framebuffer;
 
-struct r_buffer_handle_t r_vertex_buffer;
+//struct r_buffer_handle_t r_vertex_buffer;
 struct r_texture_handle_t r_doggo_texture;
 
-mat4_t projection_matrix;
+//mat4_t projection_matrix;
 
 
 /* resources may be created concurrently */
-SDL_SpinLock r_resource_spinlock;
+//SDL_SpinLock r_resource_spinlock;
+
+
+/* from r_draw.c */
+extern struct r_buffer_handle_t r_uniform_buffer;
+extern struct stack_list_t r_draw_cmd_buffers;
+extern struct ringbuffer_t r_pending_draw_cmd_buffers;
+//struct r_draw_cmd_buffer_t *r_draw_cmd_buffer;
+//struct r_draw_data_t *r_draw_data;
 
 
 void r_Init()
 {
-    struct r_alloc_t free_alloc;
-    SDL_Thread *renderer_thread;
-    FILE *file;
-    struct r_shader_description_t vertex_description = {};
-    struct r_shader_description_t fragment_description = {};
-    struct r_render_pass_description_t render_pass_description = {};
+//    struct r_alloc_t free_alloc;
+//    SDL_Thread *renderer_thread;
+//    FILE *file;
+//    struct r_shader_description_t vertex_description = {};
+//    struct r_shader_description_t fragment_description = {};
+//    struct r_render_pass_description_t render_pass_description = {};
 
 //    r_renderer.allocd_blocks[0] = create_stack_list(sizeof(struct r_alloc_t), 512);
 //    r_renderer.allocd_blocks[1] = create_stack_list(sizeof(struct r_alloc_t), 512);
 //    r_renderer.free_blocks[0] = create_list(sizeof(struct r_alloc_t), 512);
 //    r_renderer.free_blocks[1] = create_list(sizeof(struct r_alloc_t), 512);
-    r_renderer.cmd_buffer = create_ringbuffer(sizeof(struct r_cmd_t), 8192);
-    r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 8192 * 10);
-    r_renderer.submiting_draw_cmd_buffer = NULL;
-    r_renderer.materials = create_stack_list(sizeof(struct r_material_t), 256);
-    r_renderer.lights = create_stack_list(sizeof(struct r_light_t), 256);
+//    r_renderer.cmd_buffer = create_ringbuffer(sizeof(struct r_cmd_t), 8192);
+//    r_renderer.cmd_buffer_data = create_ringbuffer(R_CMD_DATA_ELEM_SIZE, 8192 * 10);
+//    r_renderer.submiting_draw_cmd_buffer = NULL;
+//    r_renderer.materials = create_stack_list(sizeof(struct r_material_t), 256);
+//    r_renderer.lights = create_stack_list(sizeof(struct r_light_t), 256);
 //    free_alloc.start = 0;
 //    free_alloc.size = R_HEAP_SIZE;
 //    free_alloc.align = 0;
 //    add_list_element(&r_renderer.free_blocks[0], &free_alloc);
 //    add_list_element(&r_renderer.free_blocks[1], &free_alloc);
-    mat4_t_identity(&r_renderer.view_matrix);
-    mat4_t_identity(&r_renderer.projection_matrix);
+//    mat4_t_identity(&r_renderer.view_matrix);
+//    mat4_t_identity(&r_renderer.projection_matrix);
 
-    r_renderer.z_far = 1000.0;
-    r_renderer.z_near = 0.01;
-    r_renderer.fov_y = 0.68;
-    r_renderer.width = 800;
-    r_renderer.height = 600;
-    r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, r_renderer.width, r_renderer.height, SDL_WINDOW_VULKAN);
+//    r_renderer.z_far = 1000.0;
+//    r_renderer.z_near = 0.01;
+//    r_renderer.fov_y = 0.68;
+//    r_renderer.width = 800;
+//    r_renderer.height = 600;
+    r_renderer.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
     SDL_GL_SetSwapInterval(1);
     r_InitDevice();
-
-    r_RecomputeViewProjectionMatrix();
-
-    char path[260];
-    char file_name[256];
-
     r_CreateDefaultTexture();
 
-    struct vertex_t *data = (struct vertex_t []){
-        {.position = (vec4_t){-3.5, -3.5, -10.0, 1.0},.tex_coords = (vec4_t){0.0, 1.0, 0.0, 0.0}},
-        {.position = (vec4_t){3.5, -3.5, -10.0, 1.0},.tex_coords = (vec4_t){1.0, 1.0, 0.0, 0.0}},
-        {.position = (vec4_t){3.5, 3.5, -10.0, 1.0},.tex_coords = (vec4_t){1.0, 0.0, 0.0, 0.0}},
+//    r_RecomputeViewProjectionMatrix();
+//
+//    char path[260];
+//    char file_name[256];
+//
+
+//
+//    struct vertex_t *data = (struct vertex_t []){
+//        {.position = (vec4_t){-3.5, -3.5, -10.0, 1.0},.tex_coords = (vec4_t){0.0, 1.0, 0.0, 0.0}},
+//        {.position = (vec4_t){3.5, -3.5, -10.0, 1.0},.tex_coords = (vec4_t){1.0, 1.0, 0.0, 0.0}},
+//        {.position = (vec4_t){3.5, 3.5, -10.0, 1.0},.tex_coords = (vec4_t){1.0, 0.0, 0.0, 0.0}},
+//
+//
+//        {.position = (vec4_t){3.5, 3.5, -10.0, 1.0},.tex_coords = (vec4_t){1.0, 0.0, 0.0, 0.0}},
+//        {.position = (vec4_t){-3.5, 3.5, -10.0, 1.0},.tex_coords = (vec4_t){0.0, 0.0, 0.0, 0.0}},
+//        {.position = (vec4_t){-3.5, -3.5, -10.0, 1.0},.tex_coords = (vec4_t){0.0, 1.0, 0.0, 0.0}},
+//
+//    };
+
+//    VkBufferCreateInfo buffer_create_info = {};
+//    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+//    buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+//    buffer_create_info.size = 1024;
+//    r_vertex_buffer = r_CreateBuffer(&buffer_create_info);
+//    r_FillBuffer(r_vertex_buffer, data, sizeof(struct vertex_t) * 6, 0);
 
 
-        {.position = (vec4_t){3.5, 3.5, -10.0, 1.0},.tex_coords = (vec4_t){1.0, 0.0, 0.0, 0.0}},
-        {.position = (vec4_t){-3.5, 3.5, -10.0, 1.0},.tex_coords = (vec4_t){0.0, 0.0, 0.0, 0.0}},
-        {.position = (vec4_t){-3.5, -3.5, -10.0, 1.0},.tex_coords = (vec4_t){0.0, 1.0, 0.0, 0.0}},
+//    buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+//    buffer_create_info.size = r_device.staging.staging_memory_size;
+//    r_uniform_buffer = r_CreateBuffer(&buffer_create_info);
+//    r_draw_cmd_buffers = create_stack_list(sizeof(struct r_draw_cmd_buffer_t), 32);
+//    r_pending_draw_cmd_buffers = create_ringbuffer(sizeof(uint32_t), 32);
 
-    };
+//    r_draw_cmd_buffer = calloc(sizeof(struct r_draw_cmd_buffer_t), 1);
+//    r_draw_data = calloc(sizeof(struct r_draw_data_t), R_DRAW_DATA_BUFFER_SIZE);
 
-    VkBufferCreateInfo buffer_create_info = {};
-    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    buffer_create_info.size = 1024;
-    r_vertex_buffer = r_CreateBuffer(&buffer_create_info);
-
-    r_FillBuffer(r_vertex_buffer, data, sizeof(struct vertex_t) * 6, 0);
-//    r_FillBuffer(r_vertex_buffer, data, DATA_SIZE, DATA_SIZE);
-//    r_FillBuffer(r_vertex_buffer, data, DATA_SIZE, DATA_SIZE * 2);
-//    r_FillBuffer(r_vertex_buffer, data, DATA_SIZE, DATA_SIZE * 3);
-
-
-    file = fopen("shaders/shader.vert.spv", "rb");
-    read_file(file, &vertex_description.code, &vertex_description.code_size);
-    fclose(file);
-    vertex_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertex_description.vertex_binding_count = 1;
-    vertex_description.vertex_bindings = (struct r_vertex_binding_t []){
-        [0] = {
-            .size = sizeof(struct vertex_t),
-            .attribs = (struct r_vertex_attrib_t []){
-                [0] = {
-                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                    .offset = offsetof(struct vertex_t, position),
-                },
-                [1] = {
-                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                    .offset = offsetof(struct vertex_t, normal),
-                },
-                [2] = {
-                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                    .offset = offsetof(struct vertex_t, tex_coords),
-                }
-            },
-            .attrib_count = 3
-        }
-    };
-    vertex_description.push_constant_count = 1;
-    vertex_description.push_constants = (struct r_push_constant_t []){
-        [0] = {
-            .offset = 0,
-            .size = sizeof(mat4_t)
-        },
-    };
-
-    struct r_shader_t *vertex_shader = r_GetShaderPointer(r_CreateShader(&vertex_description));
-    free(vertex_description.code);
-
-    fopen("shaders/shader.frag.spv", "rb");
-    read_file(file, &fragment_description.code, &fragment_description.code_size);
-    fclose(file);
-    fragment_description.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragment_description.resource_count = 1;
-    fragment_description.resources = (struct r_resource_binding_t []){
-        [0] = {
-            .descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .count = 1,
-        }
-    };
-    struct r_shader_t *fragment_shader = r_GetShaderPointer(r_CreateShader(&fragment_description));
-    free(fragment_description.code);
-
-    render_pass_description = (struct r_render_pass_description_t){
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR},
-//            {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
-//            {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
-            {.format = VK_FORMAT_D32_SFLOAT}
-        },
-        .attachment_count = 2,
-        .subpass_count = 1,
-        .subpasses = (struct r_subpass_description_t[]){
-            {
-                .color_attachment_count = 1,
-                .color_attachments = (VkAttachmentReference []){
-                    {.attachment = 0}
-                },
-                .depth_stencil_attachment = &(VkAttachmentReference){
-                    .attachment = 1
-                },
-                .pipeline_description = &(struct r_pipeline_description_t){
-                    .shader_count = 2,
-                    .shaders = (struct r_shader_t *[]){
-                        vertex_shader, fragment_shader
-                    },
-                    .vertex_input_state = &(VkPipelineVertexInputStateCreateInfo){
-                        .vertexBindingDescriptionCount = 1,
-                        .pVertexBindingDescriptions = (VkVertexInputBindingDescription []){
-                            {.stride = sizeof(struct vertex_t)}
-                        },
-                        .vertexAttributeDescriptionCount = 3,
-                        .pVertexAttributeDescriptions = (VkVertexInputAttributeDescription []){
-                            {
-                                .location = 0,
-                                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                .offset = offsetof(struct vertex_t, position)
-                            },
-                            {
-                                .location = 1,
-                                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                .offset = offsetof(struct vertex_t, normal)
-                            },
-                            {
-                                .location = 2,
-                                .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                .offset = offsetof(struct vertex_t, tex_coords)
-                            }
-                        }
-                    }
-                },
-            }
-        },
-    };
-
-    r_render_pass = r_CreateRenderPass(&render_pass_description);
-
-    struct r_framebuffer_description_t framebuffer_description = (struct r_framebuffer_description_t){
-        .attachment_count = render_pass_description.attachment_count,
-        .attachments = render_pass_description.attachments,
-        .frame_count = 2,
-        .width = r_renderer.width,
-        .height = r_renderer.height,
-        .render_pass = r_GetRenderPassPointer(r_render_pass)
-    };
-
-    r_framebuffer = r_CreateFramebuffer(&framebuffer_description);
 
     VkSwapchainCreateInfoKHR swapchain_create_info = {};
     swapchain_create_info.surface = r_device.surface;
-    swapchain_create_info.imageExtent.width = 800;
-    swapchain_create_info.imageExtent.height = 600;
+    swapchain_create_info.imageExtent.width = R_DEFAULT_WIDTH;
+    swapchain_create_info.imageExtent.height = R_DEFAULT_HEIGHT;
+    swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
     r_device.swapchain = r_CreateSwapchain(&swapchain_create_info);
 
-    printf("thread %d\n", SDL_ThreadID());
-    renderer_thread = SDL_CreateThread(r_ExecuteCmds, "renderer thread", NULL);
-    SDL_DetachThread(renderer_thread);
+//    printf("thread %d\n", SDL_ThreadID());
+//    renderer_thread = SDL_CreateThread(r_ExecuteCmds, "renderer thread", NULL);
+//    SDL_DetachThread(renderer_thread);
 }
 
 /*
@@ -359,8 +266,8 @@ void r_InitDevice()
 
     VkExtensionProperties *extension_properties;
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
-    extension_properties = alloca(sizeof(VkExtensionProperties) * extension_count);
-    extensions = alloca(sizeof(char *) * extension_count);
+    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
+    extensions = calloc(sizeof(char *), extension_count);
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, extension_properties);
 
     for(uint32_t i = 0; i < extension_count; i++)
@@ -368,23 +275,26 @@ void r_InitDevice()
         extensions[i] = extension_properties[i].extensionName;
     }
 
+    const char * const layers[] = {"VK_LAYER_KHRONOS_validation"};
+
     VkInstanceCreateInfo instance_create_info = {};
     instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_create_info.pNext = NULL;
     instance_create_info.flags = 0;
-    instance_create_info.pApplicationInfo = NULL;
     instance_create_info.enabledLayerCount = 1;
-    instance_create_info.ppEnabledLayerNames = (const char * const []){"VK_LAYER_KHRONOS_validation"};
+    instance_create_info.ppEnabledLayerNames = layers;
     instance_create_info.enabledExtensionCount = extension_count;
     instance_create_info.ppEnabledExtensionNames = extensions;
-    vkCreateInstance(&instance_create_info, NULL, &r_device.instance);
+    VkResult result = vkCreateInstance(&instance_create_info, NULL, &r_device.instance);
+    free(extensions);
+    free(extension_properties);
 
     SDL_Vulkan_CreateSurface(r_renderer.window, r_device.instance, &r_device.surface);
 
-    vkEnumeratePhysicalDevices(r_device.instance, &physical_device_count, &r_device.physical_device);
+    result = vkEnumeratePhysicalDevices(r_device.instance, &physical_device_count, &r_device.physical_device);
     VkQueueFamilyProperties *queue_family_properties;
     vkGetPhysicalDeviceQueueFamilyProperties(r_device.physical_device, &queue_family_property_count, NULL);
-    queue_family_properties = alloca(sizeof(VkQueueFamilyProperties) * queue_family_property_count);
+    queue_family_properties = calloc(sizeof(VkQueueFamilyProperties), queue_family_property_count);
     vkGetPhysicalDeviceQueueFamilyProperties(r_device.physical_device, &queue_family_property_count, queue_family_properties);
 
     for(uint32_t i = 0; i < queue_family_property_count; i++)
@@ -399,6 +309,8 @@ void r_InitDevice()
         }
     }
 
+    free(queue_family_properties);
+
     for(uint32_t i = 0; i < queue_family_property_count; i++)
     {
         vkGetPhysicalDeviceSurfaceSupportKHR(r_device.physical_device, i, r_device.surface, &present_supported);
@@ -411,7 +323,8 @@ void r_InitDevice()
 
     VkDeviceQueueCreateInfo *queue_create_info;
     queue_create_info_count = 1 + (r_device.graphics_queue_family != r_device.present_queue_family);
-    queue_create_info = alloca(sizeof(VkDeviceQueueCreateInfo) * queue_create_info_count);
+    queue_create_info = calloc(sizeof(VkDeviceQueueCreateInfo), queue_create_info_count);
+    float *queue_priorities = calloc(sizeof(float), r_device.graphics_queue_count);
 
     queue_create_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queue_create_info[0].pNext = NULL;
@@ -419,6 +332,7 @@ void r_InitDevice()
     /* all the queues means all the pleasure... */
     queue_create_info[0].queueCount = r_device.graphics_queue_count;
     queue_create_info[0].queueFamilyIndex = r_device.graphics_queue_family;
+    queue_create_info[0].pQueuePriorities = queue_priorities;
 
     if(queue_create_info_count > 1)
     {
@@ -428,11 +342,12 @@ void r_InitDevice()
         /* a single queue for presenting is enough */
         queue_create_info[1].queueCount = 1;
         queue_create_info[1].queueFamilyIndex = r_device.present_queue_family;
+        queue_create_info[1].pQueuePriorities = queue_priorities;
     }
 
     vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, NULL);
-    extensions = alloca(sizeof(char **) * extension_count);
-    extension_properties = alloca(sizeof(VkExtensionProperties) * extension_count);
+    extensions = calloc(sizeof(char **), extension_count);
+    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
     vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, extension_properties);
 
     for(uint32_t i = 0; i < extension_count; i++)
@@ -456,6 +371,11 @@ void r_InitDevice()
     device_create_info.ppEnabledLayerNames = NULL;
     device_create_info.pEnabledFeatures = NULL;
     vkCreateDevice(r_device.physical_device, &device_create_info, NULL, &r_device.device);
+
+    free(extensions);
+    free(extension_properties);
+    free(queue_create_info);
+    free(queue_priorities);
 
 
     vkGetDeviceQueue(r_device.device, r_device.graphics_queue_family, 0, &r_device.queues[0].queue);
@@ -504,7 +424,11 @@ void r_InitDevice()
     command_pool_create_info.pNext = NULL;
     command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     command_pool_create_info.queueFamilyIndex = r_device.graphics_queue_family;
-    vkCreateCommandPool(r_device.device, &command_pool_create_info, NULL, &r_device.draw_command_pool);
+    vkCreateCommandPool(r_device.device, &command_pool_create_info, NULL, &r_device.draw_command_pool.command_pool);
+    r_device.draw_command_pool.command_buffers = create_stack_list(sizeof(struct r_command_buffer_t), 128);
+    r_device.draw_command_pool.pending_command_buffers = create_list(sizeof(uint32_t), 128);
+
+
     vkCreateCommandPool(r_device.device, &command_pool_create_info, NULL, &r_device.transfer_command_pool);
 
     /* for now a single command buffer will suffice */
@@ -514,8 +438,8 @@ void r_InitDevice()
     allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocate_info.commandBufferCount = 1;
 
-    allocate_info.commandPool = r_device.draw_command_pool;
-    vkAllocateCommandBuffers(r_device.device, &allocate_info, &r_device.draw_command_buffer);
+//    allocate_info.commandPool = r_device.draw_command_pool;
+//    vkAllocateCommandBuffers(r_device.device, &allocate_info, &r_device.draw_command_buffer);
     allocate_info.commandPool = r_device.transfer_command_pool;
     vkAllocateCommandBuffers(r_device.device, &allocate_info, &r_device.transfer_command_buffer);
 
@@ -524,34 +448,11 @@ void r_InitDevice()
     =================================================================
     =================================================================
     */
-
-//    VkBuffer buffer;
-//    VkImage image;
     VkMemoryAllocateInfo memory_allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
     VkMemoryRequirements memory_requirements;
     VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-//
-//    VkImageCreateInfo image_create_info = {};
-//    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-//    image_create_info.imageType = VK_IMAGE_TYPE_2D;
-//    image_create_info.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-//    image_create_info.extent.width = 2048;
-//    image_create_info.extent.height = 2048;
-//    image_create_info.extent.depth = 1;
-//    image_create_info.mipLevels = 1;
-//    image_create_info.arrayLayers = 1;
-//    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-//    image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-//    image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-//    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//    vkCreateImage(r_device.device, &image_create_info, NULL, &image);
-//    vkGetImageMemoryRequirements(r_device.device, image, &memory_requirements);
-//    r_device.image_memory_type_bits = memory_requirements.memoryTypeBits;
-//    vkDestroyImage(r_device.device, image, NULL);
-
 
     r_device.staging.staging_memory_size = 8388608;
-//    r_device.staging.staging_memory_size = 524288;
 
     VkBufferCreateInfo buffer_create_info = {};
     buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -566,11 +467,6 @@ void r_InitDevice()
     vkBindBufferMemory(r_device.device, r_device.staging.staging_buffer, r_device.staging.staging_memory, 0);
     vkMapMemory(r_device.device, r_device.staging.staging_memory, 0, buffer_create_info.size, 0, &r_device.staging.staging_pointer);
 
-//    r_device.staging.cached_staging_images = create_list(sizeof(struct r_staging_image_t), 16);
-//    r_device.staging.cached_staging_buffers = create_list(sizeof(struct r_staging_buffer_t), 16);
-
-
-
     r_device.textures = create_stack_list(sizeof(struct r_texture_t), 512);
     r_device.images = create_stack_list(sizeof(struct r_image_t), 512);
     r_device.image_descriptions = create_stack_list(sizeof(VkImageCreateInfo), 512);
@@ -583,7 +479,6 @@ void r_InitDevice()
     r_device.image_heaps = create_stack_list(sizeof(struct r_image_heap_t), 16);
     r_device.buffer_heaps = create_stack_list(sizeof(struct r_buffer_heap_t), 16);
 
-
     VkFormat *formats = (VkFormat []){
         VK_FORMAT_R32G32B32A32_SFLOAT,
         VK_FORMAT_R8G8B8A8_UNORM,
@@ -593,9 +488,6 @@ void r_InitDevice()
 
     r_device.buffer_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 33554432);
     r_device.texture_heap = r_CreateImageHeap(formats, 4, 33554432 * 4);
-
-
-
 
     VkPhysicalDeviceProperties physical_device_properties;
     vkGetPhysicalDeviceProperties(r_device.physical_device, &physical_device_properties);
@@ -1005,48 +897,6 @@ struct r_chunk_t *r_GetChunkPointer(struct r_chunk_handle_t handle)
     return chunk;
 }
 
-//struct r_image_handle_t r_GetCompatibleStagingImage(VkImageCreateInfo *description)
-//{
-//    struct r_staging_image_t *staging_image = NULL;
-//    struct r_image_t *image = NULL;
-//    VkImageCreateInfo staging_image_description;
-//    uint32_t image_dimension;
-//    uint32_t staging_image_index;
-//    uint32_t pixel_pitch;
-//
-//    for(uint32_t image_index = 0; image_index < r_device.staging.cached_staging_images.cursor; image_index++)
-//    {
-//        staging_image = get_list_element(&r_device.staging.cached_staging_images, image_index);
-//        if(staging_image->format == description->format)
-//        {
-//            return staging_image->image;
-//        }
-//    }
-//
-//    pixel_pitch = r_GetFormatPixelPitch(description->format);
-//    /* the biggest square image that fits in the staging memory */
-//    image_dimension = sqrt(r_device.staging.staging_memory_size / pixel_pitch);
-//
-//    if(image_dimension % 64)
-//    {
-//        image_dimension -= image_dimension % 64;
-//    }
-//
-//    memcpy(&staging_image_description, description, sizeof(VkImageCreateInfo));
-//    staging_image_description.tiling = VK_IMAGE_TILING_LINEAR;
-//    staging_image_description.extent.width = image_dimension;
-//    staging_image_description.extent.height = image_dimension;
-//    staging_image_description.arrayLayers = 1;
-//    staging_image_index = add_list_element(&r_device.staging.cached_staging_images, NULL);
-//    staging_image = get_list_element(&r_device.staging.cached_staging_images, staging_image_index);
-//    staging_image->format = description->format;
-//    staging_image->image = r_AllocImage(&staging_image_description);
-//    image = r_GetImagePointer(staging_image->image);
-//    vkBindImageMemory(r_device.device, image->image, r_device.staging.staging_memory, 0);
-//
-//    return staging_image->image;
-//}
-
 void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy)
 {
 //    struct r_image_handle_t copy_image_handle;
@@ -1174,16 +1024,10 @@ void r_FillBufferChunk(struct r_buffer_handle_t handle, void *data, uint32_t siz
     VkSubmitInfo submit_info = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
     VkBufferCopy buffer_copy;
 
-    buffer = r_GetBufferPointer(handle);
-    heap = r_GetHeapPointer(buffer->memory.heap);
-
-    copy_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    copy_buffer_create_info.size = size;
-    copy_buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    copy_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    vkCreateBuffer(r_device.device, &copy_buffer_create_info, NULL, &copy_buffer);
-    vkBindBufferMemory(r_device.device, copy_buffer, r_device.staging.staging_memory, 0);
+//    r_LockStagingMemory();
     memcpy(r_device.staging.staging_pointer, data, size);
+//    r_CopyStagingMemoryToBuffer(handle, size, offset);
+//    r_UnlockStagingMemory();
 
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &r_device.transfer_command_buffer;
@@ -1194,15 +1038,114 @@ void r_FillBufferChunk(struct r_buffer_handle_t handle, void *data, uint32_t siz
 
     SDL_AtomicLock(&r_device.transfer_queue->spinlock);
     vkBeginCommandBuffer(r_device.transfer_command_buffer, &begin_info);
-    vkCmdCopyBuffer(r_device.transfer_command_buffer, copy_buffer, buffer->buffer, 1, &buffer_copy);
+    vkCmdCopyBuffer(r_device.transfer_command_buffer, r_device.staging.staging_buffer, buffer->buffer, 1, &buffer_copy);
     vkEndCommandBuffer(r_device.transfer_command_buffer);
     vkResetFences(r_device.device, 1, &r_device.transfer_fence);
     vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, r_device.transfer_fence);
     vkWaitForFences(r_device.device, 1, &r_device.transfer_fence, VK_TRUE, 0xffffffffffffffff);
     SDL_AtomicUnlock(&r_device.transfer_queue->spinlock);
-    vkDestroyBuffer(r_device.device, copy_buffer, NULL);
 }
 
+void r_CopyStagingMemoryToBuffer(struct r_buffer_handle_t handle, uint32_t size, uint32_t offset)
+{
+    struct r_buffer_t *buffer;
+    struct r_chunk_t *chunk;
+    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    VkSubmitInfo submit_info = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    VkBufferCopy buffer_copy;
+
+    buffer = r_GetBufferPointer(handle);
+    chunk = r_GetChunkPointer(buffer->memory);
+
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &r_device.transfer_command_buffer;
+
+    buffer_copy.srcOffset = 0;
+    buffer_copy.dstOffset = chunk->start + offset;
+    buffer_copy.size = size;
+
+    SDL_AtomicLock(&r_device.transfer_queue->spinlock);
+    vkBeginCommandBuffer(r_device.transfer_command_buffer, &begin_info);
+    vkCmdCopyBuffer(r_device.transfer_command_buffer, r_device.staging.staging_buffer, buffer->buffer, 1, &buffer_copy);
+    vkEndCommandBuffer(r_device.transfer_command_buffer);
+    vkResetFences(r_device.device, 1, &r_device.transfer_fence);
+    vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, r_device.transfer_fence);
+    vkWaitForFences(r_device.device, 1, &r_device.transfer_fence, VK_TRUE, 0xffffffffffffffff);
+    SDL_AtomicUnlock(&r_device.transfer_queue->spinlock);
+}
+
+void *r_LockStagingMemory()
+{
+    SDL_AtomicLock(&r_device.staging.staging_spinlock);
+    return r_device.staging.staging_pointer;
+}
+
+void r_UnlockStagingMemory()
+{
+    SDL_AtomicUnlock(&r_device.staging.staging_spinlock);
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+VkCommandBuffer r_AllocateCommandBuffer()
+{
+    struct r_command_buffer_t *command_buffer;
+    uint32_t command_buffer_index;
+    uint32_t new_command_buffer_index;
+    VkCommandBufferAllocateInfo allocate_info = {};
+    VkResult result;
+
+    SDL_AtomicLock(&r_device.draw_command_pool.spinlock);
+
+    for(uint32_t index = 0; index < r_device.draw_command_pool.pending_command_buffers.cursor; index++)
+    {
+        command_buffer_index = *(uint32_t *)get_list_element(&r_device.draw_command_pool.pending_command_buffers, index);
+        command_buffer = get_stack_list_element(&r_device.draw_command_pool.command_buffers, command_buffer_index);
+        result = vkGetFenceStatus(r_device.device, command_buffer->submit_fence);
+
+        if(result == VK_SUCCESS)
+        {
+            command_buffer->submit_fence = VK_NULL_HANDLE;
+            remove_list_element(&r_device.draw_command_pool.pending_command_buffers, index);
+            remove_stack_list_element(&r_device.draw_command_pool.command_buffers, command_buffer_index);
+        }
+    }
+
+    new_command_buffer_index = add_stack_list_element(&r_device.draw_command_pool.command_buffers, NULL);
+    command_buffer = get_stack_list_element(&r_device.draw_command_pool.command_buffers, new_command_buffer_index);
+
+    if(command_buffer->command_buffer == VK_NULL_HANDLE)
+    {
+        allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocate_info.commandBufferCount = 1;
+        allocate_info.commandPool = r_device.draw_command_pool.command_pool;
+        vkAllocateCommandBuffers(r_device.device, &allocate_info, &command_buffer->command_buffer);
+    }
+
+    SDL_AtomicUnlock(&r_device.draw_command_pool.spinlock);
+
+    return command_buffer->command_buffer;
+}
+
+uint32_t r_GetCommandBufferIndex(VkCommandBuffer command_buffer)
+{
+    struct r_command_buffer_t *command_buffer_ptr;
+    for(uint32_t index = 0; index < r_device.draw_command_pool.command_buffers.cursor; index++)
+    {
+        command_buffer_ptr = get_stack_list_element(&r_device.draw_command_pool.command_buffers, index);
+        if(command_buffer_ptr->command_buffer == command_buffer)
+        {
+            return index;
+        }
+    }
+
+    return 0xffffffff;
+}
 
 /*
 =================================================================
@@ -1235,6 +1178,7 @@ struct r_buffer_handle_t r_CreateBuffer(VkBufferCreateInfo *description)
     heap = r_GetHeapPointer(buffer->memory.heap);
     vkBindBufferMemory(r_device.device, buffer->buffer, heap->memory, chunk->start);
 
+    return handle;
 }
 
 void r_DestroyBuffer(struct r_buffer_handle_t handle)
@@ -1253,44 +1197,44 @@ struct r_buffer_t *r_GetBufferPointer(struct r_buffer_handle_t handle)
     return buffer;
 }
 
-void r_FillBuffer(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset)
-{
-    struct r_buffer_t *buffer;
-    struct r_buffer_heap_t *heap;
-    VkBufferCreateInfo copy_buffer_create_info = {};
-    VkBuffer copy_buffer;
-    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    VkSubmitInfo submit_info = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    VkBufferCopy buffer_copy;
-
-    buffer = r_GetBufferPointer(handle);
-    heap = r_GetHeapPointer(buffer->memory.heap);
-
-    copy_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    copy_buffer_create_info.size = size;
-    copy_buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    copy_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    vkCreateBuffer(r_device.device, &copy_buffer_create_info, NULL, &copy_buffer);
-    vkBindBufferMemory(r_device.device, copy_buffer, r_device.staging.staging_memory, 0);
-    memcpy(r_device.staging.staging_pointer, data, size);
-
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &r_device.transfer_command_buffer;
-
-    buffer_copy.srcOffset = 0;
-    buffer_copy.dstOffset = offset;
-    buffer_copy.size = size;
-
-    SDL_AtomicLock(&r_device.transfer_queue->spinlock);
-    vkBeginCommandBuffer(r_device.transfer_command_buffer, &begin_info);
-    vkCmdCopyBuffer(r_device.transfer_command_buffer, copy_buffer, buffer->buffer, 1, &buffer_copy);
-    vkEndCommandBuffer(r_device.transfer_command_buffer);
-    vkResetFences(r_device.device, 1, &r_device.transfer_fence);
-    vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, r_device.transfer_fence);
-    vkWaitForFences(r_device.device, 1, &r_device.transfer_fence, VK_TRUE, 0xffffffffffffffff);
-    SDL_AtomicUnlock(&r_device.transfer_queue->spinlock);
-    vkDestroyBuffer(r_device.device, copy_buffer, NULL);
-}
+//void r_FillBuffer(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset)
+//{
+//    struct r_buffer_t *buffer;
+//    struct r_buffer_heap_t *heap;
+//    VkBufferCreateInfo copy_buffer_create_info = {};
+//    VkBuffer copy_buffer;
+//    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+//    VkSubmitInfo submit_info = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
+//    VkBufferCopy buffer_copy;
+//
+//    buffer = r_GetBufferPointer(handle);
+//    heap = r_GetHeapPointer(buffer->memory.heap);
+//
+//    copy_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+//    copy_buffer_create_info.size = size;
+//    copy_buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+//    copy_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+//    vkCreateBuffer(r_device.device, &copy_buffer_create_info, NULL, &copy_buffer);
+//    vkBindBufferMemory(r_device.device, copy_buffer, r_device.staging.staging_memory, 0);
+//    memcpy(r_device.staging.staging_pointer, data, size);
+//
+//    submit_info.commandBufferCount = 1;
+//    submit_info.pCommandBuffers = &r_device.transfer_command_buffer;
+//
+//    buffer_copy.srcOffset = 0;
+//    buffer_copy.dstOffset = offset;
+//    buffer_copy.size = size;
+//
+//    SDL_AtomicLock(&r_device.transfer_queue->spinlock);
+//    vkBeginCommandBuffer(r_device.transfer_command_buffer, &begin_info);
+//    vkCmdCopyBuffer(r_device.transfer_command_buffer, copy_buffer, buffer->buffer, 1, &buffer_copy);
+//    vkEndCommandBuffer(r_device.transfer_command_buffer);
+//    vkResetFences(r_device.device, 1, &r_device.transfer_fence);
+//    vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, r_device.transfer_fence);
+//    vkWaitForFences(r_device.device, 1, &r_device.transfer_fence, VK_TRUE, 0xffffffffffffffff);
+//    SDL_AtomicUnlock(&r_device.transfer_queue->spinlock);
+//    vkDestroyBuffer(r_device.device, copy_buffer, NULL);
+//}
 
 /*
 =================================================================
@@ -1442,148 +1386,22 @@ void r_BlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst
 //    r_UnlockQueue(r_device.transfer_queue);
 }
 
-void r_CmdBlitImage(VkCommandBuffer command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit)
+void r_SetImageLayout(struct r_image_handle_t image, VkImageLayout new_layout)
 {
-    struct r_image_t *src_image;
-    struct r_image_t *dst_image;
-    VkImageCreateInfo *src_description;
-    VkImageCreateInfo *dst_description;
-    uint32_t old_src_layout;
-    uint32_t old_dst_layout;
     VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    VkSubmitInfo submit_info = {};
 
-    src_image = r_GetImagePointer(src_handle);
-    src_description = r_GetImageDescriptionPointer(src_handle);
-    dst_image = r_GetImagePointer(dst_handle);
-    dst_description = r_GetImageDescriptionPointer(dst_handle);
+    vkBeginCommandBuffer(r_device.transfer_command_buffer, &begin_info);
+    r_CmdSetImageLayout(r_device.transfer_command_buffer, image, new_layout);
+    vkEndCommandBuffer(r_device.transfer_command_buffer);
 
-    if(!blit)
-    {
-        blit = alloca(sizeof(VkImageBlit));
-
-        blit->srcOffsets[0].x = 0;
-        blit->srcOffsets[0].y = 0;
-        blit->srcOffsets[0].z = 0;
-        blit->srcOffsets[1].x = src_description->extent.width;
-        blit->srcOffsets[1].y = src_description->extent.height;
-        blit->srcOffsets[1].z = src_description->extent.depth;
-        blit->srcSubresource.aspectMask = src_image->aspect_mask;
-        blit->srcSubresource.baseArrayLayer = 0;
-        blit->srcSubresource.layerCount = 1;
-        blit->srcSubresource.mipLevel = 0;
-
-        blit->dstOffsets[0].x = 0;
-        blit->dstOffsets[0].y = 0;
-        blit->dstOffsets[0].z = 0;
-        blit->dstOffsets[1].x = dst_description->extent.width;
-        blit->dstOffsets[1].y = dst_description->extent.height;
-        blit->dstOffsets[1].z = dst_description->extent.depth;
-        blit->dstSubresource.aspectMask = dst_image->aspect_mask;
-        blit->dstSubresource.baseArrayLayer = 0;
-        blit->dstSubresource.layerCount = 1;
-        blit->dstSubresource.mipLevel = 0;
-    }
-
-    old_src_layout = src_image->current_layout;
-    old_dst_layout = dst_image->current_layout;
-
-    r_CmdSetImageLayout(command_buffer, src_handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    r_CmdSetImageLayout(command_buffer, dst_handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    vkCmdBlitImage(command_buffer, src_image->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                              dst_image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, blit, VK_FILTER_NEAREST);
-    r_CmdSetImageLayout(command_buffer, src_handle, old_src_layout);
-    r_CmdSetImageLayout(command_buffer, dst_handle, old_dst_layout);
+    vkResetFences(r_device.device, 1, &r_device.transfer_fence);
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &r_device.transfer_command_buffer;
+    vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, r_device.transfer_fence);
+    vkWaitForFences(r_device.device, 1, &r_device.transfer_fence, VK_TRUE, 0xffffffffffffffff);
 }
-
-void r_CmdSetImageLayout(VkCommandBuffer command_buffer, struct r_image_handle_t handle, uint32_t new_layout)
-{
-    VkImageMemoryBarrier memory_barrier = {};
-    struct r_image_t *image;
-    VkImageCreateInfo *description;
-
-    image = r_GetImagePointer(handle);
-    description = r_GetImageDescriptionPointer(handle);
-
-    if(new_layout == VK_IMAGE_LAYOUT_UNDEFINED)
-    {
-        if(r_IsDepthStencilFormat(description->format))
-        {
-            new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        }
-        else
-        {
-            new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        }
-    }
-
-    memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    memory_barrier.pNext = NULL;
-    /* all writes to this texture must become visible before the layout can change */
-    memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-    /* new layout in place, now the memory becomes accessible */
-    memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    memory_barrier.oldLayout = image->current_layout;
-    memory_barrier.newLayout = new_layout;
-    memory_barrier.srcQueueFamilyIndex = r_device.graphics_queue_family;
-    memory_barrier.dstQueueFamilyIndex = r_device.graphics_queue_family;
-    memory_barrier.image = image->image;
-    memory_barrier.subresourceRange.aspectMask = image->aspect_mask;
-    memory_barrier.subresourceRange.baseArrayLayer = 0;
-    memory_barrier.subresourceRange.baseMipLevel = 0;
-    memory_barrier.subresourceRange.layerCount = 1;
-    memory_barrier.subresourceRange.levelCount = 1;
-
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         0, 0, NULL, 0, NULL, 1, &memory_barrier);
-    image->current_layout = new_layout;
-}
-
-/* TODO: group this with the r_image_heap_t functions */
-//void r_FillImage(struct r_image_handle_t handle, void *data)
-//{
-//    struct r_image_handle_t copy_image_handle;
-//    struct r_image_t *copy_image;
-//    VkImageCreateInfo *description;
-//    VkSubresourceLayout subresource_layout;
-//    VkImageSubresource subresource;
-//    uint32_t memory_offset;
-//    uint32_t data_offset;
-//    uint32_t data_row_pitch;
-//    uint32_t data_layer_pitch;
-////    char *memory;
-//
-//    description = alloca(sizeof(VkImageCreateInfo));
-//    memcpy(description, r_GetImageDescriptionPointer(handle), sizeof(VkImageCreateInfo));
-//    description->tiling = VK_IMAGE_TILING_LINEAR;
-//    copy_image_handle = r_AllocImage(description);
-//    copy_image = r_GetImagePointer(copy_image_handle);
-//
-//    vkBindImageMemory(r_device.device, copy_image->image, r_device.staging_memory, (VkDeviceSize){0});
-//
-//    subresource.arrayLayer = 0;
-//    subresource.mipLevel = 0;
-//    subresource.aspectMask = r_GetFormatAspectFlags(description->format);
-//    vkGetImageSubresourceLayout(r_device.device, copy_image->image, &subresource, &subresource_layout);
-////    vkMapMemory(r_device.device, r_device.staging_memory, (VkDeviceSize){0}, subresource_layout.size, 0, (void **)&memory);
-//
-//    data_row_pitch = description->extent.width * r_GetFormatPixelPitch(description->format);
-//    data_layer_pitch = description->extent.height * data_row_pitch;
-//
-//    for(uint32_t layer_index = 0; layer_index < description->extent.depth; layer_index++)
-//    {
-//        for(uint32_t row_index = 0; row_index < description->extent.height; row_index++)
-//        {
-//            memory_offset = row_index * subresource_layout.rowPitch + layer_index * subresource_layout.depthPitch;
-//            data_offset = row_index * data_row_pitch + layer_index * data_layer_pitch;
-//            memcpy(r_device.staging_pointer + memory_offset, (char *)data + data_offset, data_row_pitch);
-//        }
-//    }
-//
-////    vkUnmapMemory(r_device.device, r_device.staging_memory);
-//    r_BlitImage(copy_image_handle, handle, NULL);
-//    r_DestroyImage(copy_image_handle);
-//}
-
 
 void r_CreateDefaultTexture()
 {
@@ -1622,6 +1440,7 @@ void r_CreateDefaultTexture()
 //    memset(default_texture_pixels, 0xffffffff, sizeof(uint32_t) * description.extent.width * description.extent.height);
 //    r_FillImage(texture->image, default_texture_pixels);
     r_FillImageChunk(texture->image, default_texture_pixels, NULL);
+    r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     free(default_texture_pixels);
 }
 
@@ -1684,8 +1503,8 @@ struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *descri
         image_view_create_info.subresourceRange.levelCount = texture_description.mip_levels;
         image_view_create_info.subresourceRange.layerCount = texture_description.array_layers;
         vkCreateImageView(r_device.device, &image_view_create_info, NULL, &texture->image_view);
-
         texture->sampler = r_TextureSampler(&texture_description.sampler_params);
+        r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     return handle;
@@ -1820,6 +1639,11 @@ struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle)
 struct r_texture_t* r_GetDefaultTexturePointer()
 {
     return r_GetTexturePointer(R_TEXTURE_HANDLE(R_DEFAULT_TEXTURE_INDEX));
+}
+
+struct r_texture_handle_t r_GetDefaultTextureHandle()
+{
+    return R_TEXTURE_HANDLE(R_DEFAULT_TEXTURE_INDEX);
 }
 
 struct r_texture_handle_t r_GetTextureHandle(char *name)
@@ -2592,6 +2416,11 @@ VkDescriptorSet r_AllocateDescriptorSet(struct r_pipeline_t *pipeline, VkShaderS
     return descriptor_set;
 }
 
+VkResult r_UpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes)
+{
+    vkUpdateDescriptorSets(r_device.device, descriptor_write_count, (const VkWriteDescriptorSet *)descriptor_writes, 0, NULL);
+}
+
 void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline)
 {
 
@@ -2698,7 +2527,44 @@ struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_handle_t ha
 
 void r_PresentFramebuffer(struct r_framebuffer_handle_t handle)
 {
+    VkPresentInfoKHR present_info = {};
+    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    VkSubmitInfo submit_info = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    struct r_framebuffer_t *framebuffer;
+    struct r_texture_t *texture;
+    struct r_swapchain_t *swapchain;
+    struct r_image_handle_t swapchain_image;
+    struct r_image_t *texture_image_ptr;
+    struct r_image_t *swapchain_image_ptr;
 
+    framebuffer = r_GetFramebufferPointer(handle);
+    texture = r_GetTexturePointer(framebuffer->textures[framebuffer->current_buffer]);
+    r_NextImage(r_device.swapchain);
+    swapchain = r_GetSwapchainPointer(r_device.swapchain);
+    swapchain_image = swapchain->images[swapchain->current_image];
+
+    texture_image_ptr = r_GetImagePointer(texture->image);
+    swapchain_image_ptr = r_GetImagePointer(swapchain_image);
+
+    vkBeginCommandBuffer(r_device.transfer_command_buffer, &begin_info);
+    r_CmdSetImageLayout(r_device.transfer_command_buffer, texture->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    r_CmdSetImageLayout(r_device.transfer_command_buffer, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    r_CmdBlitImage(r_device.transfer_command_buffer, texture->image, swapchain_image, NULL);
+    r_CmdSetImageLayout(r_device.transfer_command_buffer, texture->image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    r_CmdSetImageLayout(r_device.transfer_command_buffer, swapchain_image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    vkEndCommandBuffer(r_device.transfer_command_buffer);
+
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &r_device.transfer_command_buffer;
+    vkResetFences(r_device.device, 1, &r_device.transfer_fence);
+    vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, r_device.transfer_fence);
+    vkWaitForFences(r_device.device, 1, &r_device.transfer_fence, VK_TRUE, 0xffffffffffffffff);
+
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = &swapchain->swapchain;
+    present_info.pImageIndices = &swapchain->current_image;
+    vkQueuePresentKHR(r_device.present_queue->queue, &present_info);
 }
 
 /*
@@ -2819,178 +2685,6 @@ void r_NextImage(struct r_swapchain_handle_t handle)
 =================================================================
 */
 
-
-//void r_FillChunk(struct r_chunk_handle_t handle, void *data, uint32_t size, uint32_t offset)
-//{
-//    struct r_heap_t *heap;
-//    struct r_chunk_t *chunk;
-//    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-//    VkBufferCopy copy_region;
-//    VkSubmitInfo submit_info = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
-//
-//    heap = r_GetHeapPointer(handle.heap);
-//    chunk = get_stack_list_element(&heap->alloc_chunks, handle.index);
-//
-//    memcpy((char *)r_device.staging_pointer, data, size);
-//    vkBindBufferMemory(r_device.device, r_device.dst_staging_buffer, heap->memory, 0);
-//
-//    SDL_AtomicLock(heap->spinlock);
-//    copy_region.srcOffset = 0;
-//    copy_region.dstOffset = 0;
-//    copy_region.size = size;
-//
-//    vkResetFences(r_device.device, 1, &heap->fence);
-//    vkBeginCommandBuffer(heap->command_buffer, &begin_info);
-//    vkCmdCopyBuffer(heap->command_buffer, r_device.src_staging_buffer, r_device.dst_staging_buffer, 1, &copy_region);
-//    vkEndCommandBuffer(heap->command_buffer);
-//
-//    submit_info.commandBufferCount = 1;
-//    submit_info.pCommandBuffers = &heap->command_buffer;
-//
-//    SDL_AtomicLock(&r_device.transfer_queue->spinlock);
-//    vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, heap->fence);
-//    SDL_AtomicUnlock(&r_device.transfer_queue->spinlock);
-//    vkWaitForFences(r_device.device, 1, &heap->fence, VK_TRUE, 0xffffffffffffffff);
-//}
-
-
-
-
-
-//struct r_alloc_handle_t r_Alloc(uint32_t size, uint32_t align, uint32_t index_alloc)
-//{
-//    struct r_alloc_t *alloc;
-//    struct r_alloc_t new_alloc;
-//    struct r_alloc_handle_t handle = R_INVALID_ALLOC_HANDLE;
-//    uint32_t start;
-//    uint32_t block_size;
-//    struct list_t *free_blocks;
-//
-//    index_alloc = index_alloc && 1;
-//    // align--;
-//
-//    free_blocks = &r_renderer.free_blocks[index_alloc];
-//
-//    for(uint32_t i = 0; i < free_blocks->cursor; i++)
-//    {
-//        alloc = (struct r_alloc_t *)get_list_element(free_blocks, i);
-//        /* align the start of the allocation to the desired alignment */
-//        // start = (alloc->start + align) & (~align);
-//
-//        start = alloc->start;
-//
-//        while(start % align)
-//        {
-//            start += align - (start % align);
-//        }
-//
-//        /* subtract the bytes before the aligned start from
-//        the total size */
-//        block_size = alloc->size - (start - alloc->start);
-//
-//        if(block_size >= size)
-//        {
-//            /* compute the how many bytes of alignment we need */
-//            align = start - alloc->start;
-//
-//            if(block_size == size)
-//            {
-//                /* taking away the aligment bytes, this buffer is just the right size for
-//                the allocation required, so just move this allocation header from the
-//                free list to the allocation list*/
-//                alloc->align = align;
-//                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], alloc);
-//                remove_list_element(free_blocks, i);
-//            }
-//            else
-//            {
-//                /* this buffer is bigger than the requested
-//                size, even after adjusting for alignment */
-//                block_size = size + align;
-//
-//                /* we'll create a new allocation header to add
-//                in the allocations list */
-//                new_alloc.start = alloc->start;
-//                new_alloc.size = block_size;
-//                new_alloc.align = align;
-//
-//                handle.alloc_index = add_stack_list_element(&r_renderer.allocd_blocks[index_alloc], &new_alloc);
-//
-//                /* chop a chunk of this free block */
-//                alloc->start += block_size;
-//                alloc->size -= block_size;
-//            }
-//
-//            // handle.alloc_index = i;
-//            handle.is_index = index_alloc;
-//            break;
-//        }
-//    }
-//
-//    return handle;
-//}
-
-//struct r_alloc_t *r_GetAllocPointer(struct r_alloc_handle_t handle)
-//{
-//    struct r_alloc_t *alloc;
-//    alloc = (struct r_alloc_t *)get_stack_list_element(&r_renderer.allocd_blocks[handle.is_index], handle.alloc_index);
-//
-//    if(alloc && !alloc->size)
-//    {
-//        /* zero sized allocs are considered invalid */
-//        alloc = NULL;
-//    }
-//
-//    return alloc;
-//}
-
-//void r_Free(struct r_alloc_handle_t handle)
-//{
-//    struct r_alloc_t *alloc = r_GetAllocPointer(handle);
-//
-//    if(alloc)
-//    {
-//        add_list_element(&r_renderer.free_blocks[handle.is_index], alloc);
-//
-//        /* zero sized allocs are considered invalid */
-//        alloc->size = 0;
-//    }
-//}
-//
-//void r_Memcpy(struct r_alloc_handle_t handle, void *data, uint32_t size)
-//{
-//    void *memory;
-//    struct r_alloc_t *alloc;
-//    uint32_t alloc_size;
-//
-//    alloc = r_GetAllocPointer(handle);
-//
-//    if(alloc)
-//    {
-////        alloc_size = alloc->size - alloc->align;
-////
-////        if(size > alloc_size)
-////        {
-////            size = alloc_size;
-////        }
-////
-////        /* backend specific mapping function. It's necessary to pass both
-////        the handle and the alloc, as the backend doesn't use any of the
-////        interface's functions, and can't get the alloc pointer from the
-////        handle. It also needs the handle to know whether it's an vertex
-////        or and index alloc. */
-////        memory = r_vk_MapAlloc(handle, alloc);
-////        memcpy(memory, data, size);
-////        r_vk_UnmapAlloc(handle);
-//    }
-//}
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
 void r_LockQueue(struct r_queue_t *queue)
 {
     SDL_AtomicLock(&queue->spinlock);
@@ -3001,11 +2695,21 @@ void r_UnlockQueue(struct r_queue_t *queue)
     SDL_AtomicUnlock(&queue->spinlock);
 }
 
-void r_QueueSubmit(struct r_queue_t *queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence)
+//void r_QueueSubmit(struct r_queue_t *queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence)
+//{
+//    SDL_AtomicLock(&queue->spinlock);
+//    vkQueueSubmit(queue->queue, submit_count, submit_info, fence);
+//    SDL_AtomicUnlock(&queue->spinlock);
+//}
+
+VkQueue r_GetDrawQueue()
 {
-    SDL_AtomicLock(&queue->spinlock);
-    vkQueueSubmit(queue->queue, submit_count, submit_info, fence);
-    SDL_AtomicUnlock(&queue->spinlock);
+    return r_device.draw_queue->queue;
+}
+
+VkBuffer r_GetStagingBuffer()
+{
+    return r_device.staging.staging_buffer;
 }
 
 /*
@@ -3014,39 +2718,22 @@ void r_QueueSubmit(struct r_queue_t *queue, uint32_t submit_count, VkSubmitInfo 
 =================================================================
 */
 
-void r_SetZPlanes(float z_near, float z_far)
+VkFence r_CreateFence()
 {
-    r_renderer.z_near = z_near;
-    r_renderer.z_far = z_far;
-    r_RecomputeViewProjectionMatrix();
+    VkFenceCreateInfo fence_create_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+    VkFence fence;
+    vkCreateFence(r_device.device, &fence_create_info, NULL, &fence);
+    return fence;
 }
 
-void r_SetFovY(float fov_y)
+void r_ResetFences(uint32_t fence_count, VkFence *fences)
 {
-    r_renderer.fov_y = fov_y;
-    r_RecomputeViewProjectionMatrix();
+    vkResetFences(r_device.device, fence_count, (const VkFence *)fences);
 }
 
-void r_RecomputeViewProjectionMatrix()
+void r_WaitForFences(uint32_t fence_count, VkFence *fences, VkBool32 wait_all, uint64_t time_out)
 {
-    mat4_t_persp(&r_renderer.projection_matrix, r_renderer.fov_y,
-        (float)r_renderer.width / (float)r_renderer.height, r_renderer.z_near, r_renderer.z_far);
-//    r_vk_AdjustProjectionMatrix(&r_renderer.projection_matrix);
-    mat4_t_mul(&r_renderer.view_projection_matrix, &r_renderer.view_matrix, &r_renderer.projection_matrix);
-}
-
-
-void r_SetViewMatrix(mat4_t *view_matrix)
-{
-    memcpy(&r_renderer.view_matrix, view_matrix, sizeof(mat4_t));
-    mat4_t_invvm(&r_renderer.view_matrix, &r_renderer.view_matrix);
-    r_RecomputeViewProjectionMatrix();
-}
-
-void r_GetWindowSize(uint32_t *width, uint32_t *height)
-{
-    *width = r_renderer.width;
-    *height = r_renderer.height;
+    vkWaitForFences(r_device.device, fence_count, (const VkFence *)fences, wait_all, time_out);
 }
 
 /*
@@ -3055,66 +2742,107 @@ void r_GetWindowSize(uint32_t *width, uint32_t *height)
 =================================================================
 */
 
-struct r_material_handle_t r_AllocMaterial()
-{
-    struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
-    struct r_material_t *material;
+//void r_SetZPlanes(float z_near, float z_far)
+//{
+//    r_renderer.z_near = z_near;
+//    r_renderer.z_far = z_far;
+//    r_RecomputeViewProjectionMatrix();
+//}
 
-    handle.index = add_stack_list_element(&r_renderer.materials, NULL);
+//void r_SetFovY(float fov_y)
+//{
+//    r_renderer.fov_y = fov_y;
+//    r_RecomputeViewProjectionMatrix();
+//}
 
-    material = (struct r_material_t*)get_stack_list_element(&r_renderer.materials, handle.index);
-    material->flags = 0;
-    material->diffuse_texture = NULL;
-    material->normal_texture = NULL;
+//void r_RecomputeViewProjectionMatrix()
+//{
+//    mat4_t_persp(&r_renderer.projection_matrix, r_renderer.fov_y,
+//        (float)r_renderer.width / (float)r_renderer.height, r_renderer.z_near, r_renderer.z_far);
+////    r_vk_AdjustProjectionMatrix(&r_renderer.projection_matrix);
+//    mat4_t_mul(&r_renderer.view_projection_matrix, &r_renderer.view_matrix, &r_renderer.projection_matrix);
+//}
 
-    return handle;
-}
 
-void r_FreeMaterial(struct r_material_handle_t handle)
-{
-    struct r_material_t *material;
+//void r_SetViewMatrix(mat4_t *view_matrix)
+//{
+//    memcpy(&r_renderer.view_matrix, view_matrix, sizeof(mat4_t));
+//    mat4_t_invvm(&r_renderer.view_matrix, &r_renderer.view_matrix);
+//    r_RecomputeViewProjectionMatrix();
+//}
+//
+//void r_GetWindowSize(uint32_t *width, uint32_t *height)
+//{
+//    *width = r_renderer.width;
+//    *height = r_renderer.height;
+//}
 
-    material = r_GetMaterialPointer(handle);
-
-    if(material)
-    {
-        material->flags = R_MATERIAL_FLAG_INVALID;
-        free(material->name);
-        remove_stack_list_element(&r_renderer.materials, handle.index);
-    }
-}
-
-struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle)
-{
-    struct r_material_t *material;
-    material = (struct r_material_t*)get_stack_list_element(&r_renderer.materials, handle.index);
-
-    if(material && (material->flags & R_MATERIAL_FLAG_INVALID))
-    {
-        material = NULL;
-    }
-
-    return material;
-}
-
-struct r_material_handle_t r_GetMaterialHandle(char *name)
-{
-    struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
-    struct r_material_t *material;
-
-    for(uint32_t i = 0; i < r_renderer.materials.cursor; i++)
-    {
-        material = r_GetMaterialPointer(R_MATERIAL_HANDLE(i));
-
-        if(material && !strcmp(name, material->name))
-        {
-            handle = R_MATERIAL_HANDLE(i);
-            break;
-        }
-    }
-
-    return handle;
-}
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+//
+//struct r_material_handle_t r_AllocMaterial()
+//{
+//    struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
+//    struct r_material_t *material;
+//
+//    handle.index = add_stack_list_element(&r_renderer.materials, NULL);
+//
+//    material = (struct r_material_t*)get_stack_list_element(&r_renderer.materials, handle.index);
+//    material->flags = 0;
+//    material->diffuse_texture = NULL;
+//    material->normal_texture = NULL;
+//
+//    return handle;
+//}
+//
+//void r_FreeMaterial(struct r_material_handle_t handle)
+//{
+//    struct r_material_t *material;
+//
+//    material = r_GetMaterialPointer(handle);
+//
+//    if(material)
+//    {
+//        material->flags = R_MATERIAL_FLAG_INVALID;
+//        free(material->name);
+//        remove_stack_list_element(&r_renderer.materials, handle.index);
+//    }
+//}
+//
+//struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle)
+//{
+//    struct r_material_t *material;
+//    material = (struct r_material_t*)get_stack_list_element(&r_renderer.materials, handle.index);
+//
+//    if(material && (material->flags & R_MATERIAL_FLAG_INVALID))
+//    {
+//        material = NULL;
+//    }
+//
+//    return material;
+//}
+//
+//struct r_material_handle_t r_GetMaterialHandle(char *name)
+//{
+//    struct r_material_handle_t handle = R_INVALID_MATERIAL_HANDLE;
+//    struct r_material_t *material;
+//
+//    for(uint32_t i = 0; i < r_renderer.materials.cursor; i++)
+//    {
+//        material = r_GetMaterialPointer(R_MATERIAL_HANDLE(i));
+//
+//        if(material && !strcmp(name, material->name))
+//        {
+//            handle = R_MATERIAL_HANDLE(i);
+//            break;
+//        }
+//    }
+//
+//    return handle;
+//}
 
 /*
 =================================================================
@@ -3174,70 +2902,70 @@ void r_DestroyLight(struct r_light_handle_t handle)
 =================================================================
 */
 
-void *r_AllocCmdData(uint32_t size)
-{
-    uint32_t elem_count;
-    void *data;
-    elem_count = ((size + R_CMD_DATA_ELEM_SIZE - 1) & (~(R_CMD_DATA_ELEM_SIZE - 1))) / R_CMD_DATA_ELEM_SIZE;
-    /* this is not a safe allocation scheme, and it doesn't have to. Data
-    WILL be overwritten if the producer end is queueing stuff too fast and
-    the consumer end is taking too long to use the data */
+//void *r_AllocCmdData(uint32_t size)
+//{
+//    uint32_t elem_count;
+//    void *data;
+//    elem_count = ((size + R_CMD_DATA_ELEM_SIZE - 1) & (~(R_CMD_DATA_ELEM_SIZE - 1))) / R_CMD_DATA_ELEM_SIZE;
+//    /* this is not a safe allocation scheme, and it doesn't have to. Data
+//    WILL be overwritten if the producer end is queueing stuff too fast and
+//    the consumer end is taking too long to use the data */
+//
+//    if(elem_count > r_renderer.cmd_buffer_data.next_in - r_renderer.cmd_buffer_data.buffer_size)
+//    {
+//        r_renderer.cmd_buffer_data.next_in = 0;
+//    }
+//
+//    data = (char *)r_renderer.cmd_buffer_data.buffer + r_renderer.cmd_buffer_data.next_in * R_CMD_DATA_ELEM_SIZE;
+//    r_renderer.cmd_buffer_data.next_in += elem_count;
+//    r_renderer.cmd_buffer_data.next_out = r_renderer.cmd_buffer_data.next_in;
+//
+//    return data;
+//}
 
-    if(elem_count > r_renderer.cmd_buffer_data.next_in - r_renderer.cmd_buffer_data.buffer_size)
-    {
-        r_renderer.cmd_buffer_data.next_in = 0;
-    }
+//void *r_AtomicAllocCmdData(uint32_t size)
+//{
+//    void *data;
+//
+//    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
+//    data = r_AllocCmdData(size);
+//    SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
+//
+//    return data;
+//}
 
-    data = (char *)r_renderer.cmd_buffer_data.buffer + r_renderer.cmd_buffer_data.next_in * R_CMD_DATA_ELEM_SIZE;
-    r_renderer.cmd_buffer_data.next_in += elem_count;
-    r_renderer.cmd_buffer_data.next_out = r_renderer.cmd_buffer_data.next_in;
+//void r_BeginSubmission(mat4_t *view_projection_matrix, mat4_t *view_matrix)
+//{
+//    r_renderer.submiting_draw_cmd_buffer = (struct r_draw_cmd_buffer_t*)r_AtomicAllocCmdData(sizeof(struct r_draw_cmd_buffer_t));
+//    r_renderer.submiting_draw_cmd_buffer->draw_cmd_count = 0;
+//    memcpy(&r_renderer.submiting_draw_cmd_buffer->view_projection_matrix, view_projection_matrix, sizeof(mat4_t));
+//    memcpy(&r_renderer.submiting_draw_cmd_buffer->view_matrix, view_matrix, sizeof(mat4_t));
+//}
 
-    return data;
-}
+//void r_SubmitDrawCmd(mat4_t *model_matrix, struct r_material_t *material, uint32_t start, uint32_t count)
+//{
+//    struct r_draw_cmd_t *draw_cmd;
+//
+//    if(r_renderer.submiting_draw_cmd_buffer->draw_cmd_count >= R_DRAW_CMD_BUFFER_DRAW_CMDS)
+//    {
+//        r_EndSubmission();
+//        r_BeginSubmission(&r_renderer.submiting_draw_cmd_buffer->view_projection_matrix, &r_renderer.submiting_draw_cmd_buffer->view_matrix);
+//    }
+//    draw_cmd = r_renderer.submiting_draw_cmd_buffer->draw_cmds + r_renderer.submiting_draw_cmd_buffer->draw_cmd_count;
+//    draw_cmd->material = material;
+//    draw_cmd->range.start = start;
+//    draw_cmd->range.count = count;
+//    memcpy(&draw_cmd->model_matrix, model_matrix, sizeof(mat4_t));
+//    r_renderer.submiting_draw_cmd_buffer->draw_cmd_count++;
+//}
 
-void *r_AtomicAllocCmdData(uint32_t size)
-{
-    void *data;
-
-    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
-    data = r_AllocCmdData(size);
-    SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
-
-    return data;
-}
-
-void r_BeginSubmission(mat4_t *view_projection_matrix, mat4_t *view_matrix)
-{
-    r_renderer.submiting_draw_cmd_buffer = (struct r_draw_cmd_buffer_t*)r_AtomicAllocCmdData(sizeof(struct r_draw_cmd_buffer_t));
-    r_renderer.submiting_draw_cmd_buffer->draw_cmd_count = 0;
-    memcpy(&r_renderer.submiting_draw_cmd_buffer->view_projection_matrix, view_projection_matrix, sizeof(mat4_t));
-    memcpy(&r_renderer.submiting_draw_cmd_buffer->view_matrix, view_matrix, sizeof(mat4_t));
-}
-
-void r_SubmitDrawCmd(mat4_t *model_matrix, struct r_material_t *material, uint32_t start, uint32_t count)
-{
-    struct r_draw_cmd_t *draw_cmd;
-
-    if(r_renderer.submiting_draw_cmd_buffer->draw_cmd_count >= R_DRAW_CMD_BUFFER_DRAW_CMDS)
-    {
-        r_EndSubmission();
-        r_BeginSubmission(&r_renderer.submiting_draw_cmd_buffer->view_projection_matrix, &r_renderer.submiting_draw_cmd_buffer->view_matrix);
-    }
-    draw_cmd = r_renderer.submiting_draw_cmd_buffer->draw_cmds + r_renderer.submiting_draw_cmd_buffer->draw_cmd_count;
-    draw_cmd->material = material;
-    draw_cmd->range.start = start;
-    draw_cmd->range.count = count;
-    memcpy(&draw_cmd->model_matrix, model_matrix, sizeof(mat4_t));
-    r_renderer.submiting_draw_cmd_buffer->draw_cmd_count++;
-}
-
-void r_EndSubmission()
-{
-    if(r_renderer.submiting_draw_cmd_buffer->draw_cmd_count)
-    {
-        r_QueueCmd(R_CMD_TYPE_DRAW, r_renderer.submiting_draw_cmd_buffer, 0);
-    }
-}
+//void r_EndSubmission()
+//{
+//    if(r_renderer.submiting_draw_cmd_buffer->draw_cmd_count)
+//    {
+//        r_QueueCmd(R_CMD_TYPE_DRAW, r_renderer.submiting_draw_cmd_buffer, 0);
+//    }
+//}
 
 
 // void r_SortDrawCmds(struct r_udraw_cmd_buffer_t *udraw_cmd_buffer)
@@ -3292,221 +3020,221 @@ void r_EndSubmission()
 //     }
 // }
 
-void r_QueueCmd(uint32_t type, void *data, uint32_t data_size)
-{
-    struct r_cmd_t cmd;
+//void r_QueueCmd(uint32_t type, void *data, uint32_t data_size)
+//{
+//    struct r_cmd_t cmd;
+//
+//    cmd.cmd_type = type;
+//
+//    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
+//
+//    if(data && data_size)
+//    {
+//        cmd.data = r_AllocCmdData(data_size);
+//        memcpy(cmd.data, data, data_size);
+//    }
+//    else
+//    {
+//        cmd.data = data;
+//    }
+//
+//    add_ringbuffer_element(&r_renderer.cmd_buffer, &cmd);
+//
+//    SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
+//}
+//struct r_cmd_t *r_NextCmd()
+//{
+//    return (struct r_cmd_t *)peek_ringbuffer_element(&r_renderer.cmd_buffer);
+//}
+//
+//void r_AdvanceCmd()
+//{
+//    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
+//    get_ringbuffer_element(&r_renderer.cmd_buffer);
+//    SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
+//}
 
-    cmd.cmd_type = type;
+//int r_ExecuteCmds(void *data)
+//{
+//    struct r_cmd_t *cmd;
+//    struct r_buffer_t *buffer;
+//    struct r_buffer_heap_t *heap;
+//    printf("thread %d\n", SDL_ThreadID());
+//    uint32_t frame = 0;
+//    SDL_Delay(1000);
+//    while(1)
+//    {
+//
+////        SDL_PollEvent(NULL);
+//
+//        VkCommandBufferBeginInfo command_buffer_begin_info = {};
+//        command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+//        command_buffer_begin_info.pNext = NULL;
+//        command_buffer_begin_info.flags = 0;
+//        command_buffer_begin_info.pInheritanceInfo = NULL;
+//        VkWriteDescriptorSet write_descriptor_set = {};
+//        VkDescriptorSet descriptor_set;
+//        VkDescriptorImageInfo image_info;
+//
+//        struct r_render_pass_t *render_pass = r_GetRenderPassPointer(r_render_pass);
+//        struct r_framebuffer_t *framebuffer = r_GetFramebufferPointer(r_framebuffer);
+//        struct r_texture_t *framebuffer_texture = r_GetTexturePointer(framebuffer->textures[0]);
+//        struct r_texture_t *default_texture = r_GetDefaultTexturePointer();
+//        struct r_swapchain_t *swapchain = r_GetSwapchainPointer(r_device.swapchain);
+//
+//        frame = (frame + 1) % 36;
+//
+//
+//        VkRenderPassBeginInfo render_pass_begin_info = {};
+//        render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+//        render_pass_begin_info.pNext = NULL;
+//        render_pass_begin_info.renderPass = render_pass->render_pass;
+//        render_pass_begin_info.framebuffer = framebuffer->buffers[0];
+//        render_pass_begin_info.renderArea.offset.x = 0;
+//        render_pass_begin_info.renderArea.offset.y = 0;
+//        render_pass_begin_info.renderArea.extent.width = 800;
+//        render_pass_begin_info.renderArea.extent.height = 600;
+//        render_pass_begin_info.clearValueCount = 2;
+//        render_pass_begin_info.pClearValues = (VkClearValue []){
+//            {.color.float32 = {0.1, 0.1, 0.1, 1.0}},
+//            {.depthStencil.depth = 1.0}
+//        };
+//
+//        VkViewport viewport;
+//        VkRect2D scissor;
+//
+//        viewport.x = 0;
+//        viewport.y = 0;
+//        viewport.width = 800;
+//        viewport.height = 600;
+//        viewport.minDepth = 0.0;
+//        viewport.maxDepth = 1.0;
+//
+//        scissor.offset.x = 0;
+//        scissor.offset.y = 0;
+//        scissor.extent.width = 800;
+//        scissor.extent.height = 600;
+//
+//
+//
+//        buffer = r_GetBufferPointer(r_vertex_buffer);
+//        heap = r_GetHeapPointer(r_device.buffer_heap);
+//        r_NextImage(r_device.swapchain);
+//        vkBeginCommandBuffer(r_device.draw_command_buffer, &command_buffer_begin_info);
+//        r_CmdSetImageLayout(r_device.draw_command_buffer, default_texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+//        vkCmdBeginRenderPass(r_device.draw_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+//        vkCmdBindPipeline(r_device.draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pass->pipeline.pipeline);
+//
+//        descriptor_set = r_AllocateDescriptorSet(&render_pass->pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, r_device.draw_fence);
+//
+//        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+//        image_info.imageView = default_texture->image_view;
+//        image_info.sampler = default_texture->sampler;
+//
+//        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+//        write_descriptor_set.dstSet = descriptor_set;
+//        write_descriptor_set.dstBinding = 0;
+//        write_descriptor_set.dstArrayElement = 0;
+//        write_descriptor_set.descriptorCount = 1;
+//        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+//        write_descriptor_set.pImageInfo = &image_info;
+//        vkUpdateDescriptorSets(r_device.device, 1, &write_descriptor_set, 0, NULL);
+//
+//
+//        vkCmdBindDescriptorSets(r_device.draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pass->pipeline.layout, 0, 1, &descriptor_set, 0, NULL);
+//        vkCmdBindVertexBuffers(r_device.draw_command_buffer, 0, 1, &heap->buffer, (VkDeviceSize []){0});
+//        vkCmdSetViewport(r_device.draw_command_buffer, 0, 1, &viewport);
+//        vkCmdSetScissor(r_device.draw_command_buffer, 0, 1, &scissor);
+//        vkCmdPushConstants(r_device.draw_command_buffer, render_pass->pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &r_renderer.projection_matrix);
+//        vkCmdDraw(r_device.draw_command_buffer, 6, 1, 0, 0);
+//        vkCmdEndRenderPass(r_device.draw_command_buffer);
+////        r_CmdBlitImage(r_device.draw_command_buffer, default_texture->image, framebuffer_texture->image, NULL);
+//        r_CmdBlitImage(r_device.draw_command_buffer, framebuffer_texture->image, swapchain->images[swapchain->current_image], NULL);
+//        r_CmdSetImageLayout(r_device.draw_command_buffer, swapchain->images[swapchain->current_image], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+//        vkEndCommandBuffer(r_device.draw_command_buffer);
+//
+//        r_LockQueue(r_device.draw_queue);
+//        vkResetFences(r_device.device, 1, &r_device.draw_fence);
+//        VkSubmitInfo submit_info = {};
+//        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+//        submit_info.pNext = NULL;
+//        submit_info.waitSemaphoreCount = 0;
+//        submit_info.pWaitSemaphores = NULL;
+//        submit_info.pWaitDstStageMask = (VkPipelineStageFlagBits []){VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+//        submit_info.commandBufferCount = 1;
+//        submit_info.pCommandBuffers = &r_device.draw_command_buffer;
+//        submit_info.signalSemaphoreCount = 0;
+//        submit_info.pSignalSemaphores = NULL;
+//        vkQueueSubmit(r_device.draw_queue->queue, 1, &submit_info, r_device.draw_fence);
+//        vkWaitForFences(r_device.device, 1, &r_device.draw_fence, VK_TRUE, 0xffffffffffffffff);
+//        r_UnlockQueue(r_device.draw_queue);
+//
+//        r_LockQueue(r_device.present_queue);
+//        VkPresentInfoKHR present_info = {.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
+//        present_info.swapchainCount = 1;
+//        present_info.pSwapchains = &swapchain->swapchain;
+//        present_info.pImageIndices = (int []){swapchain->current_image};
+//        vkQueuePresentKHR(r_device.present_queue->queue, &present_info);
+//        r_UnlockQueue(r_device.present_queue);
+//
+//        SDL_Delay(16);
+//        continue;
+//
+//        while(r_renderer.cmd_buffer.next_in != r_renderer.cmd_buffer.next_out)
+//        {
+//            cmd = r_NextCmd();
+//
+//            switch(cmd->cmd_type)
+//            {
+//                case R_CMD_TYPE_BEGIN_FRAME:
+////                    r_vk_BeginFrame();
+//                break;
+//
+//                case R_CMD_TYPE_DRAW:
+//                    r_Draw(cmd);
+//                break;
+//
+//                case R_CMD_TYPE_END_FRAME:
+////                    r_vk_EndFrame();
+//                break;
+//            }
+//
+//            r_AdvanceCmd();
+//        }
+//    }
+//}
 
-    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
+//void r_WaitEmptyQueue()
+//{
+//    while(r_renderer.cmd_buffer.next_in != r_renderer.cmd_buffer.next_out);
+//}
 
-    if(data && data_size)
-    {
-        cmd.data = r_AllocCmdData(data_size);
-        memcpy(cmd.data, data, data_size);
-    }
-    else
-    {
-        cmd.data = data;
-    }
+//int r_CmpDrawCmd(const void *a, const void *b)
+//{
+//    return (ptrdiff_t)((struct r_draw_cmd_t *)a)->material - (ptrdiff_t)((struct r_draw_cmd_t *)b)->material;
+//}
 
-    add_ringbuffer_element(&r_renderer.cmd_buffer, &cmd);
-
-    SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
-}
-struct r_cmd_t *r_NextCmd()
-{
-    return (struct r_cmd_t *)peek_ringbuffer_element(&r_renderer.cmd_buffer);
-}
-
-void r_AdvanceCmd()
-{
-    SDL_AtomicLock(&r_renderer.cmd_buffer_lock);
-    get_ringbuffer_element(&r_renderer.cmd_buffer);
-    SDL_AtomicUnlock(&r_renderer.cmd_buffer_lock);
-}
-
-int r_ExecuteCmds(void *data)
-{
-    struct r_cmd_t *cmd;
-    struct r_buffer_t *buffer;
-    struct r_buffer_heap_t *heap;
-    printf("thread %d\n", SDL_ThreadID());
-    uint32_t frame = 0;
-    SDL_Delay(1000);
-    while(1)
-    {
-
-//        SDL_PollEvent(NULL);
-
-        VkCommandBufferBeginInfo command_buffer_begin_info = {};
-        command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        command_buffer_begin_info.pNext = NULL;
-        command_buffer_begin_info.flags = 0;
-        command_buffer_begin_info.pInheritanceInfo = NULL;
-        VkWriteDescriptorSet write_descriptor_set = {};
-        VkDescriptorSet descriptor_set;
-        VkDescriptorImageInfo image_info;
-
-        struct r_render_pass_t *render_pass = r_GetRenderPassPointer(r_render_pass);
-        struct r_framebuffer_t *framebuffer = r_GetFramebufferPointer(r_framebuffer);
-        struct r_texture_t *framebuffer_texture = r_GetTexturePointer(framebuffer->textures[0]);
-        struct r_texture_t *default_texture = r_GetDefaultTexturePointer();
-        struct r_swapchain_t *swapchain = r_GetSwapchainPointer(r_device.swapchain);
-
-        frame = (frame + 1) % 36;
-
-
-        VkRenderPassBeginInfo render_pass_begin_info = {};
-        render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        render_pass_begin_info.pNext = NULL;
-        render_pass_begin_info.renderPass = render_pass->render_pass;
-        render_pass_begin_info.framebuffer = framebuffer->buffers[0];
-        render_pass_begin_info.renderArea.offset.x = 0;
-        render_pass_begin_info.renderArea.offset.y = 0;
-        render_pass_begin_info.renderArea.extent.width = 800;
-        render_pass_begin_info.renderArea.extent.height = 600;
-        render_pass_begin_info.clearValueCount = 2;
-        render_pass_begin_info.pClearValues = (VkClearValue []){
-            {.color.float32 = {0.1, 0.1, 0.1, 1.0}},
-            {.depthStencil.depth = 1.0}
-        };
-
-        VkViewport viewport;
-        VkRect2D scissor;
-
-        viewport.x = 0;
-        viewport.y = 0;
-        viewport.width = 800;
-        viewport.height = 600;
-        viewport.minDepth = 0.0;
-        viewport.maxDepth = 1.0;
-
-        scissor.offset.x = 0;
-        scissor.offset.y = 0;
-        scissor.extent.width = 800;
-        scissor.extent.height = 600;
-
-
-
-        buffer = r_GetBufferPointer(r_vertex_buffer);
-        heap = r_GetHeapPointer(r_device.buffer_heap);
-        r_NextImage(r_device.swapchain);
-        vkBeginCommandBuffer(r_device.draw_command_buffer, &command_buffer_begin_info);
-        r_CmdSetImageLayout(r_device.draw_command_buffer, default_texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        vkCmdBeginRenderPass(r_device.draw_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(r_device.draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pass->pipeline.pipeline);
-
-        descriptor_set = r_AllocateDescriptorSet(&render_pass->pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, r_device.draw_fence);
-
-        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_info.imageView = default_texture->image_view;
-        image_info.sampler = default_texture->sampler;
-
-        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_descriptor_set.dstSet = descriptor_set;
-        write_descriptor_set.dstBinding = 0;
-        write_descriptor_set.dstArrayElement = 0;
-        write_descriptor_set.descriptorCount = 1;
-        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_descriptor_set.pImageInfo = &image_info;
-        vkUpdateDescriptorSets(r_device.device, 1, &write_descriptor_set, 0, NULL);
-
-
-        vkCmdBindDescriptorSets(r_device.draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pass->pipeline.layout, 0, 1, &descriptor_set, 0, NULL);
-        vkCmdBindVertexBuffers(r_device.draw_command_buffer, 0, 1, &heap->buffer, (VkDeviceSize []){0});
-        vkCmdSetViewport(r_device.draw_command_buffer, 0, 1, &viewport);
-        vkCmdSetScissor(r_device.draw_command_buffer, 0, 1, &scissor);
-        vkCmdPushConstants(r_device.draw_command_buffer, render_pass->pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &r_renderer.projection_matrix);
-        vkCmdDraw(r_device.draw_command_buffer, 6, 1, 0, 0);
-        vkCmdEndRenderPass(r_device.draw_command_buffer);
-//        r_CmdBlitImage(r_device.draw_command_buffer, default_texture->image, framebuffer_texture->image, NULL);
-        r_CmdBlitImage(r_device.draw_command_buffer, framebuffer_texture->image, swapchain->images[swapchain->current_image], NULL);
-        r_CmdSetImageLayout(r_device.draw_command_buffer, swapchain->images[swapchain->current_image], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        vkEndCommandBuffer(r_device.draw_command_buffer);
-
-        r_LockQueue(r_device.draw_queue);
-        vkResetFences(r_device.device, 1, &r_device.draw_fence);
-        VkSubmitInfo submit_info = {};
-        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submit_info.pNext = NULL;
-        submit_info.waitSemaphoreCount = 0;
-        submit_info.pWaitSemaphores = NULL;
-        submit_info.pWaitDstStageMask = (VkPipelineStageFlagBits []){VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submit_info.commandBufferCount = 1;
-        submit_info.pCommandBuffers = &r_device.draw_command_buffer;
-        submit_info.signalSemaphoreCount = 0;
-        submit_info.pSignalSemaphores = NULL;
-        vkQueueSubmit(r_device.draw_queue->queue, 1, &submit_info, r_device.draw_fence);
-        vkWaitForFences(r_device.device, 1, &r_device.draw_fence, VK_TRUE, 0xffffffffffffffff);
-        r_UnlockQueue(r_device.draw_queue);
-
-        r_LockQueue(r_device.present_queue);
-        VkPresentInfoKHR present_info = {.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
-        present_info.swapchainCount = 1;
-        present_info.pSwapchains = &swapchain->swapchain;
-        present_info.pImageIndices = (int []){swapchain->current_image};
-        vkQueuePresentKHR(r_device.present_queue->queue, &present_info);
-        r_UnlockQueue(r_device.present_queue);
-
-        SDL_Delay(16);
-        continue;
-
-        while(r_renderer.cmd_buffer.next_in != r_renderer.cmd_buffer.next_out)
-        {
-            cmd = r_NextCmd();
-
-            switch(cmd->cmd_type)
-            {
-                case R_CMD_TYPE_BEGIN_FRAME:
-//                    r_vk_BeginFrame();
-                break;
-
-                case R_CMD_TYPE_DRAW:
-                    r_Draw(cmd);
-                break;
-
-                case R_CMD_TYPE_END_FRAME:
-//                    r_vk_EndFrame();
-                break;
-            }
-
-            r_AdvanceCmd();
-        }
-    }
-}
-
-void r_WaitEmptyQueue()
-{
-    while(r_renderer.cmd_buffer.next_in != r_renderer.cmd_buffer.next_out);
-}
-
-int r_CmpDrawCmd(const void *a, const void *b)
-{
-    return (ptrdiff_t)((struct r_draw_cmd_t *)a)->material - (ptrdiff_t)((struct r_draw_cmd_t *)b)->material;
-}
-
-void r_Draw(struct r_cmd_t *cmd)
-{
-    struct r_draw_cmd_buffer_t *cmd_buffer;
-    struct r_draw_cmd_t *draw_cmds;
-    uint32_t draw_cmd_index;
-    struct r_material_t *cur_material;
-
-    cmd_buffer = (struct r_draw_cmd_buffer_t *)cmd->data;
-    qsort(cmd_buffer->draw_cmds, cmd_buffer->draw_cmd_count, sizeof(struct r_draw_cmd_t), r_CmpDrawCmd);
-//    r_vk_PushViewMatrix(&cmd_buffer->view_matrix);
-    draw_cmds = cmd_buffer->draw_cmds;
-    while(cmd_buffer->draw_cmd_count)
-    {
-        draw_cmd_index = 0;
-        cur_material = draw_cmds[0].material;
-        while(cur_material == draw_cmds[draw_cmd_index].material)draw_cmd_index++;
-//        r_vk_Draw(cur_material, &cmd_buffer->view_projection_matrix, draw_cmds, draw_cmd_index);
-        draw_cmds += draw_cmd_index;
-        cmd_buffer->draw_cmd_count -= draw_cmd_index;
-    }
-}
+//void r_Draw(struct r_cmd_t *cmd)
+//{
+//    struct r_draw_cmd_buffer_t *cmd_buffer;
+//    struct r_draw_cmd_t *draw_cmds;
+//    uint32_t draw_cmd_index;
+//    struct r_material_t *cur_material;
+//
+//    cmd_buffer = (struct r_draw_cmd_buffer_t *)cmd->data;
+//    qsort(cmd_buffer->draw_cmds, cmd_buffer->draw_cmd_count, sizeof(struct r_draw_cmd_t), r_CmpDrawCmd);
+////    r_vk_PushViewMatrix(&cmd_buffer->view_matrix);
+//    draw_cmds = cmd_buffer->draw_cmds;
+//    while(cmd_buffer->draw_cmd_count)
+//    {
+//        draw_cmd_index = 0;
+//        cur_material = draw_cmds[0].material;
+//        while(cur_material == draw_cmds[draw_cmd_index].material)draw_cmd_index++;
+////        r_vk_Draw(cur_material, &cmd_buffer->view_projection_matrix, draw_cmds, draw_cmd_index);
+//        draw_cmds += draw_cmd_index;
+//        cmd_buffer->draw_cmd_count -= draw_cmd_index;
+//    }
+//}
 
 /*
 =================================================================================
@@ -3514,7 +3242,132 @@ void r_Draw(struct r_cmd_t *cmd)
 =================================================================================
 */
 
-void r_DrawPoint(vec3_t* position, vec3_t* color)
-{
 
+
+VkResult r_QueueSubmit(VkQueue queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence)
+{
+    struct r_command_buffer_t *command_buffer;
+    uint32_t command_buffer_index;
+
+    for(uint32_t index = 0; index < submit_info->commandBufferCount; index++)
+    {
+        command_buffer_index = r_GetCommandBufferIndex(submit_info->pCommandBuffers[index]);
+        command_buffer = get_stack_list_element(&r_device.draw_command_pool.command_buffers, command_buffer_index);
+        if(command_buffer)
+        {
+            command_buffer->submit_fence = fence;
+            add_list_element(&r_device.draw_command_pool.pending_command_buffers, &command_buffer_index);
+        }
+    }
+
+    return vkQueueSubmit(queue, submit_count, submit_info, fence);
 }
+
+void r_CmdBlitImage(VkCommandBuffer command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit)
+{
+    struct r_image_t *src_image;
+    struct r_image_t *dst_image;
+    VkImageCreateInfo *src_description;
+    VkImageCreateInfo *dst_description;
+    uint32_t old_src_layout;
+    uint32_t old_dst_layout;
+    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+
+    src_image = r_GetImagePointer(src_handle);
+    src_description = r_GetImageDescriptionPointer(src_handle);
+    dst_image = r_GetImagePointer(dst_handle);
+    dst_description = r_GetImageDescriptionPointer(dst_handle);
+
+    if(!blit)
+    {
+        blit = alloca(sizeof(VkImageBlit));
+
+        blit->srcOffsets[0].x = 0;
+        blit->srcOffsets[0].y = 0;
+        blit->srcOffsets[0].z = 0;
+        blit->srcOffsets[1].x = src_description->extent.width;
+        blit->srcOffsets[1].y = src_description->extent.height;
+        blit->srcOffsets[1].z = src_description->extent.depth;
+        blit->srcSubresource.aspectMask = src_image->aspect_mask;
+        blit->srcSubresource.baseArrayLayer = 0;
+        blit->srcSubresource.layerCount = 1;
+        blit->srcSubresource.mipLevel = 0;
+
+        blit->dstOffsets[0].x = 0;
+        blit->dstOffsets[0].y = 0;
+        blit->dstOffsets[0].z = 0;
+        blit->dstOffsets[1].x = dst_description->extent.width;
+        blit->dstOffsets[1].y = dst_description->extent.height;
+        blit->dstOffsets[1].z = dst_description->extent.depth;
+        blit->dstSubresource.aspectMask = dst_image->aspect_mask;
+        blit->dstSubresource.baseArrayLayer = 0;
+        blit->dstSubresource.layerCount = 1;
+        blit->dstSubresource.mipLevel = 0;
+    }
+
+    old_src_layout = src_image->current_layout;
+    old_dst_layout = dst_image->current_layout;
+
+    r_CmdSetImageLayout(command_buffer, src_handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    r_CmdSetImageLayout(command_buffer, dst_handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkCmdBlitImage(command_buffer, src_image->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                              dst_image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, blit, VK_FILTER_NEAREST);
+    r_CmdSetImageLayout(command_buffer, src_handle, old_src_layout);
+    r_CmdSetImageLayout(command_buffer, dst_handle, old_dst_layout);
+}
+
+void r_CmdSetImageLayout(VkCommandBuffer command_buffer, struct r_image_handle_t handle, uint32_t new_layout)
+{
+    VkImageMemoryBarrier memory_barrier = {};
+    struct r_image_t *image;
+    VkImageCreateInfo *description;
+
+    image = r_GetImagePointer(handle);
+    description = r_GetImageDescriptionPointer(handle);
+
+    if(new_layout == VK_IMAGE_LAYOUT_UNDEFINED)
+    {
+        if(r_IsDepthStencilFormat(description->format))
+        {
+            new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+        else
+        {
+            new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+    }
+
+    memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    memory_barrier.pNext = NULL;
+    /* all writes to this texture must become visible before the layout can change */
+    memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    /* new layout in place, now the memory becomes accessible */
+    memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    memory_barrier.oldLayout = image->current_layout;
+    memory_barrier.newLayout = new_layout;
+    memory_barrier.srcQueueFamilyIndex = r_device.graphics_queue_family;
+    memory_barrier.dstQueueFamilyIndex = r_device.graphics_queue_family;
+    memory_barrier.image = image->image;
+    memory_barrier.subresourceRange.aspectMask = image->aspect_mask;
+    memory_barrier.subresourceRange.baseArrayLayer = 0;
+    memory_barrier.subresourceRange.baseMipLevel = 0;
+    memory_barrier.subresourceRange.layerCount = 1;
+    memory_barrier.subresourceRange.levelCount = 1;
+
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0, 0, NULL, 0, NULL, 1, &memory_barrier);
+    image->current_layout = new_layout;
+}
+
+void r_CmdCopyStagingMemoryToBuffer(VkCommandBuffer command_buffer, struct r_buffer_handle_t handle, uint32_t size, uint32_t src_offset, uint32_t dst_offset)
+{
+    VkBufferCopy buffer_copy;
+    struct r_buffer_t *buffer;
+    buffer_copy.size = size;
+    buffer_copy.srcOffset = src_offset;
+    buffer_copy.dstOffset = dst_offset;
+    buffer = r_GetBufferPointer(handle);
+    vkCmdCopyBuffer(command_buffer, r_device.staging.staging_buffer, buffer->buffer, 1, &buffer_copy);
+}
+
+

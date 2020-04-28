@@ -1,6 +1,7 @@
 .vscode
 lib
 tests
+sprites
 *.bsp
 *.exe
 *.o

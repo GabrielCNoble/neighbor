@@ -5,24 +5,24 @@
 
 struct model_batch_t
 {
-    struct r_material_t *material;
-    struct r_draw_range_t range;
+//    struct r_material_t *material;
+//    struct r_draw_range_t range;
 };
 struct model_t
 {
-    char* name;
-    struct vec3_t* vertices;
-    struct model_batch_t* batches;
-    uint32_t batch_count;
-    uint32_t lod_count;
-    struct r_alloc_handle_t alloc; 
-    vec3_t max;
-    vec3_t min;
+//    char* name;
+//    struct vec3_t* vertices;
+//    struct model_batch_t* batches;
+//    uint32_t batch_count;
+//    uint32_t lod_count;
+//    struct r_alloc_handle_t alloc;
+//    vec3_t max;
+//    vec3_t min;
 };
 
 struct model_handle_t
 {
-    uint32_t model_index;
+//    uint32_t model_index;
 };
 
 #define MDL_INVALID_LOD_COUNT 0xffffffff

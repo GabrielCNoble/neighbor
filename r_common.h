@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "SDL/include/SDL2/SDL.h"
-#include "SDL/include/SDL2/SDL_vulkan.h"
+//#include "SDL/include/SDL2/SDL_vulkan.h"
 #include "dstuff/containers/stack_list.h"
 #include "dstuff/containers/list.h"
 #include "dstuff/containers/ringbuffer.h"
@@ -26,12 +26,7 @@ enum R_SHADER_RESOURCE_TYPE
 =================================================================
 =================================================================
 */
-struct vertex_t
-{
-    vec4_t position;
-    vec4_t normal;
-    vec4_t tex_coords;
-};
+
 
 struct view_def_t
 {
@@ -132,23 +127,23 @@ struct r_chunk_handle_t
 #define R_CHUNK_HANDLE(index, heap) (struct r_chunk_handle_t){index, heap}
 #define R_INVALID_CHUNK_HANDLE R_CHUNK_HANDLE(R_INVALID_CHUNK_INDEX, R_INVALID_HEAP_HANDLE)
 
-
-struct r_alloc_t
-{
-    uint32_t size;
-    uint32_t start;
-    uint32_t align;
-};
-
-struct r_alloc_handle_t
-{
-    unsigned alloc_index : 31;
-    unsigned is_index : 1;
-};
-
-#define R_INVALID_ALLOC_INDEX 0x7fffffff
-#define R_ALLOC_HANDLE(alloc_index, is_index_alloc) (struct r_alloc_handle_t){alloc_index, is_index_alloc}
-#define R_INVALID_ALLOC_HANDLE R_ALLOC_HANDLE(R_INVALID_ALLOC_INDEX, 1)
+//
+//struct r_alloc_t
+//{
+//    uint32_t size;
+//    uint32_t start;
+//    uint32_t align;
+//};
+//
+//struct r_alloc_handle_t
+//{
+//    unsigned alloc_index : 31;
+//    unsigned is_index : 1;
+//};
+//
+//#define R_INVALID_ALLOC_INDEX 0x7fffffff
+//#define R_ALLOC_HANDLE(alloc_index, is_index_alloc) (struct r_alloc_handle_t){alloc_index, is_index_alloc}
+//#define R_INVALID_ALLOC_HANDLE R_ALLOC_HANDLE(R_INVALID_ALLOC_INDEX, 1)
 
 
 /*
@@ -248,7 +243,8 @@ struct r_buffer_handle_t
 struct r_staging_buffer_t
 {
     VkBuffer buffer;
-    VkBufferUsageFlags usage;
+    VkDeviceMemory staging_memory;
+    void *staging_pointer;
 };
 
 #define R_INVALID_BUFFER_INDEX 0xffffffff
@@ -576,32 +572,34 @@ struct r_swapchain_handle_t
 =================================================================
 */
 
-enum R_MATERIAL_FLAGS
-{
-    R_MATERIAL_FLAG_INVALID = 1,
-    R_MATERIAL_FLAG_USE_DIFFUSE_TEXTURE = 1 << 1,
-    R_MATERIAL_FLAG_USE_NORMAL_TEXTURE = 1 << 2,
-};
 
-struct r_material_handle_t
-{
-    uint32_t index;
-};
-
-struct r_material_t
-{
-    uint32_t flags;
-    char *name;
-    vec4_t base_color;
-    struct r_texture_t *diffuse_texture;
-    struct r_texture_t *normal_texture;
-    // struct r_texture_handle_t diffuse_texture;
-    // struct r_texture_handle_t normal_texture;
-};
-
-#define R_INVALID_MATERIAL_INDEX 0xffffffff
-#define R_MATERIAL_HANDLE(index) (struct r_material_handle_t){index}
-#define R_INVALID_MATERIAL_HANDLE R_MATERIAL_HANDLE(R_INVALID_MATERIAL_INDEX)
+//
+//enum R_MATERIAL_FLAGS
+//{
+//    R_MATERIAL_FLAG_INVALID = 1,
+//    R_MATERIAL_FLAG_USE_DIFFUSE_TEXTURE = 1 << 1,
+//    R_MATERIAL_FLAG_USE_NORMAL_TEXTURE = 1 << 2,
+//};
+//
+//struct r_material_handle_t
+//{
+//    uint32_t index;
+//};
+//
+//struct r_material_t
+//{
+//    uint32_t flags;
+//    char *name;
+//    vec4_t base_color;
+//    struct r_texture_t *diffuse_texture;
+//    struct r_texture_t *normal_texture;
+//    // struct r_texture_handle_t diffuse_texture;
+//    // struct r_texture_handle_t normal_texture;
+//};
+//
+//#define R_INVALID_MATERIAL_INDEX 0xffffffff
+//#define R_MATERIAL_HANDLE(index) (struct r_material_handle_t){index}
+//#define R_INVALID_MATERIAL_HANDLE R_MATERIAL_HANDLE(R_INVALID_MATERIAL_INDEX)
 
 /*
 =================================================================
@@ -630,32 +628,32 @@ struct r_light_t
 */
 
 /* 64 MB */
-#define R_HEAP_SIZE 67108864
+//#define R_HEAP_SIZE 67108864
 
-#define R_SAMPLER_COUNT 4
+//#define R_SAMPLER_COUNT 4
 // #define R_MAX_DRAW_CMDS 64
 // #define R_MAX_UNORDERED_DRAW_CMDS 1024
-#define R_DRAW_CMD_BUFFER_DRAW_CMDS 1024
-#define R_CMD_DATA_ELEM_SIZE 64
+//#define R_DRAW_CMD_BUFFER_DRAW_CMDS 1024
+//#define R_CMD_DATA_ELEM_SIZE 64
 
-enum R_CMD_TYPE
-{
-    R_CMD_TYPE_BEGIN_FRAME,
-    R_CMD_TYPE_DRAW,
-    R_CMD_TYPE_SORT_DRAW_CMDS,
-    R_CMD_TYPE_END_FRAME,
-};
+//enum R_CMD_TYPE
+//{
+//    R_CMD_TYPE_BEGIN_FRAME,
+//    R_CMD_TYPE_DRAW,
+//    R_CMD_TYPE_SORT_DRAW_CMDS,
+//    R_CMD_TYPE_END_FRAME,
+//};
 
-struct r_cmd_t
-{
-    uint32_t cmd_type;
-    void *data;
-};
-struct r_draw_range_t
-{
-    uint32_t start;
-    uint32_t count;
-};
+//struct r_cmd_t
+//{
+//    uint32_t cmd_type;
+//    void *data;
+//};
+//struct r_draw_range_t
+//{
+//    uint32_t start;
+//    uint32_t count;
+//};
 
 /* unordered draw cmds */
 // struct r_udraw_cmd_t
@@ -674,23 +672,16 @@ struct r_draw_range_t
 
 
 /* ordered draw cmds, ready for consumption by the renderer */
-struct r_draw_cmd_t
-{
-    mat4_t model_matrix;
-    struct r_material_t *material;  /* necessary for sorting... */
-    struct r_draw_range_t range;
-};
-
-struct r_draw_cmd_buffer_t
-{
-    mat4_t view_projection_matrix;
-    mat4_t view_matrix;
-    uint32_t draw_cmd_count;
-    struct r_draw_cmd_t draw_cmds[R_DRAW_CMD_BUFFER_DRAW_CMDS];
-};
+//struct r_draw_cmd_t
+//{
+//    mat4_t model_matrix;
+////    struct r_material_t *material;  /* necessary for sorting... */
+////    struct r_draw_range_t range;
+//};
 
 
 
-
+#define R_DEFAULT_WIDTH 800
+#define R_DEFAULT_HEIGHT 600
 
 #endif

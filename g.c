@@ -1,9 +1,10 @@
-#define SDL_MAIN_HANDLED
+//#define SDL_MAIN_HANDLED
 #include "SDL/include/SDL2/SDL.h"
 
 #include "g.h"
 #include "in.h"
 #include "r.h"
+#include "r_draw.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -36,6 +37,8 @@ void g_MainLoop()
     }
 
     r_Init();
+    r_DrawInit();
+    spr_Init();
 
     if(g_InitCallback)
     {
@@ -45,7 +48,10 @@ void g_MainLoop()
     while(g_run_loop)
     {
         in_ReadInput();
+        r_BeginFrame();
         g_MainLoopCallback(0.0);
+        r_EndFrame();
+        SDL_Delay(16);
     }
 
     if(g_ShutdownCallback)

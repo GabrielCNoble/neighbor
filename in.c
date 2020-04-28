@@ -30,7 +30,9 @@ void in_ReadInput()
     SDL_PollEvent(&event);
     keyboard_state = SDL_GetKeyboardState(NULL);
     SDL_GetMouseState(&mouse_x, &mouse_y);
-    r_GetWindowSize(&window_width, &window_height);
+    window_width = 800;
+    window_height = 600;
+//    r_GetWindowSize(&window_width, &window_height);
 
     normalized_dx = ((float)mouse_x / (float)window_width) * 2.0 - 1.0;
     normalized_dy = -((float)mouse_y / (float)window_height) * 2.0 + 1.0;
