@@ -1,22 +1,53 @@
 #include "r.h"
 #include "spr.h"
 #include "dstuff/containers/stack_list.h"
+#include "dstuff/containers/list.h"
 #include "dstuff/sprite/sprpk.h"
 #include "stb/stb_image.h"
 
 
 struct stack_list_t spr_sprite_sheets;
-
+struct stack_list_t spr_animations;
+struct list_t spr_active_players;
+struct stack_list_t spr_players;
 
 void spr_Init()
 {
     spr_sprite_sheets = create_stack_list(sizeof(struct spr_sprite_sheet_t), 16);
+    spr_animations = create_stack_list(sizeof(struct spr_animation_t), 128);
+    spr_players = create_stack_list(sizeof(struct spr_anim_player_t), 512);
+    spr_active_players = create_list(sizeof(struct spr_anim_player_h), 512);
     spr_CreateDefaultSpriteSheet();
 }
 
 void spr_Shutdown()
 {
 
+}
+
+void spr_UpdateAnimPlayers(float delta_time)
+{
+    struct spr_anim_player_t *player;
+    struct spr_anim_player_h *handle;
+    struct spr_animation_t *animation;
+    struct spr_anim_frame_t *frame;
+    float frame_elapsed;
+
+    for(uint32_t player_index = 0; player_index < spr_active_players.cursor; player_index++)
+    {
+        handle = get_list_element(&spr_active_players, player_index);
+        player = get_stack_list_element(&spr_players,handle->index);
+        animation = spr_GetAnimationPointer(player->animation);
+        frame = animation->frames + player->current_frame;
+        player->frame_elapsed += delta_time;
+
+        while(player->frame_elapsed >= frame->duration)
+        {
+            player->frame_elapsed -= frame->duration;
+            player->current_frame = (player->current_frame + 1) % animation->frame_count;
+            frame = animation->frames + player->current_frame;
+        }
+    }
 }
 
 struct spr_sprite_sheet_h spr_CreateSpriteSheet()
@@ -68,10 +99,10 @@ void spr_CreateDefaultSpriteSheet()
     sprite_sheet->entries = calloc(sizeof(struct spr_sprite_entry_t), sprite_sheet->sprite_count);
 
     entry = sprite_sheet->entries;
-    entry->x = 0.0;
-    entry->y = 0.0;
-    entry->w = 1.0;
-    entry->h = 1.0;
+    entry->normalized_x = 0.0;
+    entry->normalized_y = 0.0;
+    entry->normalized_width = 1.0;
+    entry->normalized_height = 1.0;
 
     sprite = sprite_sheet->sprites;
     sprite->frame_count = 1;
@@ -127,11 +158,13 @@ struct spr_sprite_sheet_h spr_LoadSpriteSheeet(char *file_name)
 
             for(uint32_t entry_index = 0; entry_index < entry->frame_count; entry_index++)
             {
-                sprite_entry = sprite_entries + sprite_index;
-                sprite_entry->w = entry->frames[entry_index].width;
-                sprite_entry->h = entry->frames[entry_index].height;
-                sprite_entry->x = entry->frames[entry_index].offset_x;
-                sprite_entry->y = entry->frames[entry_index].offset_y;
+                sprite_entry = sprite_entries + entry_index;
+                sprite_entry->normalized_width = (float)entry->frames[entry_index].width / (float)sprite_sheet->width;
+                sprite_entry->normalized_height = (float)entry->frames[entry_index].height / (float)sprite_sheet->height;
+                sprite_entry->normalized_x = (float)entry->frames[entry_index].offset_x / (float)sprite_sheet->width;
+                sprite_entry->normalized_y = (float)entry->frames[entry_index].offset_y / (float)sprite_sheet->height;
+                sprite_entry->width = (float)entry->frames[entry_index].width;
+                sprite_entry->height = (float)entry->frames[entry_index].height;
             }
 
             entry_offset += entry->frame_count;
@@ -156,7 +189,10 @@ struct spr_sprite_sheet_h spr_LoadSpriteSheeet(char *file_name)
         sprite_sheet->texture = r_CreateTexture(&texture_description);
         texture = r_GetTexturePointer(sprite_sheet->texture);
         r_FillImageChunk(texture->image, pixels, NULL);
+        r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
+
+    return handle;
 }
 
 struct spr_sprite_h spr_GetSpriteHandle(struct spr_sprite_sheet_h handle, char *name)
@@ -170,7 +206,7 @@ struct spr_sprite_h spr_GetSpriteHandle(struct spr_sprite_sheet_h handle, char *
     {
         sprites = sprite_sheet->sprites;
 
-        for(uint32_t sprite_index = 0; sprite_index < sprite_sheet->sprite_count; sprite_sheet++)
+        for(uint32_t sprite_index = 0; sprite_index < sprite_sheet->sprite_count; sprite_index++)
         {
             if(!strcmp(name, sprites[sprite_index].name))
             {
@@ -196,5 +232,219 @@ struct spr_sprite_t *spr_GetSpritePointer(struct spr_sprite_h handle)
     }
     return sprite;
 }
+
+struct spr_sprite_entry_t *spr_GetSpriteEntry(struct spr_sprite_h handle, uint32_t frame)
+{
+    struct spr_sprite_sheet_t *sprite_sheet;
+    struct spr_sprite_entry_t *entry = NULL;
+    struct spr_sprite_t *sprite;
+
+    sprite_sheet = spr_GetSpriteSheetPointer(handle.sprite_sheet);
+    sprite = spr_GetSpritePointer(handle);
+
+    if(sprite_sheet && sprite)
+    {
+        if(frame < sprite->frame_count)
+        {
+            entry = sprite_sheet->entries + sprite->first_entry + frame;
+        }
+    }
+
+    return entry;
+}
+
+struct spr_animation_h spr_CreateAnimation(uint32_t frame_count)
+{
+    struct spr_animation_h handle = SPR_INVALID_ANIMATION_HANDLE;
+    struct spr_animation_t *animation;
+
+    handle.index = add_stack_list_element(&spr_animations, NULL);
+    animation = get_stack_list_element(&spr_animations, handle.index);
+
+    memset(animation, 0, sizeof(struct spr_animation_t));
+    animation->frame_count = frame_count;
+    animation->frames = calloc(sizeof(struct spr_anim_frame_t), frame_count);
+
+    return handle;
+}
+
+struct spr_animation_h spr_CreateAnimationFromSprite(struct spr_sprite_h handle)
+{
+    struct spr_animation_h animation_handle = SPR_INVALID_ANIMATION_HANDLE;
+    struct spr_animation_t *animation;
+    struct spr_sprite_sheet_t *sprite_sheet;
+    struct spr_sprite_t *sprite;
+    struct spr_anim_frame_t *frame;
+
+    sprite = spr_GetSpritePointer(handle);
+
+    if(sprite)
+    {
+        animation_handle = spr_CreateAnimation(sprite->frame_count);
+        animation = spr_GetAnimationPointer(animation_handle);
+        animation->sprite = handle;
+
+        for(uint32_t frame_index = 0; frame_index < animation->frame_count; frame_index++)
+        {
+            frame = animation->frames + frame_index;
+            frame->sprite_frame = frame_index;
+            frame->scale = 1.0;
+        }
+    }
+
+    return animation_handle;
+}
+
+struct spr_animation_t *spr_GetAnimationPointer(struct spr_animation_h handle)
+{
+    struct spr_animation_t *animation;
+
+    animation = get_stack_list_element(&spr_animations, handle.index);
+    if(animation && animation->frame_count == 0xffffffff)
+    {
+        animation = NULL;
+    }
+
+    return animation;
+}
+
+struct spr_anim_frame_t *spr_GetAnimationFrame(struct spr_animation_h handle, uint32_t frame_index)
+{
+    struct spr_animation_t *animation;
+    struct spr_anim_frame_t *frame = NULL;
+    animation = spr_GetAnimationPointer(handle);
+
+    if(animation)
+    {
+        frame = animation->frames + (frame_index % animation->frame_count);
+    }
+
+    return frame;
+}
+
+struct spr_anim_player_h spr_StartAnimation(struct spr_anim_player_h player_handle, struct spr_animation_h animation_handle)
+{
+    struct spr_anim_player_t *player;
+    struct spr_animation_t *animation;
+
+    animation = spr_GetAnimationPointer(animation_handle);
+    if(animation)
+    {
+        player = spr_GetAnimationPlayerPointer(player_handle);
+        if(!player)
+        {
+            player_handle.index = add_stack_list_element(&spr_players, NULL);
+            player = get_stack_list_element(&spr_players, player_handle.index);
+            player->active_index = 0xffffffff;
+        }
+
+        player->animation = animation_handle;
+        player->current_frame = 0;
+        player->frame_elapsed = 0.0;
+
+        if(player->active_index == 0xffffffff)
+        {
+            player->active_index = add_list_element(&spr_active_players, &player_handle);
+        }
+    }
+
+    return player_handle;
+}
+
+void spr_PauseAnimation(struct spr_anim_player_h player_handle)
+{
+    struct spr_anim_player_t *player;
+
+    player = spr_GetAnimationPlayerPointer(player_handle);
+
+    if(player && player->active_index < 0xffffffff)
+    {
+        remove_list_element(&spr_active_players, player->active_index);
+        player->active_index = 0xffffffff;
+    }
+}
+
+void spr_ResumeAnimation(struct spr_anim_player_h player_handle)
+{
+    struct spr_anim_player_t *player;
+
+    player = spr_GetAnimationPlayerPointer(player_handle);
+
+    if(player && player->active_index == 0xffffffff)
+    {
+        player->active_index = add_list_element(&spr_active_players, &player_handle);
+    }
+}
+
+void spr_StopAnimation(struct spr_anim_player_h player_handle)
+{
+    struct spr_anim_player_t *player;
+
+    player = spr_GetAnimationPlayerPointer(player_handle);
+
+    if(player)
+    {
+        if(player->active_index < 0xffffffff)
+        {
+            remove_list_element(&spr_active_players, player->active_index);
+        }
+        player->animation = SPR_INVALID_ANIMATION_HANDLE;
+
+        remove_stack_list_element(&spr_players, player_handle.index);
+    }
+}
+
+struct spr_anim_player_t *spr_GetAnimationPlayerPointer(struct spr_anim_player_h player_handle)
+{
+    struct spr_anim_player_t *player;
+    player = get_stack_list_element(&spr_players, player_handle.index);
+    if(player && player->animation.index == SPR_INVALID_ANIMATION_INDEX && player->active_index == 0xffffffff)
+    {
+        player = NULL;
+    }
+
+    return player;
+}
+
+void spr_SetAnimationFrame(struct spr_anim_player_h player_handle, uint32_t frame)
+{
+    struct spr_anim_player_t *player;
+    struct spr_animation_t *animation;
+    player = spr_GetAnimationPlayerPointer(player_handle);
+
+    if(player)
+    {
+        animation = spr_GetAnimationPointer(player->animation);
+        player->frame_elapsed = 0.0;
+        player->current_frame = frame % animation->frame_count;
+    }
+}
+
+struct spr_anim_frame_t *spr_GetCurrentAnimationFrame(struct spr_anim_player_h player_handle)
+{
+    struct spr_anim_player_t *player;
+    struct spr_animation_t *animation;
+    struct spr_anim_frame_t *frame = NULL;
+
+    player = spr_GetAnimationPlayerPointer(player_handle);
+    if(player)
+    {
+        animation = spr_GetAnimationPointer(player->animation);
+        frame = animation->frames + player->current_frame;
+    }
+
+    return frame;
+}
+
+
+
+
+
+
+
+
+
+
+
 
 

@@ -38,29 +38,33 @@ uint32_t r_GetFormatPixelPitch(VkFormat format);
 
 struct stack_list_t *r_GetHeapListFromType(uint32_t type);
 
-struct r_heap_handle_t r_CreateHeap(uint32_t size, uint32_t type);
+struct r_heap_h r_CreateHeap(uint32_t size, uint32_t type);
 
-struct r_heap_handle_t r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint32_t size);
+struct r_heap_h r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint32_t size);
 
-struct r_heap_handle_t r_CreateBufferHeap(uint32_t usage, uint32_t size);
+struct r_heap_h r_CreateBufferHeap(uint32_t usage, uint32_t size);
 
-void r_DestroyHeap(struct r_heap_handle_t handle);
+void r_DestroyHeap(struct r_heap_h handle);
 
-struct r_heap_t *r_GetHeapPointer(struct r_heap_handle_t handle);
+struct r_heap_t *r_GetHeapPointer(struct r_heap_h handle);
 
-void r_DefragHeap(struct r_heap_handle_t handle, uint32_t move_allocs);
+void r_DefragHeap(struct r_heap_h handle, uint32_t move_allocs);
 
-struct r_chunk_handle_t r_AllocChunk(struct r_heap_handle_t handle, uint32_t size, uint32_t align);
+struct r_chunk_h r_AllocChunk(struct r_heap_h handle, uint32_t size, uint32_t align);
 
-void r_FreeChunk(struct r_chunk_handle_t handle);
+void r_FreeChunk(struct r_chunk_h handle);
 
-struct r_chunk_t *r_GetChunkPointer(struct r_chunk_handle_t handle);
+struct r_chunk_t *r_GetChunkPointer(struct r_chunk_h handle);
+
+void *r_GetChunkMappedMemory(struct r_chunk_h handle);
 
 void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy);
 
-void r_FillBufferChunk(struct r_buffer_handle_t handle, void *data, uint32_t size, uint32_t offset);
+void r_FillBufferChunk(struct r_buffer_h handle, void *data, uint32_t size, uint32_t offset);
 
-void r_CopyStagingMemoryToBuffer(struct r_buffer_handle_t buffer, uint32_t size, uint32_t offset);
+struct r_staging_buffer_t *r_AllocateStagingBuffer(union r_command_buffer_h command_buffer);
+
+void r_FreeStagingBuffer(struct r_staging_buffer_t *buffer);
 
 void *r_LockStagingMemory();
 
@@ -72,9 +76,11 @@ void r_UnlockStagingMemory();
 =================================================================
 */
 
-VkCommandBuffer r_AllocateCommandBuffer();
+union r_command_buffer_h r_AllocateCommandBuffer();
 
-uint32_t r_GetCommandBufferIndex(VkCommandBuffer command_buffer);
+struct r_command_buffer_t *r_GetCommandBufferPointer(union r_command_buffer_h command_buffer);
+
+void r_MarkCommandBufferAsPending(VkCommandBuffer command_buffer);
 
 
 
@@ -84,11 +90,11 @@ uint32_t r_GetCommandBufferIndex(VkCommandBuffer command_buffer);
 =================================================================
 */
 
-struct r_buffer_handle_t r_CreateBuffer(VkBufferCreateInfo *description);
+struct r_buffer_h r_CreateBuffer(VkBufferCreateInfo *description);
 
-void r_DestroyBuffer(struct r_buffer_handle_t handle);
+void r_DestroyBuffer(struct r_buffer_h handle);
 
-struct r_buffer_t *r_GetBufferPointer(struct r_buffer_handle_t handle);
+struct r_buffer_t *r_GetBufferPointer(struct r_buffer_h handle);
 
 /*
 =================================================================
@@ -269,9 +275,7 @@ struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t han
 
 struct r_descriptor_pool_list_t *r_GetDescriptorPoolListPointer(struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage);
 
-VkDescriptorSet r_AllocateDescriptorSet(struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage, VkFence submission_fence);
-
-VkResult r_UpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes);
+VkDescriptorSet r_AllocateDescriptorSet(union r_command_buffer_h command_buffer, struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage);
 
 void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline);
 
@@ -317,6 +321,8 @@ VkQueue r_GetDrawQueue();
 
 VkBuffer r_GetStagingBuffer();
 
+uint32_t r_GetStagingMemorySize();
+
 //void r_QueueSubmit(struct r_queue_t *queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence);
 
 /*
@@ -327,40 +333,7 @@ VkBuffer r_GetStagingBuffer();
 
 VkFence r_CreateFence();
 
-void r_ResetFences(uint32_t fence_count, VkFence *fences);
-
-void r_WaitForFences(uint32_t fence_count, VkFence *fences, VkBool32 wait_all, uint64_t time_out);
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-//void r_SetZPlanes(float z_near, float z_far);
-
-//void r_SetFovY(float fov_y);
-
-//void r_RecomputeViewProjectionMatrix();
-
-//void r_SetViewMatrix(mat4_t *view_matrix);
-
-//void r_GetWindowSize(uint32_t *width, uint32_t *height);
-
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-//struct r_material_handle_t r_AllocMaterial();
-//
-//void r_FreeMaterial(struct r_material_handle_t handle);
-//
-//struct r_material_t *r_GetMaterialPointer(struct r_material_handle_t handle);
-//
-//struct r_material_handle_t r_GetMaterialHandle(char *name);
+VkEvent r_CreateEvent();
 
 /*
 =================================================================
@@ -375,53 +348,56 @@ struct r_light_t *r_GetLightPointer(struct r_light_handle_t handle);
 void r_DestroyLight(struct r_light_handle_t handle);
 
 /*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-//void *r_AllocCmdData(uint32_t size);
-
-//void *r_AtomicAllocCmdData(uint32_t size);
-
-//void r_BeginSubmission(mat4_t *view_projection_matrix, mat4_t *view_matrix);
-
-//void r_SubmitDrawCmd(mat4_t *model_matrix, struct r_material_t *material, uint32_t start, uint32_t count);
-
-//void r_EndSubmission();
-
-// void r_SortDrawCmds(struct r_udraw_cmd_buffer_t *udraw_cmd_buffer);
-
-//void r_QueueCmd(uint32_t type, void *data, uint32_t data_size);
-
-//struct r_cmd_t *r_NextCmd();
-
-//void r_AdvanceCmd();
-
-//int r_ExecuteCmds(void *data);
-
-//void r_WaitEmptyQueue();
-
-//void r_Draw(struct r_cmd_t *cmd);
-
-
-/*
 =================================================================================
 =================================================================================
 =================================================================================
 */
 
+void r_vkBeginCommandBuffer(union r_command_buffer_h command_buffer);
 
-VkResult r_QueueSubmit(VkQueue queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence);
+void r_AppendEvent(union r_command_buffer_h command_buffer, VkEvent event);
 
-void r_CmdBlitImage(VkCommandBuffer command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+void r_vkCmdBindPipeline(union r_command_buffer_h command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
 
-void r_CmdSetImageLayout(VkCommandBuffer command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
+void r_vkCmdBindVertexBuffers(union r_command_buffer_h command_buffer, uint32_t first_binding, uint32_t binding_count, VkBuffer *buffers, VkDeviceSize *offsets);
 
-void r_CmdCopyStagingMemoryToBuffer(VkCommandBuffer command_buffer, struct r_buffer_handle_t handle, uint32_t size, uint32_t src_offset, uint32_t dst_offset);
+void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, VkRenderPassBeginInfo *begin_info, VkSubpassContents subpass_contents);
 
-//void r_CmdBeginRenderPass(VkCommandBuffer command_buffer, struct r_render_pass_handle_t render_pass, )
+void r_vkCmdEndRenderPass(union r_command_buffer_h command_buffer);
 
+void r_vkCmdSetViewport(union r_command_buffer_h command_buffer, uint32_t first_viewport, uint32_t viewport_count, VkViewport *viewports);
 
+void r_vkCmdSetScissor(union r_command_buffer_h command_buffer, uint32_t first_scissor, uint32_t scissor_count, VkRect2D *scissors);
+
+void r_vkCmdDraw(union r_command_buffer_h command_buffer, uint32_t count, uint32_t instance_count, uint32_t first, uint32_t first_instance);
+
+void r_vkCmdCopyBufferToImage(union r_command_buffer_h command_buffer, VkBuffer src_buffer, VkImage dst_image, VkImageLayout dst_layout, uint32_t region_count, VkBufferImageCopy *regions);
+
+void r_vkCmdBindDescriptorSets(union r_command_buffer_h command_buffer, VkPipelineBindPoint bind_point, VkPipelineLayout layout, uint32_t first_set, uint32_t set_count, VkDescriptorSet *descriptor_sets, uint32_t dynamic_offset_count, uint32_t *dynamic_offsets);
+
+VkResult r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes);
+
+VkResult r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range);
+
+VkResult r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture);
+
+void r_vkEndCommandBuffer(union r_command_buffer_h command_buffer);
+
+VkResult r_vkQueueSubmit(VkQueue queue, uint32_t submit_count, struct r_submit_info_t *submit_info, VkFence fence);
+
+void r_vkResetFences(uint32_t fence_count, VkFence *fences);
+
+void r_vkWaitForFences(uint32_t fence_count, VkFence *fences, VkBool32 wait_all, uint64_t time_out);
+
+void r_vkCmdBlitImage(union r_command_buffer_h command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+
+void r_vkCmdPipelineBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags,
+                            uint32_t memory_barrier_count, VkMemoryBarrier *memory_barriers,
+                            uint32_t buffer_barrier_count, VkBufferMemoryBarrier *buffer_memory_barriers,
+                            uint32_t image_barrier_count, VkImageMemoryBarrier *image_memory_barriers);
+
+void r_vkCmdSetImageLayout(union r_command_buffer_h command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
+
+void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffer_h buffer, uint32_t offset, uint32_t size, void *data);
 
 #endif

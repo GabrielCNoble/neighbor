@@ -14,5 +14,9 @@ void g_MainLoop();
 
 void g_Quit();
 
+void g_UpdateDeltaTime();
+
+float g_GetCurrentDeltaTime(uint64_t *current_count_value);
+
 
 #endif // G_H

@@ -13,6 +13,10 @@ void (*g_MainLoopCallback)(float delta_time) = NULL;
 void (*g_ShutdownCallback)() = NULL;
 uint32_t g_run_loop = 1;
 
+uint64_t g_timer_frequency;
+uint64_t g_timer_count;
+float g_delta_time;
+
 void g_SetInitCallback(void (*callback)())
 {
     g_InitCallback = callback;
@@ -36,6 +40,8 @@ void g_MainLoop()
         return;
     }
 
+    g_timer_frequency = SDL_GetPerformanceFrequency();
+
     r_Init();
     r_DrawInit();
     spr_Init();
@@ -47,11 +53,12 @@ void g_MainLoop()
 
     while(g_run_loop)
     {
+        g_UpdateDeltaTime();
         in_ReadInput();
+        spr_UpdateAnimPlayers(g_delta_time);
         r_BeginFrame();
-        g_MainLoopCallback(0.0);
+        g_MainLoopCallback(g_delta_time);
         r_EndFrame();
-        SDL_Delay(16);
     }
 
     if(g_ShutdownCallback)
@@ -65,6 +72,35 @@ void g_MainLoop()
 void g_Quit()
 {
     g_run_loop = 0;
+}
+
+void g_UpdateDeltaTime()
+{
+    uint64_t current_count;
+    g_delta_time = g_GetCurrentDeltaTime(&current_count);
+    g_timer_count = current_count;
+}
+
+float g_GetCurrentDeltaTime(uint64_t *current_count_value)
+{
+    uint64_t current_count = SDL_GetPerformanceCounter();
+    uint64_t prev_count = g_timer_count;
+    float delta_time;
+
+    if(current_count < prev_count)
+    {
+        /* impressively enough, the counter wrapped around, so we'll adjust
+        things up a bit here to allow consistent timing */
+        current_count += 0xffffffffffffffff - prev_count;
+        prev_count = 0;
+    }
+
+    delta_time = (double)((current_count - prev_count) * 1000) / (double)g_timer_frequency;
+    if(current_count_value)
+    {
+        *current_count_value = current_count;
+    }
+    return delta_time;
 }
 
 

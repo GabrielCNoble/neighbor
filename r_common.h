@@ -27,6 +27,42 @@ enum R_SHADER_RESOURCE_TYPE
 =================================================================
 */
 
+struct r_command_buffer_t
+{
+    VkCommandBuffer command_buffer;
+    VkFence submit_fence;
+    VkEvent complete_event;
+    struct list_t events;
+};
+
+union r_command_buffer_h
+{
+    VkCommandBuffer command_buffer;
+    uint32_t index;
+};
+
+#define R_INVALID_COMMAND_BUFFER_INDEX 0xffffffff
+#define R_COMMAND_BUFFER_HANDLE(index) (union r_command_buffer_h){index}
+#define R_INVALID_COMMAND_BUFFER_HANDLE R_COMMAND_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
+
+struct r_submit_info_t
+{
+    VkStructureType s_type;
+    const void *next;
+    uint32_t wait_semaphore_count;
+    const VkSemaphore *wait_semaphores;
+    const VkPipelineStageFlags *wait_dst_stage_mask;
+    uint32_t command_buffer_count;
+    union r_command_buffer_h *command_buffers;
+    uint32_t signal_semaphore_count;
+    const VkSemaphore *signal_semaphores;
+};
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
 
 struct view_def_t
 {
@@ -66,6 +102,16 @@ struct r_viewport_t
 */
 
 
+struct r_staging_buffer_t
+{
+    VkBuffer buffer;
+    void *memory;
+    uint32_t offset;
+    VkEvent complete_event;
+};
+
+
+
 enum R_HEAP_TYPE
 {
     R_HEAP_TYPE_BASE = 0,
@@ -98,16 +144,17 @@ struct r_buffer_heap_t
     BASE_HEAP_FIELDS;
     VkDeviceMemory memory;
     VkBuffer buffer;
+    void *mapped_memory;
 };
 
-struct r_heap_handle_t
+struct r_heap_h
 {
     uint8_t index;
     uint8_t type;
 };
 
 #define R_INVALID_HEAP_INDEX 0xffff
-#define R_HEAP_HANDLE(index, type) (struct r_heap_handle_t){index, type}
+#define R_HEAP_HANDLE(index, type) (struct r_heap_h){index, type}
 #define R_INVALID_HEAP_HANDLE R_HEAP_HANDLE(R_INVALID_HEAP_INDEX, R_HEAP_TYPE_BASE)
 
 struct r_chunk_t
@@ -117,14 +164,14 @@ struct r_chunk_t
     uint32_t align;
 };
 
-struct r_chunk_handle_t
+struct r_chunk_h
 {
     uint32_t index;
-    struct r_heap_handle_t heap;
+    struct r_heap_h heap;
 };
 
 #define R_INVALID_CHUNK_INDEX 0xffffffff
-#define R_CHUNK_HANDLE(index, heap) (struct r_chunk_handle_t){index, heap}
+#define R_CHUNK_HANDLE(index, heap) (struct r_chunk_h){index, heap}
 #define R_INVALID_CHUNK_HANDLE R_CHUNK_HANDLE(R_INVALID_CHUNK_INDEX, R_INVALID_HEAP_HANDLE)
 
 //
@@ -232,23 +279,23 @@ struct r_shader_handle_t
 struct r_buffer_t
 {
     VkBuffer buffer;
-    struct r_chunk_handle_t memory;
+    struct r_chunk_h memory;
 };
 
-struct r_buffer_handle_t
+struct r_buffer_h
 {
     uint32_t index;
 };
 
-struct r_staging_buffer_t
-{
-    VkBuffer buffer;
-    VkDeviceMemory staging_memory;
-    void *staging_pointer;
-};
+//struct r_staging_buffer_t
+//{
+//    VkBuffer buffer;
+//    VkDeviceMemory staging_memory;
+//    void *staging_pointer;
+//};
 
 #define R_INVALID_BUFFER_INDEX 0xffffffff
-#define R_BUFFER_HANDLE(index) (struct r_buffer_handle_t){index}
+#define R_BUFFER_HANDLE(index) (struct r_buffer_h){index}
 #define R_INVALID_BUFFER_HANDLE R_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
 
 /*
@@ -266,7 +313,7 @@ struct r_staging_buffer_t
 struct r_image_t
 {
     VkImage image;
-    struct r_chunk_handle_t memory;
+    struct r_chunk_h memory;
     uint32_t current_layout;
     uint8_t aspect_mask;
 };
@@ -376,10 +423,12 @@ struct r_descriptor_pool_t
     executing before other threads that were also allocating descriptor sets from this pool.
     This means that the pool may get reset while the descriptor sets are being used by gpu. */
 
-    VkFence submission_fence; /* once a pool gets depleted, it gets put in an used
-    pools list. To know when it's safe to recycle it, the fence used in the submission
-    that depleted this pool gets stored here. A pool can be used in several submissions,
-    but only the one that depleted it is enough to tell whether it's safe to recycle it. */
+//    VkFence submission_fence; /* once a pool gets depleted, it gets put in an used
+//    pools list. To know when it's safe to recycle it, the fence used in the submission
+//    that depleted this pool gets stored here. A pool can be used in several submissions,
+//    but only the one that depleted it is enough to tell whether it's safe to recycle it. */
+
+    VkEvent exhaustion_event;
     uint32_t set_count;
     uint32_t free_count;
 };
