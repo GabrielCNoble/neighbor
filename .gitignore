@@ -1,8 +1,6 @@
 .vscode
-lib
-!lib/dstuff/*.h
-!lib/dstuff/*.c
-!lib/stb
+lib/vulkan
+lib/SDL
 tests
 sprites
 *.bsp

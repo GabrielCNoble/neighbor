@@ -1,0 +1,3 @@
+[submodule "lib/dstuff"]
+	path = lib/dstuff
+	url = https://github.com/GabrielCNoble/dstuff.git
