@@ -15,7 +15,9 @@ uint32_t r_current_draw_cmd_list = 0xffffffff;
 struct r_render_pass_handle_t r_render_pass;
 struct r_framebuffer_handle_t r_framebuffer;
 struct r_buffer_h r_vertex_buffer;
-struct stack_list_t r_uniform_buffers;
+struct list_t r_uniform_buffers;
+struct list_t r_free_uniform_buffers;
+struct list_t r_used_uniform_buffers;
 VkQueue r_draw_queue;
 VkFence r_draw_fence;
 
@@ -181,6 +183,10 @@ void r_DrawInit()
     r_draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 32);
     r_pending_draw_cmd_lists = create_ringbuffer(sizeof(uint32_t), 32);
     r_draw_calls = create_list(sizeof(struct r_draw_call_data_t), R_DRAW_CMD_BUFFER_DRAW_CMDS);
+
+    r_uniform_buffers = create_list(sizeof(struct r_uniform_buffer_t), 64);
+    r_free_uniform_buffers = create_list(sizeof(uint32_t), 64);
+    r_used_uniform_buffers = create_list(sizeof(uint32_t), 64);
 }
 
 void r_DrawShutdown()
@@ -302,14 +308,15 @@ void r_DispatchPending()
 //    struct spr_sprite
     struct spr_sprite_entry_t *entry;
     struct spr_sprite_sheet_h current_sprite_sheet;
-    void *staging_memory;
-    VkBuffer staging_buffer;
+//    void *staging_memory;
+//    VkBuffer staging_buffer;
     VkViewport viewport;
     VkRect2D scissor;
     VkDescriptorSet descriptor_set;
     struct r_draw_call_data_t *current_call_data;
     struct r_draw_call_data_t new_call_data;
     struct r_draw_uniform_data_t *draw_data;
+    struct r_uniform_buffer_t *uniform_buffer;
 
     mat4_t model_view_projection_matrix;
     mat4_t transform;
@@ -357,19 +364,19 @@ void r_DispatchPending()
     scissor.extent.width = R_DEFAULT_WIDTH;
     scissor.extent.height = R_DEFAULT_HEIGHT;
 
-    staging_memory = r_LockStagingMemory();
-    r_UnlockStagingMemory();
+//    staging_memory = r_LockStagingMemory();
+//    r_UnlockStagingMemory();
 
     current_sprite_sheet = SPR_INVALID_SPRITE_SHEET_HANDLE;
     r_draw_calls.cursor = 0;
-    current_call_data = get_list_element(&r_draw_calls, 0);
+    current_call_data = &new_call_data;
     current_call_data->count = 0;
     current_call_data->first = 0;
     current_call_data->first_instance = 0;
     current_call_data->instance_count = 0;
     current_call_data->texture = R_INVALID_TEXTURE_HANDLE;
 
-    staging_buffer = r_GetStagingBuffer();
+//    staging_buffer = r_GetStagingBuffer();
 
     while((cmd_list_index = get_ringbuffer_element(&r_pending_draw_cmd_lists)))
     {
@@ -382,8 +389,10 @@ void r_DispatchPending()
         r_vkCmdSetViewport(command_buffer, 0, 1, &viewport);
         r_vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
+        uniform_buffer = r_AllocateUniformBuffer(command_buffer);
+
         descriptor_set = r_AllocateDescriptorSet(command_buffer, &render_pass->pipeline, VK_SHADER_STAGE_VERTEX_BIT);
-        r_UpdateUniformBufferDescriptorSet(descriptor_set, 0, staging_buffer, 0, 65536);
+        r_UpdateUniformBufferDescriptorSet(descriptor_set, 0, uniform_buffer->vk_buffer, 0, 65536);
         r_vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, render_pass->pipeline.layout, 0, 1, &descriptor_set, 0, NULL);
 
         for(uint32_t draw_cmd_index = 0; draw_cmd_index < cmd_list->draw_cmd_count; draw_cmd_index++)
@@ -406,7 +415,7 @@ void r_DispatchPending()
 
             entry = spr_GetSpriteEntry(draw_cmd->sprite, draw_cmd->frame);
             uint32_t offset = sizeof(struct r_draw_uniform_data_t) * (current_call_data->first_instance + current_call_data->instance_count);
-            draw_data = (struct r_draw_uniform_data_t *)((char *)staging_memory + offset);
+            draw_data = (struct r_draw_uniform_data_t *)((char *)uniform_buffer->memory + offset);
 
             mat4_t_identity(&transform);
             transform.rows[3].x = draw_cmd->position.x;
@@ -442,5 +451,67 @@ void r_DispatchPending()
     r_vkQueueSubmit(r_draw_queue, 1, &submit_info, r_draw_fence);
     r_vkWaitForFences(1, &r_draw_fence, 1, 0xffffffffffffffff);
 }
+
+struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer)
+{
+    struct r_uniform_buffer_t *uniform_buffer = NULL;
+    struct r_buffer_t *buffer;
+    VkBufferCreateInfo buffer_create_info = {};
+    uint32_t *buffer_index;
+    uint32_t new_buffer_index;
+    VkResult result;
+    uint32_t recycled_buffers = 0;
+
+    for(uint32_t index = 0; index < r_used_uniform_buffers.cursor; index++)
+    {
+        buffer_index = get_list_element(&r_used_uniform_buffers, index);
+        uniform_buffer = get_list_element(&r_uniform_buffers, *buffer_index);
+        result = r_vkGetEventStatus(uniform_buffer->event);
+
+        if(result == VK_EVENT_SET)
+        {
+            r_vkResetEvent(uniform_buffer->event);
+            remove_list_element(&r_used_uniform_buffers, index);
+            add_list_element(&r_free_uniform_buffers, buffer_index);
+            recycled_buffers++;
+        }
+    }
+
+//    if(recycled_buffers)
+//    {
+//        printf("%d uniform buffer recycled\n", recycled_buffers);
+//    }
+
+    buffer_index = get_list_element(&r_free_uniform_buffers, 0);
+
+    if(!buffer_index)
+    {
+        new_buffer_index = add_list_element(&r_uniform_buffers, NULL);
+        uniform_buffer = get_list_element(&r_uniform_buffers, new_buffer_index);
+        buffer_create_info.size = 65536;
+        buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        uniform_buffer->buffer = r_CreateBuffer(&buffer_create_info);
+        uniform_buffer->event = r_CreateEvent();
+        buffer = r_GetBufferPointer(uniform_buffer->buffer);
+        uniform_buffer->memory = r_GetChunkMappedMemory(buffer->memory);
+        uniform_buffer->vk_buffer = buffer->buffer;
+        add_list_element(&r_used_uniform_buffers, &new_buffer_index);
+    }
+    else
+    {
+        buffer = get_list_element(&r_uniform_buffers, *buffer_index);
+        add_list_element(&r_used_uniform_buffers, buffer_index);
+        remove_list_element(&r_free_uniform_buffers, 0);
+    }
+
+    r_AppendEvent(command_buffer, uniform_buffer->event);
+
+    return uniform_buffer;
+}
+
+
+
+
+
 
 

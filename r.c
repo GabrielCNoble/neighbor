@@ -839,20 +839,9 @@ void *r_GetChunkMappedMemory(struct r_chunk_h handle)
 
 void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy)
 {
-//    struct r_image_handle_t copy_image_handle;
-//    struct r_image_t *copy_image;
     VkImageCreateInfo *description;
     struct r_image_t *image;
     struct r_staging_buffer_t *staging_buffer;
-//    VkImageCreateInfo *copy_image_description;
-//    VkSubresourceLayout subresource_layout;
-//    VkImageSubresource subresource;
-//    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-//    VkSubmitInfo submit_info = {
-//        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-//        .commandBufferCount = 1,
-//        .pCommandBuffers = &r_device.transfer_command_buffer
-//    };
     VkBufferImageCopy *regions;
     VkBufferImageCopy *region;
     union r_command_buffer_h command_buffer;
@@ -865,7 +854,6 @@ void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageC
 
     description = r_GetImageDescriptionPointer(handle);
     image = r_GetImagePointer(handle);
-//    staging_buffer = r_AllocateStagingBuffer(R_INVALID_COMMAND_BUFFER_HANDLE);
 
     if(!copy)
     {
@@ -953,6 +941,9 @@ void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageC
 
         while(region_index < region_count)
         {
+            /* if we happen to run out of staging buffers, but have uncommitted work, we'll break out,
+            commit the work, then come back here. After committing the work we'll spin in here until
+            a buffer becomes available. This may take a while if other threads are also uploading */
             staging_buffer = r_AllocateStagingBuffer(command_buffer);
             if(staging_buffer)
             {
@@ -966,9 +957,11 @@ void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageC
                 continue;
             }
 
-            /* didn't get a staging buffer, so break out and try to dispatch some work while we wait
-            for some to be available */
-            break;
+            if(first_region < region_index)
+            {
+                /* didn't get a staging buffer, but we have some work we can dispatch, so break out and dispatch it */
+                break;
+            }
         }
 
         r_vkCmdCopyBufferToImage(command_buffer, r_device.staging.base_staging_buffer, image->image,
@@ -1044,10 +1037,11 @@ struct r_staging_buffer_t *r_AllocateStagingBuffer(union r_command_buffer_h comm
         }
     }
     buffer_index = get_list_element(&r_device.staging.free_buffers, 0);
-    if(*buffer_index < 0xffffffff)
+    if(buffer_index)
     {
         buffer = r_device.staging.staging_buffers + *buffer_index;
         r_AppendEvent(command_buffer, buffer->complete_event);
+        add_list_element(&r_device.staging.used_buffers, buffer_index);
         remove_list_element(&r_device.staging.free_buffers, 0);
     }
 
@@ -1433,8 +1427,7 @@ void r_CreateDefaultTexture()
             default_texture_pixels[y * description.extent.width + x] = ((x + y) % 2) ? 0xff111111 : 0xff222222;
         }
     }
-//    memset(default_texture_pixels, 0xffffffff, sizeof(uint32_t) * description.extent.width * description.extent.height);
-//    r_FillImage(texture->image, default_texture_pixels);
+
     r_FillImageChunk(texture->image, default_texture_pixels, NULL);
     r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     free(default_texture_pixels);
@@ -2856,96 +2849,6 @@ void r_vkCmdBindDescriptorSets(union r_command_buffer_h command_buffer, VkPipeli
     vkCmdBindDescriptorSets(command_buffer_ptr->command_buffer, bind_point, layout, first_set, set_count, descriptor_sets, dynamic_offset_count, dynamic_offsets);
 }
 
-VkResult r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes)
-{
-    vkUpdateDescriptorSets(r_device.device, descriptor_write_count, (const VkWriteDescriptorSet *)descriptor_writes, 0, NULL);
-}
-
-VkResult r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range)
-{
-    VkWriteDescriptorSet descriptor_set_write = {};
-    VkDescriptorBufferInfo buffer_info = {};
-
-    buffer_info.buffer = uniform_buffer;
-    buffer_info.offset = offset;
-    buffer_info.range = range;
-
-    descriptor_set_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptor_set_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptor_set_write.descriptorCount = 1;
-    descriptor_set_write.dstSet = descriptor_set;
-    descriptor_set_write.dstBinding = dst_binding;
-    descriptor_set_write.dstArrayElement = 0;
-    descriptor_set_write.pBufferInfo = &buffer_info;
-
-    vkUpdateDescriptorSets(r_device.device, 1, &descriptor_set_write, 0, NULL);
-}
-
-VkResult r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture)
-{
-    VkWriteDescriptorSet descriptor_set_write = {};
-    VkDescriptorImageInfo image_info = {};
-    struct r_texture_t *texture_ptr;
-
-    texture_ptr = r_GetTexturePointer(texture);
-    image_info.sampler = texture_ptr->sampler;
-    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    image_info.imageView = texture_ptr->image_view;
-
-    descriptor_set_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptor_set_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptor_set_write.descriptorCount = 1;
-    descriptor_set_write.dstSet = descriptor_set;
-    descriptor_set_write.dstBinding = dst_binding;
-    descriptor_set_write.dstArrayElement = 0;
-    descriptor_set_write.pImageInfo = &image_info;
-
-    vkUpdateDescriptorSets(r_device.device, 1, &descriptor_set_write, 0, NULL);
-}
-
-void r_vkEndCommandBuffer(union r_command_buffer_h command_buffer)
-{
-    VkEvent *event;
-    struct r_command_buffer_t *command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
-    vkCmdSetEvent(command_buffer_ptr->command_buffer, command_buffer_ptr->complete_event, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-    for(uint32_t event_index = 0; event_index < command_buffer_ptr->events.cursor; event_index++)
-    {
-        event = get_list_element(&command_buffer_ptr->events, event_index);
-        vkCmdSetEvent(command_buffer_ptr->command_buffer, *event, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-    }
-    vkEndCommandBuffer(command_buffer_ptr->command_buffer);
-}
-
-VkResult r_vkQueueSubmit(VkQueue queue, uint32_t submit_count, struct r_submit_info_t *submit_info, VkFence fence)
-{
-    struct r_command_buffer_t *command_buffer_ptr;
-    struct r_submit_info_t *submit;
-    uint32_t command_buffer_index;
-
-    for(uint32_t submit_index = 0; submit_index < submit_count; submit_index++)
-    {
-        submit = submit_info + submit_index;
-        for(uint32_t index = 0; index < submit_info[submit_index].command_buffer_count; index++)
-        {
-            command_buffer_ptr = r_GetCommandBufferPointer(submit->command_buffers[index]);
-            add_list_element(&r_device.draw_command_pool.pending_command_buffers, &command_buffer_index);
-            submit->command_buffers[command_buffer_index].command_buffer = command_buffer_ptr->command_buffer;
-        }
-    }
-
-    return vkQueueSubmit(queue, submit_count, (const VkSubmitInfo *)submit_info, fence);
-}
-
-void r_vkResetFences(uint32_t fence_count, VkFence *fences)
-{
-    vkResetFences(r_device.device, fence_count, (const VkFence *)fences);
-}
-
-void r_vkWaitForFences(uint32_t fence_count, VkFence *fences, VkBool32 wait_all, uint64_t time_out)
-{
-    vkWaitForFences(r_device.device, fence_count, (const VkFence *)fences, wait_all, time_out);
-}
-
 void r_vkCmdBlitImage(union r_command_buffer_h command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit)
 {
     struct r_image_t *src_image;
@@ -3107,6 +3010,113 @@ void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffe
         }
     }
 }
+
+VkResult r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes)
+{
+    vkUpdateDescriptorSets(r_device.device, descriptor_write_count, (const VkWriteDescriptorSet *)descriptor_writes, 0, NULL);
+}
+
+VkResult r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range)
+{
+    VkWriteDescriptorSet descriptor_set_write = {};
+    VkDescriptorBufferInfo buffer_info = {};
+
+    buffer_info.buffer = uniform_buffer;
+    buffer_info.offset = offset;
+    buffer_info.range = range;
+
+    descriptor_set_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_set_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_set_write.descriptorCount = 1;
+    descriptor_set_write.dstSet = descriptor_set;
+    descriptor_set_write.dstBinding = dst_binding;
+    descriptor_set_write.dstArrayElement = 0;
+    descriptor_set_write.pBufferInfo = &buffer_info;
+
+    vkUpdateDescriptorSets(r_device.device, 1, &descriptor_set_write, 0, NULL);
+}
+
+VkResult r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture)
+{
+    VkWriteDescriptorSet descriptor_set_write = {};
+    VkDescriptorImageInfo image_info = {};
+    struct r_texture_t *texture_ptr;
+
+    texture_ptr = r_GetTexturePointer(texture);
+    image_info.sampler = texture_ptr->sampler;
+    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    image_info.imageView = texture_ptr->image_view;
+
+    descriptor_set_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_set_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptor_set_write.descriptorCount = 1;
+    descriptor_set_write.dstSet = descriptor_set;
+    descriptor_set_write.dstBinding = dst_binding;
+    descriptor_set_write.dstArrayElement = 0;
+    descriptor_set_write.pImageInfo = &image_info;
+
+    vkUpdateDescriptorSets(r_device.device, 1, &descriptor_set_write, 0, NULL);
+}
+
+void r_vkEndCommandBuffer(union r_command_buffer_h command_buffer)
+{
+    VkEvent *event;
+    struct r_command_buffer_t *command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
+    vkCmdSetEvent(command_buffer_ptr->command_buffer, command_buffer_ptr->complete_event, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    for(uint32_t event_index = 0; event_index < command_buffer_ptr->events.cursor; event_index++)
+    {
+        event = get_list_element(&command_buffer_ptr->events, event_index);
+        vkCmdSetEvent(command_buffer_ptr->command_buffer, *event, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    }
+    vkEndCommandBuffer(command_buffer_ptr->command_buffer);
+}
+
+VkResult r_vkQueueSubmit(VkQueue queue, uint32_t submit_count, struct r_submit_info_t *submit_info, VkFence fence)
+{
+    struct r_command_buffer_t *command_buffer_ptr;
+    struct r_submit_info_t *submit;
+    uint32_t command_buffer_index;
+
+    for(uint32_t submit_index = 0; submit_index < submit_count; submit_index++)
+    {
+        submit = submit_info + submit_index;
+        for(uint32_t index = 0; index < submit_info[submit_index].command_buffer_count; index++)
+        {
+            command_buffer_ptr = r_GetCommandBufferPointer(submit->command_buffers[index]);
+            add_list_element(&r_device.draw_command_pool.pending_command_buffers, &command_buffer_index);
+            submit->command_buffers[command_buffer_index].command_buffer = command_buffer_ptr->command_buffer;
+        }
+    }
+
+    return vkQueueSubmit(queue, submit_count, (const VkSubmitInfo *)submit_info, fence);
+}
+
+void r_vkResetFences(uint32_t fence_count, VkFence *fences)
+{
+    vkResetFences(r_device.device, fence_count, (const VkFence *)fences);
+}
+
+void r_vkWaitForFences(uint32_t fence_count, VkFence *fences, VkBool32 wait_all, uint64_t time_out)
+{
+    vkWaitForFences(r_device.device, fence_count, (const VkFence *)fences, wait_all, time_out);
+}
+
+VkResult r_vkGetEventStatus(VkEvent event)
+{
+    return vkGetEventStatus(r_device.device, event);
+}
+
+void r_vkSetEvent(VkEvent event)
+{
+    vkSetEvent(r_device.device, event);
+}
+
+void r_vkResetEvent(VkEvent event)
+{
+    vkResetEvent(r_device.device, event);
+}
+
+
 
 
 

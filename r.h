@@ -375,6 +375,17 @@ void r_vkCmdCopyBufferToImage(union r_command_buffer_h command_buffer, VkBuffer 
 
 void r_vkCmdBindDescriptorSets(union r_command_buffer_h command_buffer, VkPipelineBindPoint bind_point, VkPipelineLayout layout, uint32_t first_set, uint32_t set_count, VkDescriptorSet *descriptor_sets, uint32_t dynamic_offset_count, uint32_t *dynamic_offsets);
 
+void r_vkCmdBlitImage(union r_command_buffer_h command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+
+void r_vkCmdPipelineBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags,
+                            uint32_t memory_barrier_count, VkMemoryBarrier *memory_barriers,
+                            uint32_t buffer_barrier_count, VkBufferMemoryBarrier *buffer_memory_barriers,
+                            uint32_t image_barrier_count, VkImageMemoryBarrier *image_memory_barriers);
+
+void r_vkCmdSetImageLayout(union r_command_buffer_h command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
+
+void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffer_h buffer, uint32_t offset, uint32_t size, void *data);
+
 VkResult r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes);
 
 VkResult r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range);
@@ -389,15 +400,11 @@ void r_vkResetFences(uint32_t fence_count, VkFence *fences);
 
 void r_vkWaitForFences(uint32_t fence_count, VkFence *fences, VkBool32 wait_all, uint64_t time_out);
 
-void r_vkCmdBlitImage(union r_command_buffer_h command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
+VkResult r_vkGetEventStatus(VkEvent event);
 
-void r_vkCmdPipelineBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags,
-                            uint32_t memory_barrier_count, VkMemoryBarrier *memory_barriers,
-                            uint32_t buffer_barrier_count, VkBufferMemoryBarrier *buffer_memory_barriers,
-                            uint32_t image_barrier_count, VkImageMemoryBarrier *image_memory_barriers);
+void r_vkSetEvent(VkEvent event);
 
-void r_vkCmdSetImageLayout(union r_command_buffer_h command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
+void r_vkResetEvent(VkEvent event);
 
-void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffer_h buffer, uint32_t offset, uint32_t size, void *data);
 
 #endif

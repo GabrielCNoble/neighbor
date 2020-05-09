@@ -42,6 +42,8 @@ struct r_draw_uniform_data_t
 struct r_uniform_buffer_t
 {
     struct r_buffer_h buffer;
+    VkBuffer vk_buffer;
+    void *memory;
     VkEvent event;
 };
 
@@ -81,6 +83,8 @@ void r_DrawSprite(struct spr_sprite_h sprite, vec2_t *position, float scale, flo
 void r_EndSubmission();
 
 void r_DispatchPending();
+
+struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer);
 
 
 

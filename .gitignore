@@ -1,5 +1,8 @@
 .vscode
 lib
+!lib/dstuff/*.h
+!lib/dstuff/*.c
+!lib/stb
 tests
 sprites
 *.bsp
