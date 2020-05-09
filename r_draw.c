@@ -1,7 +1,8 @@
 #include "r_draw.h"
 #include "spr.h"
-#include "dstuff/containers/stack_list.h"
-#include "dstuff/containers/ringbuffer.h"
+#include "lib/dstuff/containers/stack_list.h"
+#include "lib/dstuff/containers/ringbuffer.h"
+#include "lib/dstuff/file/file.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -13,6 +14,7 @@ struct list_t r_draw_calls;
 uint32_t r_current_draw_cmd_list = 0xffffffff;
 
 struct r_render_pass_handle_t r_render_pass;
+struct r_render_pass_handle_t r_debug_render_pass;
 struct r_framebuffer_handle_t r_framebuffer;
 struct r_buffer_h r_vertex_buffer;
 struct list_t r_uniform_buffers;
@@ -21,6 +23,8 @@ struct list_t r_used_uniform_buffers;
 VkQueue r_draw_queue;
 VkFence r_draw_fence;
 
+#define R_VERTEX_BUFFER_MEMORY 8388608
+#define R_UNIFORM_BUFFER_MEMORY 8388608
 
 //VkCommandPool r_command_pool;
 //VkCommandBuffer r_command_buffer;
@@ -31,10 +35,12 @@ void r_DrawInit()
     struct r_shader_description_t vertex_description = {};
     struct r_shader_description_t fragment_description = {};
     struct r_render_pass_description_t render_pass_description = {};
-    struct r_buffer_t *buffer;
+    long code_size;
+//    struct r_buffer_t *buffer;
 
     file = fopen("shaders/shader.vert.spv", "rb");
-    read_file(file, &vertex_description.code, &vertex_description.code_size);
+    read_file(file, &vertex_description.code, &code_size);
+    vertex_description.code_size = (uint32_t)code_size;
     fclose(file);
     vertex_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vertex_description.vertex_binding_count = 1;
@@ -77,7 +83,8 @@ void r_DrawInit()
     free(vertex_description.code);
 
     fopen("shaders/shader.frag.spv", "rb");
-    read_file(file, &fragment_description.code, &fragment_description.code_size);
+    read_file(file, &fragment_description.code, &code_size);
+    fragment_description.code_size = (uint32_t)code_size;
     fclose(file);
     fragment_description.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragment_description.resource_count = 1;
@@ -156,26 +163,20 @@ void r_DrawInit()
     r_draw_fence = r_CreateFence();
 
     VkBufferCreateInfo buffer_create_info = {};
-//    buffer_create_info.size = R_DRAW_CMD_BUFFER_DRAW_CMDS * sizeof(struct r_draw_uniform_data_t);
-//    buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-//    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//    r_uniform_buffer = r_CreateBuffer(&buffer_create_info);
-
     buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    buffer_create_info.size = 8388608;
+    buffer_create_info.size = R_VERTEX_BUFFER_MEMORY;
     buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     r_vertex_buffer = r_CreateBuffer(&buffer_create_info);
-//    buffer = r_GetBufferPointer(r_vertex_buffer);
 
     struct vertex_t *data = (struct vertex_t []){
-        {.position = (vec4_t){-1.0, -1.0, -1.2, 1.0},.tex_coords = (vec4_t){0.0, 1.0, 0.0, 0.0}},
-        {.position = (vec4_t){1.0, -1.0, -1.2, 1.0},.tex_coords = (vec4_t){1.0, 1.0, 0.0, 0.0}},
-        {.position = (vec4_t){1.0, 1.0, -1.2, 1.0},.tex_coords = (vec4_t){1.0, 0.0, 0.0, 0.0}},
+        {.position = vec4_t_c(-1.0, -1.0, -1.2, 1.0),.tex_coords = vec4_t_c(0.0, 1.0, 0.0, 0.0)},
+        {.position = vec4_t_c(1.0, -1.0, -1.2, 1.0),.tex_coords = vec4_t_c(1.0, 1.0, 0.0, 0.0)},
+        {.position = vec4_t_c(1.0, 1.0, -1.2, 1.0),.tex_coords = vec4_t_c(1.0, 0.0, 0.0, 0.0)},
 
 
-        {.position = (vec4_t){1.0, 1.0, -1.2, 1.0},.tex_coords = (vec4_t){1.0, 0.0, 0.0, 0.0}},
-        {.position = (vec4_t){-1.0, 1.0, -1.2, 1.0},.tex_coords = (vec4_t){0.0, 0.0, 0.0, 0.0}},
-        {.position = (vec4_t){-1.0, -1.0, -1.2, 1.0},.tex_coords = (vec4_t){0.0, 1.0, 0.0, 0.0}},
+        {.position = vec4_t_c(1.0, 1.0, -1.2, 1.0),.tex_coords = vec4_t_c(1.0, 0.0, 0.0, 0.0)},
+        {.position = vec4_t_c(-1.0, 1.0, -1.2, 1.0),.tex_coords = vec4_t_c(0.0, 0.0, 0.0, 0.0)},
+        {.position = vec4_t_c(-1.0, -1.0, -1.2, 1.0),.tex_coords = vec4_t_c(0.0, 1.0, 0.0, 0.0)},
     };
 
     r_FillBufferChunk(r_vertex_buffer, data, sizeof(struct vertex_t) * 6, 0);
@@ -273,9 +274,11 @@ void r_DrawSprite(struct spr_sprite_h sprite, vec2_t *position, float scale, flo
     }
 }
 
-void r_CmpDrawCmds(struct r_draw_cmd_t *a, struct r_draw_cmd_t *b)
+int r_CmpDrawCmds(const void *a, const void *b)
 {
-    return a->sprite.sprite_sheet.index - b->sprite.sprite_sheet.index;
+    struct r_draw_cmd_t *cmd_a = (struct r_draw_cmd_t *)a;
+    struct r_draw_cmd_t *cmd_b = (struct r_draw_cmd_t *)b;
+    return cmd_a->sprite.sprite_sheet.index - cmd_b->sprite.sprite_sheet.index;
 }
 
 void r_EndSubmission()
@@ -303,7 +306,7 @@ void r_DispatchPending()
     struct r_buffer_t *vertex_buffer;
     struct r_render_pass_t *render_pass;
     struct r_framebuffer_t *framebuffer;
-    struct r_texture_t *texture;
+//    struct r_texture_t *texture;
     struct spr_sprite_sheet_t *sprite_sheet;
 //    struct spr_sprite
     struct spr_sprite_entry_t *entry;
@@ -318,7 +321,7 @@ void r_DispatchPending()
     struct r_draw_uniform_data_t *draw_data;
     struct r_uniform_buffer_t *uniform_buffer;
 
-    mat4_t model_view_projection_matrix;
+//    mat4_t model_view_projection_matrix;
     mat4_t transform;
 
     struct r_submit_info_t submit_info = {};
@@ -477,11 +480,6 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
         }
     }
 
-//    if(recycled_buffers)
-//    {
-//        printf("%d uniform buffer recycled\n", recycled_buffers);
-//    }
-
     buffer_index = get_list_element(&r_free_uniform_buffers, 0);
 
     if(!buffer_index)
@@ -493,7 +491,7 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
         uniform_buffer->buffer = r_CreateBuffer(&buffer_create_info);
         uniform_buffer->event = r_CreateEvent();
         buffer = r_GetBufferPointer(uniform_buffer->buffer);
-        uniform_buffer->memory = r_GetChunkMappedMemory(buffer->memory);
+        uniform_buffer->memory = r_GetBufferChunkMappedMemory(buffer->memory);
         uniform_buffer->vk_buffer = buffer->buffer;
         add_list_element(&r_used_uniform_buffers, &new_buffer_index);
     }
@@ -507,6 +505,11 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
     r_AppendEvent(command_buffer, uniform_buffer->event);
 
     return uniform_buffer;
+}
+
+void r_DrawPoint(vec3_t *position, vec3_t *color, float size)
+{
+
 }
 
 

@@ -1,15 +1,15 @@
 #include "r.h"
-#include "dstuff/file/path.h"
+#include "lib/dstuff/file/path.h"
 //#include "r_vk.h"
-#include "dstuff/containers/stack_list.h"
-#include "dstuff/containers/ringbuffer.h"
-#include "dstuff/containers/list.h"
+#include "lib/dstuff/containers/stack_list.h"
+#include "lib/dstuff/containers/ringbuffer.h"
+#include "lib/dstuff/containers/list.h"
 #include <stdlib.h>
 #include <string.h>
-#include "stb/stb_image.h"
-#include "SDL/include/SDL2/SDL_thread.h"
-#include "SDL/include/SDL2/SDL_atomic.h"
-#include "SDL/include/SDL2/SDL_vulkan.h"
+#include "lib/stb/stb_image.h"
+#include "lib/SDL/include/SDL2/SDL_thread.h"
+#include "lib/SDL/include/SDL2/SDL_atomic.h"
+#include "lib/SDL/include/SDL2/SDL_vulkan.h"
 
 //struct r_renderer_t r_renderer;
 
@@ -77,6 +77,7 @@ struct
         uint32_t max_image_dimension_1D;
         uint32_t max_image_dimension_2D;
         uint32_t max_image_array_layers;
+        uint32_t max_uniform_buffer_range;
     }limits;
 
 }r_device;
@@ -175,13 +176,13 @@ void r_InitDevice()
     instance_create_info.ppEnabledLayerNames = layers;
     instance_create_info.enabledExtensionCount = extension_count;
     instance_create_info.ppEnabledExtensionNames = extensions;
-    VkResult result = vkCreateInstance(&instance_create_info, NULL, &r_device.instance);
+    vkCreateInstance(&instance_create_info, NULL, &r_device.instance);
     free(extensions);
     free(extension_properties);
 
     SDL_Vulkan_CreateSurface(r_renderer.window, r_device.instance, &r_device.surface);
 
-    result = vkEnumeratePhysicalDevices(r_device.instance, &physical_device_count, &r_device.physical_device);
+    vkEnumeratePhysicalDevices(r_device.instance, &physical_device_count, &r_device.physical_device);
     VkQueueFamilyProperties *queue_family_properties;
     vkGetPhysicalDeviceQueueFamilyProperties(r_device.physical_device, &queue_family_property_count, NULL);
     queue_family_properties = calloc(sizeof(VkQueueFamilyProperties), queue_family_property_count);
@@ -296,12 +297,11 @@ void r_InitDevice()
         vkCmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(r_device.device, "vkCmdPushDescriptorSetKHR");
     }
 
-//    vkGetDeviceQueue(r_device, r_graphics_queue_family_index, 0, &r_graphics_queue);
-//    vkGetDeviceQueue(r_device, r_present_queue_family_index, 0, &r_present_queue);
-//
-    VkFenceCreateInfo fence_create_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-    vkCreateFence(r_device.device, &fence_create_info, NULL, &r_device.draw_fence);
-    vkCreateFence(r_device.device, &fence_create_info, NULL, &r_device.transfer_fence);
+//    VkFenceCreateInfo fence_create_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+//    vkCreateFence(r_device.device, &fence_create_info, NULL, &r_device.draw_fence);
+//    vkCreateFence(r_device.device, &fence_create_info, NULL, &r_device.transfer_fence);
+
+    r_device.transfer_fence = r_CreateFence();
 
     /*
     =================================================================
@@ -401,6 +401,7 @@ void r_InitDevice()
     r_device.limits.max_image_dimension_1D = physical_device_properties.limits.maxImageDimension1D;
     r_device.limits.max_image_dimension_2D = physical_device_properties.limits.maxImageDimension2D;
     r_device.limits.max_image_array_layers = physical_device_properties.limits.maxImageArrayLayers;
+    r_device.limits.max_uniform_buffer_range = physical_device_properties.limits.maxUniformBufferRange;
 }
 
 void r_Shutdown()
@@ -516,6 +517,8 @@ uint32_t r_GetFormatPixelPitch(VkFormat format)
         case VK_FORMAT_R32G32B32A32_SFLOAT:
             return 16;
     }
+
+    return 0;
 }
 
 /*
@@ -614,7 +617,7 @@ struct r_heap_h r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint
     allocate_info.memoryTypeIndex = r_MemoryIndexWithProperties(memory_type_bits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     handle = r_CreateHeap(size, R_HEAP_TYPE_IMAGE);
-    heap = r_GetHeapPointer(handle);
+    heap = (struct r_image_heap_t *)r_GetHeapPointer(handle);
     heap->supported_formats = calloc(sizeof(VkFormat), supported_formats_count);
     heap->supported_format_count = supported_formats_count;
     memcpy(heap->supported_formats, supported_formats, sizeof(VkFormat) * supported_formats_count);
@@ -635,7 +638,7 @@ struct r_heap_h r_CreateBufferHeap(uint32_t usage, uint32_t size)
     uint32_t mapable_memory = 1;
 
     handle = r_CreateHeap(size, R_HEAP_TYPE_BUFFER);
-    heap = r_GetHeapPointer(handle);
+    heap = (struct r_buffer_heap_t *)r_GetHeapPointer(handle);
 
     heap->mapped_memory = NULL;
 
@@ -678,7 +681,7 @@ void r_DestroyHeap(struct r_heap_h handle)
     if(heap)
     {
         destroy_list(&heap->free_chunks);
-        destroy_list(&heap->alloc_chunks);
+        destroy_stack_list(&heap->alloc_chunks);
         heap->size = 0;
         remove_stack_list_element(heap_list, handle.index);
     }
@@ -715,7 +718,7 @@ struct r_chunk_h r_AllocChunk(struct r_heap_h handle, uint32_t size, uint32_t al
     struct r_chunk_h chunk_handle = R_INVALID_CHUNK_HANDLE;
     uint32_t chunk_align;
     uint32_t chunk_size;
-    uint32_t chunk_start;
+//    uint32_t chunk_start;
 
     heap = r_GetHeapPointer(handle);
 
@@ -821,20 +824,24 @@ struct r_chunk_t *r_GetChunkPointer(struct r_chunk_h handle)
     return chunk;
 }
 
-void *r_GetChunkMappedMemory(struct r_chunk_h handle)
+void *r_GetBufferChunkMappedMemory(struct r_chunk_h handle)
 {
     struct r_buffer_heap_t *heap;
     struct r_chunk_t *chunk;
+    void *memory = NULL;
 
-    heap = r_GetHeapPointer(handle.heap);
-    chunk = r_GetChunkPointer(handle);
-
-    if(heap->mapped_memory)
+    if(handle.heap.type == R_HEAP_TYPE_BUFFER)
     {
-        return (char *)heap->mapped_memory + chunk->start;
+        heap = (struct r_buffer_heap_t *)r_GetHeapPointer(handle.heap);
+        chunk = r_GetChunkPointer(handle);
+
+        if(heap->mapped_memory)
+        {
+            memory = (char *)heap->mapped_memory + chunk->start;
+        }
     }
 
-    return NULL;
+    return memory;
 }
 
 void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy)
@@ -849,7 +856,7 @@ void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageC
 
     uint32_t data_row_pitch;
     uint32_t region_height;
-    uint32_t pixel_pitch;
+//    uint32_t pixel_pitch;
     uint32_t region_count;
 
     description = r_GetImageDescriptionPointer(handle);
@@ -921,7 +928,7 @@ void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageC
         region->imageExtent.depth = 1;
     }
 
-    uint32_t old_layout = image->current_layout;
+//    uint32_t old_layout = image->current_layout;
     uint32_t region_index = 0;
     uint32_t first_region = 0;
 
@@ -981,21 +988,21 @@ void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageC
 void r_FillBufferChunk(struct r_buffer_h handle, void *data, uint32_t size, uint32_t offset)
 {
     struct r_buffer_t *buffer;
-    struct r_chunk_t *chunk;
+//    struct r_chunk_t *chunk;
     struct r_buffer_heap_t *heap;
-    struct r_staging_buffer_t *staging_buffer;
-    VkBufferCreateInfo copy_buffer_create_info = {};
-    VkBuffer copy_buffer;
-    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+//    struct r_staging_buffer_t *staging_buffer;
+//    VkBufferCreateInfo copy_buffer_create_info = {};
+//    VkBuffer copy_buffer;
+//    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     struct r_submit_info_t submit_info = {};
-    VkBufferCopy buffer_copy;
+//    VkBufferCopy buffer_copy;
     union r_command_buffer_h command_buffer;
 
     buffer = r_GetBufferPointer(handle);
-    heap = r_GetHeapPointer(buffer->memory.heap);
+    heap = (struct r_buffer_heap_t *)r_GetHeapPointer(buffer->memory.heap);
     if(heap->mapped_memory)
     {
-        memcpy((char *)r_GetChunkMappedMemory(buffer->memory) + offset, data, size);
+        memcpy((char *)r_GetBufferChunkMappedMemory(buffer->memory) + offset, data, size);
     }
     else
     {
@@ -1020,7 +1027,7 @@ struct r_staging_buffer_t *r_AllocateStagingBuffer(union r_command_buffer_h comm
     VkResult result;
     struct r_staging_buffer_t *buffer = NULL;
     uint32_t *buffer_index;
-    struct r_command_buffer_t *command_buffer_ptr;
+//    struct r_command_buffer_t *command_buffer_ptr;
 
     SDL_AtomicLock(&r_device.staging.staging_spinlock);
     for(uint32_t index = 0; index < r_device.staging.used_buffers.cursor; index++)
@@ -1084,12 +1091,12 @@ union r_command_buffer_h r_AllocateCommandBuffer()
     struct r_command_buffer_t *command_buffer;
     union r_command_buffer_h command_buffer_handle;
     uint32_t command_buffer_index;
-    uint32_t new_command_buffer_index;
-    uint32_t semaphore_value;
+//    uint32_t new_command_buffer_index;
+//    uint32_t semaphore_value;
     VkCommandBufferAllocateInfo allocate_info = {};
     VkEventCreateInfo event_create_info = {.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO};
     VkResult result;
-    uint32_t recycled_command_buffer_count = 0;
+//    uint32_t recycled_command_buffer_count = 0;
 
     SDL_AtomicLock(&r_device.draw_command_pool.spinlock);
 
@@ -1166,7 +1173,7 @@ struct r_buffer_h r_CreateBuffer(VkBufferCreateInfo *description)
     vkGetBufferMemoryRequirements(r_device.device, buffer->buffer, &memory_requirements);
     buffer->memory = r_AllocChunk(r_device.buffer_heap, memory_requirements.size, memory_requirements.alignment);
     chunk = r_GetChunkPointer(buffer->memory);
-    heap = r_GetHeapPointer(buffer->memory.heap);
+    heap = (struct r_buffer_heap_t *)r_GetHeapPointer(buffer->memory.heap);
     vkBindBufferMemory(r_device.device, buffer->buffer, heap->memory, chunk->start);
 
     return handle;
@@ -1247,8 +1254,8 @@ struct r_image_handle_t r_AllocImage(VkImageCreateInfo *description)
     struct r_image_t *image;
     VkImage vk_image;
     VkImageCreateInfo description_copy;
-    VkMemoryRequirements memory_requirements;
-    VkMemoryAllocateInfo allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+//    VkMemoryRequirements memory_requirements;
+//    VkMemoryAllocateInfo allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 
 
 
@@ -1308,16 +1315,16 @@ void r_AllocImageMemory(struct r_image_handle_t handle)
     struct r_chunk_t *chunk;
     struct r_image_heap_t *heap;
     VkMemoryRequirements memory_requirements;
-    VkMemoryAllocateInfo allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+//    VkMemoryAllocateInfo allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 
     image = r_GetImagePointer(handle);
     vkGetImageMemoryRequirements(r_device.device, image->image, &memory_requirements);
 
-    allocate_info.memoryTypeIndex = r_MemoryIndexWithProperties(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    allocate_info.allocationSize = memory_requirements.size;
+//    allocate_info.memoryTypeIndex = r_MemoryIndexWithProperties(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+//    allocate_info.allocationSize = memory_requirements.size;
     image->memory = r_AllocChunk(r_device.texture_heap, memory_requirements.size, memory_requirements.alignment);
     chunk = r_GetChunkPointer(image->memory);
-    heap = r_GetHeapPointer(image->memory.heap);
+    heap = (struct r_image_heap_t *)r_GetHeapPointer(image->memory.heap);
     vkBindImageMemory(r_device.device, image->image, heap->memory, chunk->start);
 }
 
@@ -1400,7 +1407,7 @@ void r_CreateDefaultTexture()
     struct r_texture_t *texture;
     uint32_t *default_texture_pixels;
     uint32_t pixel_pitch;
-    uint32_t row_pitch;
+//    uint32_t row_pitch;
 
     description.extent.width = 8;
     description.extent.height = 8;
@@ -1417,7 +1424,7 @@ void r_CreateDefaultTexture()
 
     default_texture = r_CreateTexture(&description);
     pixel_pitch = r_GetFormatPixelPitch(description.format);
-    row_pitch = pixel_pitch * description.extent.width;
+//    row_pitch = pixel_pitch * description.extent.width;
     default_texture_pixels = calloc(pixel_pitch, description.extent.width * description.extent.height);
     texture = r_GetTexturePointer(default_texture);
     for(uint32_t y = 0; y < description.extent.height; y++)
@@ -2310,7 +2317,7 @@ struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t han
 
 struct r_descriptor_pool_list_t *r_GetDescriptorPoolListPointer(struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage)
 {
-
+    return NULL;
 }
 
 VkDescriptorSet r_AllocateDescriptorSet(union r_command_buffer_h command_buffer, struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage)
@@ -2322,7 +2329,7 @@ VkDescriptorSet r_AllocateDescriptorSet(union r_command_buffer_h command_buffer,
     struct r_shader_t *shader;
     VkDescriptorSetAllocateInfo allocate_info;
     VkDescriptorSet descriptor_set;
-    VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
+//    VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
     VkResult result;
 
     switch(stage)
@@ -2502,8 +2509,8 @@ void r_PresentFramebuffer(struct r_framebuffer_handle_t handle)
     struct r_texture_t *texture;
     struct r_swapchain_t *swapchain;
     struct r_image_handle_t swapchain_image;
-    struct r_image_t *texture_image_ptr;
-    struct r_image_t *swapchain_image_ptr;
+//    struct r_image_t *texture_image_ptr;
+//    struct r_image_t *swapchain_image_ptr;
 
     framebuffer = r_GetFramebufferPointer(handle);
     texture = r_GetTexturePointer(framebuffer->textures[framebuffer->current_buffer]);
@@ -2512,8 +2519,8 @@ void r_PresentFramebuffer(struct r_framebuffer_handle_t handle)
     swapchain = r_GetSwapchainPointer(r_device.swapchain);
     swapchain_image = swapchain->images[swapchain->current_image];
 
-    texture_image_ptr = r_GetImagePointer(texture->image);
-    swapchain_image_ptr = r_GetImagePointer(swapchain_image);
+//    texture_image_ptr = r_GetImagePointer(texture->image);
+//    swapchain_image_ptr = r_GetImagePointer(swapchain_image);
 
     command_buffer = r_AllocateCommandBuffer();
 
@@ -2678,10 +2685,10 @@ VkQueue r_GetDrawQueue()
     return r_device.draw_queue->queue;
 }
 
-VkBuffer r_GetStagingBuffer()
-{
-    return r_device.staging.base_staging_buffer;
-}
+//VkBuffer r_GetStagingBuffer()
+//{
+//    return r_device.staging.base_staging_buffer;
+//}
 
 //uint32_t r_GetStagingMemorySize()
 //{
@@ -2969,7 +2976,7 @@ void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffe
     command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
     buffer_ptr = r_GetBufferPointer(buffer);
 
-    memory = r_GetChunkMappedMemory(buffer_ptr->memory);
+    memory = r_GetBufferChunkMappedMemory(buffer_ptr->memory);
     if(memory)
     {
         /* good, memory is mapped, so write directly to it */
@@ -2988,7 +2995,7 @@ void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffe
             /* we have some mighty chonky data, so do a full blown copy using staging buffers */
             region_count = size / r_device.staging.staging_buffer_size;
             regions = alloca(sizeof(VkBufferCopy) * (1 + region_count));
-            for(uint32_t region_index; region_index < region_count && size; region_count++)
+            for(uint32_t region_index = 0; region_index < region_count && size; region_count++)
             {
                 staging_buffer = r_AllocateStagingBuffer(command_buffer);
                 memcpy(staging_buffer->memory, data, r_device.staging.staging_buffer_size);
@@ -3011,12 +3018,12 @@ void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffe
     }
 }
 
-VkResult r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes)
+void r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes)
 {
     vkUpdateDescriptorSets(r_device.device, descriptor_write_count, (const VkWriteDescriptorSet *)descriptor_writes, 0, NULL);
 }
 
-VkResult r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range)
+void r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range)
 {
     VkWriteDescriptorSet descriptor_set_write = {};
     VkDescriptorBufferInfo buffer_info = {};
@@ -3036,7 +3043,7 @@ VkResult r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint
     vkUpdateDescriptorSets(r_device.device, 1, &descriptor_set_write, 0, NULL);
 }
 
-VkResult r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture)
+void r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture)
 {
     VkWriteDescriptorSet descriptor_set_write = {};
     VkDescriptorImageInfo image_info = {};

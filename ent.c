@@ -1,8 +1,8 @@
 #include "ent.h"
-#include "dstuff/containers/stack_list.h"
-#include "dstuff/accel_structs/dbvh.h"
-#include "dstuff/math/vector.h"
-#include "dstuff/math/matrix.h"
+#include "lib/dstuff/containers/stack_list.h"
+#include "lib/dstuff/accel_structs/dbvh.h"
+#include "lib/dstuff/math/vector.h"
+#include "lib/dstuff/math/matrix.h"
 #include "r.h"
 #include <stdio.h>
 #include <string.h>
@@ -33,7 +33,7 @@ union entity_handle_t ent_CreateEntity(char* name, vec3_t* position, mat3_t* ori
     mat4_t_comp(&entity->transform, orientation, position);
     entity->props = NULL;
     entity->type = type;
-    entity->model = MDL_INVALID_MODEL_HANDLE;
+//    entity->model = MDL_INVALID_MODEL_HANDLE;
     // entity->node = INVALID_DBVH_NODE_INDEX;
     return handle;
 }

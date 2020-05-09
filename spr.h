@@ -48,7 +48,7 @@ struct spr_sprite_h
 };
 
 #define SPR_INVALID_SPRITE_INDEX 0xffffffff
-#define SPR_SPRITE_HANDLE(index)(struct spr_sprite_h){index}
+#define SPR_SPRITE_HANDLE(index)(struct spr_sprite_h){{index}}
 #define SPR_INVALID_SPRITE_HANDLE SPR_SPRITE_HANDLE(SPR_INVALID_SPRITE_INDEX)
 
 struct spr_anim_frame_t

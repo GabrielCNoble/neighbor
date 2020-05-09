@@ -1,11 +1,11 @@
 #include "mdl.h"
-#include "dstuff/containers/stack_list.h"
-#include "dstuff/file/file.h"
-#include "dstuff/file/path.h"
-#include "dstuff/loaders/xchg.h"
-#include "dstuff/loaders/obj.h"
-#include "dstuff/loaders/bsp.h"
-#include "dstuff/math/vector.h"
+#include "lib/dstuff/containers/stack_list.h"
+#include "lib/dstuff/file/file.h"
+#include "lib/dstuff/file/path.h"
+#include "lib/dstuff/loaders/xchg.h"
+#include "lib/dstuff/loaders/obj.h"
+#include "lib/dstuff/loaders/bsp.h"
+#include "lib/dstuff/math/vector.h"
 #include "r.h"
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +36,7 @@ struct model_handle_t mdl_AllocModel()
 //    model->batches = NULL;
 //    model->name = NULL;
 //
-//    return handle;
+    return handle;
 }
 
 struct model_handle_t mdl_GetModelHandle(char* name)

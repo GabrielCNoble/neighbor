@@ -2,7 +2,7 @@
 #define R_DRAW_H
 
 #include "r.h"
-#include "dstuff/math/matrix.h"
+#include "lib/dstuff/math/matrix.h"
 #include "spr.h"
 
 struct vertex_t
@@ -85,6 +85,14 @@ void r_EndSubmission();
 void r_DispatchPending();
 
 struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_DrawPoint(vec3_t *position, vec3_t *color, float size);
 
 
 

@@ -1,9 +1,9 @@
 #include "r.h"
 #include "spr.h"
-#include "dstuff/containers/stack_list.h"
-#include "dstuff/containers/list.h"
-#include "dstuff/sprite/sprpk.h"
-#include "stb/stb_image.h"
+#include "lib/dstuff/containers/stack_list.h"
+#include "lib/dstuff/containers/list.h"
+#include "lib/dstuff/sprite/sprpk.h"
+#include "lib/stb/stb_image.h"
 
 
 struct stack_list_t spr_sprite_sheets;
@@ -31,7 +31,7 @@ void spr_UpdateAnimPlayers(float delta_time)
     struct spr_anim_player_h *handle;
     struct spr_animation_t *animation;
     struct spr_anim_frame_t *frame;
-    float frame_elapsed;
+//    float frame_elapsed;
 
     for(uint32_t player_index = 0; player_index < spr_active_players.cursor; player_index++)
     {
@@ -131,6 +131,8 @@ struct spr_sprite_sheet_h spr_LoadSpriteSheeet(char *file_name)
     struct r_texture_t *texture;
     uint32_t entry_offset = 0;
     int channels;
+    int width;
+    int height;
     struct r_texture_description_t texture_description = {};
     read_sprpk(file_name, &header, &data_size);
 
@@ -172,7 +174,9 @@ struct spr_sprite_sheet_h spr_LoadSpriteSheeet(char *file_name)
 
         data_size -= header->data_offset;
         get_sprpk_data(header, &data);
-        pixels = stbi_load_from_memory((char *)header + header->data_offset, header->data_size, &sprite_sheet->width, &sprite_sheet->height, &channels, STBI_rgb_alpha);
+        pixels = stbi_load_from_memory((const unsigned char *)header + header->data_offset, header->data_size, &width, &height, &channels, STBI_rgb_alpha);
+        sprite_sheet->width = width;
+        sprite_sheet->height = height;
 
         texture_description.image_type = VK_IMAGE_TYPE_2D;
         texture_description.format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -272,7 +276,7 @@ struct spr_animation_h spr_CreateAnimationFromSprite(struct spr_sprite_h handle)
 {
     struct spr_animation_h animation_handle = SPR_INVALID_ANIMATION_HANDLE;
     struct spr_animation_t *animation;
-    struct spr_sprite_sheet_t *sprite_sheet;
+//    struct spr_sprite_sheet_t *sprite_sheet;
     struct spr_sprite_t *sprite;
     struct spr_anim_frame_t *frame;
 

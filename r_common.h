@@ -2,17 +2,17 @@
 #define R_COMMON_H
 
 #include <stdint.h>
-#include "SDL/include/SDL2/SDL.h"
+#include "lib/SDL/include/SDL2/SDL.h"
 //#include "SDL/include/SDL2/SDL_vulkan.h"
-#include "dstuff/containers/stack_list.h"
-#include "dstuff/containers/list.h"
-#include "dstuff/containers/ringbuffer.h"
-#include "dstuff/math/vector.h"
-#include "dstuff/math/matrix.h"
+#include "lib/dstuff/containers/stack_list.h"
+#include "lib/dstuff/containers/list.h"
+#include "lib/dstuff/containers/ringbuffer.h"
+#include "lib/dstuff/math/vector.h"
+#include "lib/dstuff/math/matrix.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
-#include "vulkan/Include/vulkan/vulkan.h"
-#include "vulkan/Include/vulkan/vulkan_core.h"
+#include "lib/vulkan/Include/vulkan/vulkan.h"
+#include "lib/vulkan/Include/vulkan/vulkan_core.h"
 
 enum R_SHADER_RESOURCE_TYPE
 {
@@ -153,7 +153,7 @@ struct r_heap_h
     uint8_t type;
 };
 
-#define R_INVALID_HEAP_INDEX 0xffff
+#define R_INVALID_HEAP_INDEX 0xff
 #define R_HEAP_HANDLE(index, type) (struct r_heap_h){index, type}
 #define R_INVALID_HEAP_HANDLE R_HEAP_HANDLE(R_INVALID_HEAP_INDEX, R_HEAP_TYPE_BASE)
 
@@ -602,8 +602,8 @@ struct r_swapchain_t
 {
     VkSwapchainKHR swapchain;
     struct r_image_handle_t *images;
-    uint8_t image_count;
-    uint8_t current_image;
+    uint32_t image_count;
+    uint32_t current_image;
 };
 
 struct r_swapchain_handle_t

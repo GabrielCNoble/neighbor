@@ -2,9 +2,9 @@
 #define ENT_H
 
 #include <stdint.h>
-#include "dstuff/math/vector.h"
-#include "dstuff/math/matrix.h"
-#include "mdl.h"
+#include "lib/dstuff/math/vector.h"
+#include "lib/dstuff/math/matrix.h"
+//#include "mdl.h"
 struct entity_prop_t
 {
     struct entity_prop_t *next;
@@ -19,7 +19,7 @@ struct entity_t
     uint32_t type;
     // uint32_t node;
     mat4_t transform;
-    struct model_handle_t model;
+//    struct model_handle_t model;
     struct entity_prop_t *props;
 };
 

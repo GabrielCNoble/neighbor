@@ -2,16 +2,12 @@
 #define R_H
 
 #include "r_common.h"
-//#include "r_vk.h"
-
 
 void r_Init();
 
 void r_InitDevice();
 
 void r_Shutdown();
-
-
 
 /*
 =================================================================
@@ -35,7 +31,6 @@ uint32_t r_GetFormatPixelPitch(VkFormat format);
 =================================================================
 */
 
-
 struct stack_list_t *r_GetHeapListFromType(uint32_t type);
 
 struct r_heap_h r_CreateHeap(uint32_t size, uint32_t type);
@@ -56,7 +51,7 @@ void r_FreeChunk(struct r_chunk_h handle);
 
 struct r_chunk_t *r_GetChunkPointer(struct r_chunk_h handle);
 
-void *r_GetChunkMappedMemory(struct r_chunk_h handle);
+void *r_GetBufferChunkMappedMemory(struct r_chunk_h handle);
 
 void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy);
 
@@ -118,6 +113,7 @@ VkImageCreateInfo *r_GetImageDescriptionPointer(struct r_image_handle_t handle);
 
 void r_BlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
 
+void r_SetImageLayout(struct r_image_handle_t image, VkImageLayout new_layout);
 
 
 
@@ -319,9 +315,9 @@ void r_UnlockQueue(struct r_queue_t *queue);
 
 VkQueue r_GetDrawQueue();
 
-VkBuffer r_GetStagingBuffer();
+//VkBuffer r_GetStagingBuffer();
 
-uint32_t r_GetStagingMemorySize();
+//uint32_t r_GetStagingMemorySize();
 
 //void r_QueueSubmit(struct r_queue_t *queue, uint32_t submit_count, VkSubmitInfo *submit_info, VkFence fence);
 
@@ -386,11 +382,11 @@ void r_vkCmdSetImageLayout(union r_command_buffer_h command_buffer, struct r_ima
 
 void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffer_h buffer, uint32_t offset, uint32_t size, void *data);
 
-VkResult r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes);
+void r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes);
 
-VkResult r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range);
+void r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range);
 
-VkResult r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture);
+void r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture);
 
 void r_vkEndCommandBuffer(union r_command_buffer_h command_buffer);
 

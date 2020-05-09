@@ -2,7 +2,6 @@
 #define IN_H
 
 #include <stdint.h>
-#include "SDL/include/SDL2/SDL.h"
 
 enum IN_INPUT_STATES
 {
