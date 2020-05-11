@@ -1,7 +1,7 @@
 .vscode
 lib/vulkan
 lib/SDL
-test
+test 
 sprites
 *.bsp
 *.exe
