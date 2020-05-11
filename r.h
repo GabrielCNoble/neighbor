@@ -61,9 +61,9 @@ struct r_staging_buffer_t *r_AllocateStagingBuffer(union r_command_buffer_h comm
 
 void r_FreeStagingBuffer(struct r_staging_buffer_t *buffer);
 
-void *r_LockStagingMemory();
+//void *r_LockStagingMemory();
 
-void r_UnlockStagingMemory();
+//void r_UnlockStagingMemory();
 
 /*
 =================================================================
@@ -303,6 +303,8 @@ struct r_swapchain_t *r_GetSwapchainPointer(struct r_swapchain_handle_t handle);
 
 void r_NextImage(struct r_swapchain_handle_t handle);
 
+void r_ResizeSwapchain(struct r_swapchain_handle_t swapchain, uint32_t width, uint32_t height);
+
 /*
 =================================================================
 =================================================================
@@ -314,6 +316,8 @@ void r_LockQueue(struct r_queue_t *queue);
 void r_UnlockQueue(struct r_queue_t *queue);
 
 VkQueue r_GetDrawQueue();
+
+VkPhysicalDeviceLimits *r_GetDeviceLimits();
 
 //VkBuffer r_GetStagingBuffer();
 
@@ -364,6 +368,10 @@ void r_vkCmdEndRenderPass(union r_command_buffer_h command_buffer);
 void r_vkCmdSetViewport(union r_command_buffer_h command_buffer, uint32_t first_viewport, uint32_t viewport_count, VkViewport *viewports);
 
 void r_vkCmdSetScissor(union r_command_buffer_h command_buffer, uint32_t first_scissor, uint32_t scissor_count, VkRect2D *scissors);
+
+void r_vkCmdSetLineWidth(union r_command_buffer_h command_buffer, float width);
+
+void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkPipelineStageFlags stage_flags, uint32_t offset, uint32_t size, void *data);
 
 void r_vkCmdDraw(union r_command_buffer_h command_buffer, uint32_t count, uint32_t instance_count, uint32_t first, uint32_t first_instance);
 

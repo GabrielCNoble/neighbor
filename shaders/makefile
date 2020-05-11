@@ -1,4 +1,4 @@
-OBJ = $(wildcard *.vert).spv $(wildcard *.frag).spv
+OBJ = $(subst .vert,.vert.spv, $(wildcard *.vert)) $(subst .frag,.frag.spv, $(wildcard *.frag))
 
 %.spv: %
 	glsLangValidator -V $< -o $@

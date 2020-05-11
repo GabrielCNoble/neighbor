@@ -6,11 +6,14 @@
 //#include "lib/dstuff/math/geometry.h"
 
 #define DSTUFF_CONTAINERS_LIST_IMPLEMENTATION
-#define DSTUFF_CONTAINERS_STACK_LIST_IMPLEMENTATION
-#define DSTUFF_CONTAINERS_RING_BUFFER_IMPLEMENTATION
 #include "lib/dstuff/containers/list.h"
+#define DSTUFF_CONTAINERS_STACK_LIST_IMPLEMENTATION
 #include "lib/dstuff/containers/stack_list.h"
+#define DSTUFF_CONTAINERS_RING_BUFFER_IMPLEMENTATION
 #include "lib/dstuff/containers/ringbuffer.h"
+
+#define DSTUFF_ACCEL_STRUCTS_DBVH_IMPLEMENTATION
+#include "lib/dstuff/accel_structs/dbvh.h"
 
 #define DSTUFF_FILE_PATH_IMPLEMENTATION
 #include "lib/dstuff/file/path.h"

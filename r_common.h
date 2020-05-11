@@ -64,13 +64,6 @@ struct r_submit_info_t
 =================================================================
 */
 
-struct view_def_t
-{
-    float fov_y;
-    float z_near;
-    float z_far;
-};
-
 /*
 =================================================================
 =================================================================
@@ -245,6 +238,7 @@ struct r_shader_t
 {
     /* necessary for the pipeline vertex input state */
     uint32_t vertex_binding_count;
+    uint32_t vertex_attrib_count;
     struct r_vertex_binding_t *vertex_bindings;
 
     /* necessary for estimating the number of descriptors

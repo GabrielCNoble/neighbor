@@ -440,6 +440,27 @@ struct spr_anim_frame_t *spr_GetCurrentAnimationFrame(struct spr_anim_player_h p
     return frame;
 }
 
+uint32_t spr_IsLastAnimationFrame(struct spr_anim_player_h player_handle)
+{
+    struct spr_anim_player_t *player;
+    struct spr_animation_t *animation;
+    player = spr_GetAnimationPlayerPointer(player_handle);
+    animation = spr_GetAnimationPointer(player->animation);
+    return player->current_frame == animation->frame_count - 1;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

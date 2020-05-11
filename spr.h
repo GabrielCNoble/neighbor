@@ -146,5 +146,7 @@ void spr_SetAnimationFrame(struct spr_anim_player_h player_handle, uint32_t fram
 
 struct spr_anim_frame_t *spr_GetCurrentAnimationFrame(struct spr_anim_player_h player_handle);
 
+uint32_t spr_IsLastAnimationFrame(struct spr_anim_player_h player_handle);
+
 
 #endif // SPR_H

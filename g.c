@@ -3,6 +3,7 @@
 #include "in.h"
 #include "r.h"
 #include "r_draw.h"
+#include "phy.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -42,6 +43,7 @@ void g_MainLoop()
 
     r_Init();
     r_DrawInit();
+    phy_Init();
     spr_Init();
 
     if(g_InitCallback)
@@ -49,11 +51,14 @@ void g_MainLoop()
         g_InitCallback();
     }
 
+    g_UpdateDeltaTime();
+
     while(g_run_loop)
     {
         g_UpdateDeltaTime();
         in_ReadInput();
         spr_UpdateAnimPlayers(g_delta_time);
+        phy_Step(g_delta_time);
         r_BeginFrame();
         g_MainLoopCallback(g_delta_time);
         r_EndFrame();
