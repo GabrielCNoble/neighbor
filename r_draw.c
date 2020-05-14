@@ -104,6 +104,47 @@ void r_DrawInit()
 
     r_render_pass = r_CreateRenderPass(&render_pass_description);
 
+
+
+
+//    vertex_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
+//    vertex_description.vertex_binding_count = 1;
+//    vertex_description.vertex_bindings = (struct r_vertex_binding_t []){
+//
+//    };
+//
+//
+//    render_pass_description.attachment_count = 2;
+//    render_pass_description.attachments = (VkAttachmentDescription[]){
+//        {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
+//        {.format = VK_FORMAT_D32_SFLOAT}
+//    };
+//    render_pass_description.subpass_count = 1;
+//    render_pass_description.subpasses = (struct r_subpass_description_t []){
+//        .color_attachment_count = 1,
+//        .color_attachments = (VkAttachmentReference[]){
+//            {.attachment = 0}
+//        },
+//        .depth_stencil_attachment = (VkAttachmentReference []){
+//            {.attachment = 1}
+//        },
+//        .pipeline_description = (struct r_pipeline_description_t []){
+//            .shader_count = 2,
+//        }
+//    };
+//    render_pass_description = (struct r_render_pass_description_t){
+//        .attachments = (VkAttachmentDescription []) {
+//            {.format = VK_FORMAT_R32G32B32A32_SFLOAT},
+//            {.format = VK_FORMAT_D32_SFLOAT}
+//        },
+//        .attachment_count = 2,
+//        .subpasses = (struct r_subpass_description_t []){
+//
+//        }
+//    };
+
+
+
     struct r_framebuffer_description_t framebuffer_description = (struct r_framebuffer_description_t){
         .attachment_count = render_pass_description.attachment_count,
         .attachments = render_pass_description.attachments,
