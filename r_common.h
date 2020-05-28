@@ -402,10 +402,6 @@ struct r_texture_handle_t
 =================================================================================
 */
 
-//struct r_pipeline_reference_t
-//{
-//    uint8_t index;
-//};
 
 struct r_descriptor_pool_t
 {
@@ -446,11 +442,8 @@ struct r_pipeline_description_t
 {
     /* the const qualifier got dropped here because it was being
     a pain in the ass. We know what we're doing with those pointers.  */
-    VkStructureType type;
-    const void *next;
-    VkPipelineCreateFlags flags;
-    uint32_t stage_count;
-    VkPipelineShaderStageCreateInfo *stages;
+    struct r_shader_t **shaders;
+    uint32_t shader_count;
     VkPipelineVertexInputStateCreateInfo *vertex_input_state;
     VkPipelineInputAssemblyStateCreateInfo *input_assembly_state;
     VkPipelineTessellationStateCreateInfo *tesselation_state;
@@ -460,39 +453,32 @@ struct r_pipeline_description_t
     VkPipelineDepthStencilStateCreateInfo *depth_stencil_state;
     VkPipelineColorBlendStateCreateInfo *color_blend_state;
     VkPipelineDynamicStateCreateInfo *dynamic_state;
-    /*=====================================================*/
-    /* this struct only exists to allow passing struct r_shader_t
-    objects to the code that created a render pass. Having those is important
-    because they already have descriptor set layouts created for them. Creating
-    the pipeline layout from those is a ton easier. */
-    struct r_shader_t **shaders;
-    uint32_t shader_count;
+    VkRenderPass render_pass;
+    uint32_t subpass_index;
 };
 
-struct r_subpass_description_t
+struct r_pipeline_tag_t
 {
-    VkSubpassDescriptionFlags flags;
-    VkPipelineBindPoint pipeline_bind_point;
-    uint32_t input_attachment_count;
-    VkAttachmentReference *input_attachments;
-    uint32_t color_attachment_count;
-    VkAttachmentReference *color_attachments;
-    VkAttachmentReference *resolve_attachments;
-    VkAttachmentReference *depth_stencil_attachment;
-    uint32_t preserve_attachment_count;
-    uint32_t *preserve_attachments;
-    /* ====================================================== */
-    struct r_pipeline_description_t *pipeline_description;
-};
+    struct
+    {
+        uint32_t test_enable: 1;
+        uint32_t write_enable: 1;
+        uint32_t compare_op: 3;
+    }depth_state;
 
-struct r_render_pass_description_t
-{
-    VkAttachmentDescription *attachments;
-    struct r_subpass_description_t *subpasses;
-    uint8_t attachment_count;
-    uint8_t subpass_count;
-};
+    struct
+    {
+        uint32_t test_enable: 1;
+        struct
+        {
+            uint32_t fail_op: 3;
+            uint32_t pass_op: 3;
+            uint32_t depth_fail_op: 3;
+            uint32_t compare_op: 3;
+        }front, back;
 
+    }stencil_state;
+};
 
 /* each pipeline will have a list of command pools,
 and all command pools will use the same descriptor set layout.
@@ -510,21 +496,61 @@ struct r_pipeline_t
 
     VkPipeline pipeline;
     VkPipelineLayout layout;
+    struct r_pipeline_tag_t tag;
     struct r_descriptor_pool_list_t pool_lists[2];
+};
+
+struct r_pipeline_h
+{
+    uint32_t index;
+};
+#define R_INVALID_PIPELINE_INDEX 0xffffffff
+#define R_PIPELINE_HANDLE(index) (struct r_pipeline_h){index}
+#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
+
+/*
+=================================================================================
+=================================================================================
+=================================================================================
+*/
+
+struct r_subpass_description_t
+{
+    VkSubpassDescriptionFlags flags;
+    VkPipelineBindPoint pipeline_bind_point;
+    uint32_t input_attachment_count;
+    VkAttachmentReference *input_attachments;
+    uint32_t color_attachment_count;
+    VkAttachmentReference *color_attachments;
+    VkAttachmentReference *resolve_attachments;
+    VkAttachmentReference *depth_stencil_attachment;
+    uint32_t preserve_attachment_count;
+    uint32_t *preserve_attachments;
+    /* ====================================================== */
+    uint32_t pipeline_description_count;
+    struct r_pipeline_description_t *pipeline_descriptions;
+};
+
+struct r_render_pass_description_t
+{
+    VkAttachmentDescription *attachments;
+    struct r_subpass_description_t *subpasses;
+    uint8_t attachment_count;
+    uint8_t subpass_count;
+};
+
+struct r_subpass_t
+{
+    uint32_t pipeline_count;
+    struct r_pipeline_h *pipelines;
 };
 
 struct r_render_pass_t
 {
     VkRenderPass render_pass;
-
-    union
-    {
-        struct r_pipeline_t *pipelines;
-        struct r_pipeline_t pipeline;
-    };
-
+    struct r_pipeline_h *pipelines;
+    struct r_subpass_t *subpasses;
     uint8_t subpass_count;
-    uint8_t current_subpass;
 };
 
 struct r_render_pass_handle_t

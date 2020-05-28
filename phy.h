@@ -13,6 +13,8 @@ enum PHY_SHAPE_TYPES
 struct phy_shape_t
 {
     uint32_t type;
+    float sin;
+    float cos;
 };
 
 struct phy_box_shape_t
@@ -42,6 +44,7 @@ enum PHY_COLLIDER_TYPES
 struct phy_collider_t
 {
     vec2_t position;
+    float rotation;
     uint32_t type;
     struct phy_shape_h shape;
     uint32_t dbvh_node;
@@ -89,9 +92,18 @@ struct phy_collision_pair_t
 
 struct phy_contact_point_t
 {
+    struct phy_collider_h collider;
     vec2_t relative_pos;
     vec2_t normal;
     float penetration;
+};
+
+struct phy_collision_data_t
+{
+    struct phy_shape_h shape;
+    vec2_t position;
+    vec2_t velocity;
+    float rotation;
 };
 
 
@@ -128,7 +140,13 @@ vec2_t phy_GetColliderExtends(struct phy_collider_h collider_handle);
 
 void phy_Step(float delta_time);
 
-void phy_GenerateCollisionPairs(struct phy_collider_h collider_handle);
+void phy_IntersectNodes(struct phy_collider_h collider_handle);
+
+void phy_CollideStaticDynamic(struct phy_collider_h collider_a, struct phy_collider_h collider_b);
+
+uint32_t phy_ContactBoxBox(struct phy_collision_data_t *data_a, struct phy_collision_data_t *data_b, struct phy_contact_point_t *contact);
+
+void phy_SupportVertexBox(struct phy_box_shape_t *box, vec2_t *direction, vec2_t *point, vec2_t *normal);
 
 #endif
 

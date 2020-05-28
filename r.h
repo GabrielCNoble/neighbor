@@ -281,6 +281,16 @@ void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline);
 =================================================================
 */
 
+struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *description);
+
+struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_h pipeline_handle);
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
 struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_description_t *description);
 
 void r_DestroyFramebuffer(struct r_framebuffer_handle_t handle);
@@ -371,7 +381,7 @@ void r_vkCmdSetScissor(union r_command_buffer_h command_buffer, uint32_t first_s
 
 void r_vkCmdSetLineWidth(union r_command_buffer_h command_buffer, float width);
 
-void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkPipelineStageFlags stage_flags, uint32_t offset, uint32_t size, void *data);
+void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void *data);
 
 void r_vkCmdDraw(union r_command_buffer_h command_buffer, uint32_t count, uint32_t instance_count, uint32_t first, uint32_t first_instance);
 

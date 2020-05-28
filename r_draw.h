@@ -8,22 +8,36 @@
 #include "lib/dstuff/containers/ringbuffer.h"
 #include "spr.h"
 
-struct r_draw_state_t
+struct r_submission_state_t
 {
-    struct list_t draw_calls;
     struct stack_list_t draw_cmd_lists;
-    struct ringbuffer_t pending_draw_cmd_lists;
+    struct list_t pending_draw_cmd_lists;
     uint32_t current_draw_cmd_list;
     uint32_t draw_cmd_size;
+};
+
+struct r_m_submission_state_t
+{
+    struct r_submission_state_t base;
+    struct list_t draw_calls;
+};
+
+struct r_i_submission_state_t
+{
+    struct r_submission_state_t base;
+    struct list_t cmd_data;
+    uint32_t current_pipeline;
 };
 
 struct r_view_t
 {
     mat4_t projection_matrix;
     mat4_t inv_view_matrix;
+    VkViewport viewport;
+    VkRect2D scissor;
     vec2_t position;
-    uint32_t width;
-    uint32_t height;
+//    uint32_t width;
+//    uint32_t height;
     float z_near;
     float z_far;
     float zoom;
@@ -52,22 +66,39 @@ struct r_i_draw_data_t
 
 struct r_i_draw_line_data_t
 {
-    vec3_t from;
-    vec3_t to;
-    vec3_t color;
     float size;
+    uint32_t vert_count;
+    struct r_i_vertex_t verts[];
+};
+
+struct r_i_draw_tri_data_t
+{
+    uint32_t vert_count;
+    struct r_i_vertex_t verts[];
+};
+
+struct r_i_set_pipeline_data_t
+{
+    uint32_t pipeline_index;
 };
 
 enum R_I_DRAW_CMDS
 {
     R_I_DRAW_CMD_DRAW_LINE,
-    R_I_DRAW_CMD_DRAW_TRI_FILL,
+    R_I_DRAW_CMD_DRAW_TRI,
     R_I_DRAW_CMD_DRAW_TRI_FILL_TEXTURED,
     R_I_DRAW_CMD_BEGIN,
     R_I_DRAW_CMD_END,
-//    R_I_DRAW_CMD_TOGGLE_BLENDING,
-//    R_I_DRAW_CMD_TOGGLE_STENCIL,
+    R_I_DRAW_CMD_SET_PIPELINE,
     R_I_DRAW_CMD_LAST,
+};
+
+enum R_I_PIPELINES
+{
+    R_I_PIPELINE_LINE,
+    R_I_PIPELINE_TRI_LINE,
+    R_I_PIPELINE_TRI_FILL,
+    R_I_PIPELINE_LAST,
 };
 
 struct r_i_draw_cmd_t
@@ -144,11 +175,17 @@ void r_RecomputeInvViewMatrix();
 
 void r_RecomputeProjectionMatrix();
 
+struct r_view_t *r_GetViewPointer();
+
 /*
 =================================================================
 =================================================================
 =================================================================
 */
+
+void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state);
+
+uint32_t r_EndDrawCmdSubmission(struct r_submission_state_t *submission_state);
 
 void r_BeginSubmission();
 
@@ -158,7 +195,7 @@ void r_DrawAnimationFrame(struct spr_animation_h animation, vec2_t *position, fl
 
 void r_DrawSprite(struct spr_sprite_h sprite, vec2_t *position, float scale, float rotation, uint32_t frame, uint32_t flipped, uint32_t layer);
 
-void r_DispatchPending(struct r_draw_state_t *draw_state);
+void r_DispatchPending();
 
 struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer);
 
@@ -172,12 +209,21 @@ void r_i_BeginSubmission();
 
 void r_i_EndSubmission();
 
-void r_i_DispatchImmediate();
+void r_i_DispatchPending();
 
-void r_i_DrawCmd(mat4_t *model_view_projection_matrix, uint32_t type, void *data, uint32_t data_size);
+void *r_i_AllocateDrawCmdData(uint32_t size);
 
-void r_i_DrawLine(mat4_t *model_view_projection_matrix, vec3_t *from, vec3_t *to, vec3_t *color, float size);
+void r_i_DrawCmd(uint32_t type, void *data);
 
+void r_i_DrawLine(vec3_t *from, vec3_t *to, vec3_t *color, float size);
+
+void r_i_DrawLines(vec3_t *verts, uint32_t vert_count, vec3_t *color, float size);
+
+void r_i_DrawTri(vec3_t *a, vec3_t *b, vec3_t *c, vec3_t *color, uint32_t fill);
+
+void r_i_DrawTriLine(vec3_t *a, vec3_t *b, vec3_t *c, vec3_t *color);
+
+void r_i_DrawTriFill(vec3_t *a, vec3_t *b, vec3_t *c, vec3_t *color);
 
 
 

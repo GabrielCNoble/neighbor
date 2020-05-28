@@ -65,6 +65,7 @@ struct
     struct stack_list_t textures;
     struct stack_list_t framebuffers;
     struct stack_list_t render_passes;
+    struct stack_list_t pipelines;
     struct stack_list_t samplers;
     struct stack_list_t shaders;
     struct stack_list_t swapchains;
@@ -150,15 +151,20 @@ void r_InitDevice()
     uint32_t present_supported;
 
     VkExtensionProperties *extension_properties;
-    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
-    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
-    extensions = calloc(sizeof(char *), extension_count);
-    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, extension_properties);
+//    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
+//    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
+//    extensions = calloc(sizeof(char *), extension_count);
+//    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, extension_properties);
 
-    for(uint32_t i = 0; i < extension_count; i++)
-    {
-        extensions[i] = extension_properties[i].extensionName;
-    }
+//    for(uint32_t i = 0; i < extension_count; i++)
+//    {
+//        extensions[i] = extension_properties[i].extensionName;
+//    }
+
+    extensions = (const char *[]){
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+    };
 
     const char * const layers[] = {"VK_LAYER_KHRONOS_validation"};
 
@@ -168,11 +174,11 @@ void r_InitDevice()
     instance_create_info.flags = 0;
     instance_create_info.enabledLayerCount = 1;
     instance_create_info.ppEnabledLayerNames = layers;
-    instance_create_info.enabledExtensionCount = extension_count;
+    instance_create_info.enabledExtensionCount = 2;
     instance_create_info.ppEnabledExtensionNames = extensions;
     vkCreateInstance(&instance_create_info, NULL, &r_device.instance);
-    free(extensions);
-    free(extension_properties);
+//    free(extensions);
+//    free(extension_properties);
 
     r_device.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
 
@@ -232,19 +238,27 @@ void r_InitDevice()
         queue_create_info[1].pQueuePriorities = queue_priorities;
     }
 
-    vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, NULL);
-    extensions = calloc(sizeof(char **), extension_count);
-    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
-    vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, extension_properties);
+//    vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, NULL);
+//    extensions = calloc(sizeof(char **), extension_count);
+//    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
+//    vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, extension_properties);
 
-    for(uint32_t i = 0; i < extension_count; i++)
-    {
-        extensions[i] = extension_properties[i].extensionName;
-        if(!strcmp(extension_properties[i].extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME))
-        {
-            r_supports_push_descriptors = 1;
-        }
-    }
+//    for(uint32_t i = 0; i < extension_count; i++)
+//    {
+//        extensions[i] = extension_properties[i].extensionName;
+//        if(!strcmp(extension_properties[i].extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME))
+//        {
+//            r_supports_push_descriptors = 1;
+//        }
+//    }
+
+    extensions = (const char *[]){
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+    VkPhysicalDeviceFeatures features = {};
+    features.fillModeNonSolid = VK_TRUE;
+    features.wideLines = VK_TRUE;
 
     VkDeviceCreateInfo device_create_info = {};
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -252,15 +266,13 @@ void r_InitDevice()
     device_create_info.flags = 0;
     device_create_info.queueCreateInfoCount = queue_create_info_count;
     device_create_info.pQueueCreateInfos = queue_create_info;
-    device_create_info.enabledExtensionCount = extension_count;
+    device_create_info.enabledExtensionCount = 1;
     device_create_info.ppEnabledExtensionNames = extensions;
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = NULL;
-    device_create_info.pEnabledFeatures = NULL;
+    device_create_info.pEnabledFeatures = &features;
     vkCreateDevice(r_device.physical_device, &device_create_info, NULL, &r_device.device);
 
-    free(extensions);
-    free(extension_properties);
     free(queue_create_info);
     free(queue_priorities);
 
@@ -363,6 +375,7 @@ void r_InitDevice()
     r_device.samplers = create_stack_list(sizeof(struct r_sampler_t), 16);
     r_device.shaders = create_stack_list(sizeof(struct r_shader_t), 128);
     r_device.render_passes = create_stack_list(sizeof(struct r_render_pass_t), 16);
+    r_device.pipelines = create_stack_list(sizeof(struct r_pipeline_t), 64);
     r_device.swapchains = create_stack_list(sizeof(struct r_swapchain_t), 4);
     r_device.image_heaps = create_stack_list(sizeof(struct r_image_heap_t), 16);
     r_device.buffer_heaps = create_stack_list(sizeof(struct r_buffer_heap_t), 16);
@@ -1802,12 +1815,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 {
     struct r_render_pass_handle_t handle = R_INVALID_RENDER_PASS_HANDLE;
     struct r_render_pass_t *render_pass;
-//    struct r_shader_t *vertex_shader;
-//    struct r_shader_t *fragment_shader;
-//    struct r_render_pass_description_t *description_copy;
-//    struct r_pipeline_description_t pipeline_description;
-//    struct r_pipeline_t *pipeline;
-//    struct r_resource_binding_t *resource;
     struct r_subpass_description_t *subpass_descriptions; /* will contain the subpass descriptions that came
     in, or the one that was created in here in the case one wasn't provided by the caller */
 
@@ -1817,77 +1824,11 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     VkAttachmentReference *color_attachment_reference;
     VkAttachmentReference *depth_stencil_attachment_references;
     VkAttachmentReference *depth_stencil_attachment_reference;
-//    VkAttachmentReference *attachment_reference; /* used to iterate over an array of attachment references */
 
-//    VkAttachmentDescription *attachment_description; /* used to iterate over an array of attachment descriptions */
-
-    VkGraphicsPipelineCreateInfo pipeline_create_info = {.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
     VkRenderPassCreateInfo render_pass_create_info = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
 
-    VkPipelineColorBlendAttachmentState *attachment_state; /* used to iterate over the array of attachment states. */
-
-//    VkPipelineVertexInputStateCreateInfo vertex_input_state;
-//    uint32_t max_vertex_bindings = 0;
-//    uint32_t max_vertex_attributes = 0;
-    uint32_t max_shader_resources = 0;
     uint32_t color_attachment_count = 0;
-//    VkVertexInputBindingDescription *vertex_bindings;
-//    VkVertexInputAttributeDescription *vertex_attributes;
-
-    /* these are just used to fill any of the attributes that might be missing
-    in the pipeline description that we got.   */
-    VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
-    VkPipelineViewportStateCreateInfo viewport_state = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
-    };
-
-    VkPipelineRasterizationStateCreateInfo rasterization_state = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_NONE,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-        .lineWidth = 1.0
-    };
-
-    VkPipelineMultisampleStateCreateInfo multisample_state = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .sampleShadingEnable = VK_FALSE,
-        .minSampleShading = 0.0,
-        .alphaToCoverageEnable = VK_FALSE,
-        .alphaToOneEnable = VK_FALSE,
-    };
-
-    VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
-        .front = (VkStencilOpState){
-            .failOp = VK_STENCIL_OP_KEEP,
-            .passOp = VK_STENCIL_OP_KEEP,
-            .depthFailOp = VK_STENCIL_OP_KEEP,
-            .compareOp = VK_COMPARE_OP_ALWAYS,
-            .writeMask = 0xffffffff,
-            .reference = 0xffffffff
-        },
-        .back = (VkStencilOpState){
-            .failOp = VK_STENCIL_OP_KEEP,
-            .passOp = VK_STENCIL_OP_KEEP,
-            .depthFailOp = VK_STENCIL_OP_KEEP,
-            .compareOp = VK_COMPARE_OP_ALWAYS,
-            .writeMask = 0xffffffff,
-            .reference = 0xffffffff
-        },
-    };
+    uint32_t pipeline_count = 0;
 
     VkPipelineColorBlendStateCreateInfo color_blend_state = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -1895,32 +1836,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         .logicOp = VK_LOGIC_OP_NO_OP,
         .blendConstants = {1.0, 1.0, 1.0, 1.0}
     };
-
-    VkPipelineDynamicStateCreateInfo dynamic_state = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = 2,
-        .pDynamicStates = (VkDynamicState []){
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR,
-        }
-    };
-
-    VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = 512,
-    };
-
-    VkPipelineVertexInputStateCreateInfo input_state_create_info = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
-    };
-
-//    VkVertexInputBindingDescription vertex_binding_description = {};
-//    VkVertexInputAttributeDescription vertex_attribute_description = {};
-
-    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-    struct r_pipeline_t *pipelines;
-
-//    uint32_t depth_stencil_index = 0xffffffff;
 
     handle.index = add_stack_list_element(&r_device.render_passes, NULL);
     render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_device.render_passes, handle.index);
@@ -1948,73 +1863,30 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     elements, it's safe to allocate the same amount, as just a single VkPipeline will be created at each time, and
     a VkPipeline refers only to a single sub pass */
     color_blend_state.pAttachments = calloc(sizeof(VkPipelineColorBlendAttachmentState), color_attachment_count);
+    color_blend_state.attachmentCount = color_attachment_count;
 
     /* since missing attachment state will be all the same, just pre fill everything with the same
     values upfront */
     for(uint32_t attachment_index = 0; attachment_index < color_attachment_count; attachment_index++)
     {
         /* drop the pesky const */
-        attachment_state = (VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments + attachment_index;
-        attachment_state->blendEnable = VK_FALSE;
-        attachment_state->srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-        attachment_state->dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-        attachment_state->colorBlendOp = VK_BLEND_OP_ADD;
-        attachment_state->srcAlphaBlendFactor = 1.0;
-        attachment_state->dstAlphaBlendFactor = 1.0;
-        attachment_state->alphaBlendOp = VK_BLEND_OP_ADD;
-        attachment_state->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+        VkPipelineColorBlendAttachmentState *color_blend_attachment_state = (VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments + attachment_index;
+        color_blend_attachment_state->blendEnable = VK_FALSE;
+        color_blend_attachment_state->srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        color_blend_attachment_state->dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        color_blend_attachment_state->colorBlendOp = VK_BLEND_OP_ADD;
+        color_blend_attachment_state->srcAlphaBlendFactor = 1.0;
+        color_blend_attachment_state->dstAlphaBlendFactor = 1.0;
+        color_blend_attachment_state->alphaBlendOp = VK_BLEND_OP_ADD;
+        color_blend_attachment_state->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     }
 
     for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
     {
-        uint32_t set_layout_count = 0;
-        uint32_t push_constant_count = 0;
-//        uint32_t vertex_binding_count = 0;
-//        uint32_t vertex_attribute_count = 0;
-
         struct r_subpass_description_t *subpass_description = subpass_descriptions + subpass_index;
         subpass_description->pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
-
-        if(subpass_description->pipeline_description->shader_count > pipeline_create_info.stageCount)
-        {
-            pipeline_create_info.stageCount = subpass_description->pipeline_description->shader_count;
-        }
-
-        for(uint32_t shader_index = 0; shader_index < subpass_description->pipeline_description->shader_count; shader_index++)
-        {
-            struct r_shader_t *shader = subpass_description->pipeline_description->shaders[shader_index];
-            set_layout_count += shader->descriptor_set_layout != VK_NULL_HANDLE;
-            push_constant_count += shader->push_constant_count;
-
-            if(shader->resource_count > max_shader_resources)
-            {
-                max_shader_resources = shader->resource_count;
-            }
-
-            if(shader->stage == VK_SHADER_STAGE_VERTEX_BIT)
-            {
-                if(shader->vertex_attrib_count > input_state_create_info.vertexBindingDescriptionCount)
-                {
-                    input_state_create_info.vertexBindingDescriptionCount = shader->vertex_binding_count;
-                }
-
-                if(shader->vertex_attrib_count > input_state_create_info.vertexAttributeDescriptionCount)
-                {
-                    input_state_create_info.vertexAttributeDescriptionCount = shader->vertex_attrib_count;
-                }
-            }
-        }
-
-        if(set_layout_count > pipeline_layout_create_info.setLayoutCount)
-        {
-            pipeline_layout_create_info.setLayoutCount = set_layout_count;
-        }
-
-        if(push_constant_count > pipeline_layout_create_info.pushConstantRangeCount)
-        {
-            pipeline_layout_create_info.pushConstantRangeCount = push_constant_count;
-        }
+        pipeline_count += subpass_description->pipeline_description_count;
 
         VkAttachmentReference *first_color_attachment_reference = color_attachment_reference;
 
@@ -2068,14 +1940,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         depth_stencil_attachment_reference++;
     }
 
-    input_state_create_info.pVertexBindingDescriptions = calloc(sizeof(VkVertexInputBindingDescription), input_state_create_info.vertexBindingDescriptionCount);
-    input_state_create_info.pVertexAttributeDescriptions = calloc(sizeof(VkVertexInputAttributeDescription), input_state_create_info.vertexAttributeDescriptionCount);
-
-//    VkVertexInputBindingDescription binding_descriptions[input_state_create_info.vertexBindingDescriptionCount];
-//    VkVertexInputAttributeDescription attribute_descriptions[input_state_create_info.vertexAttributeDescriptionCount];
-//    input_state_create_info.pVertexBindingDescriptions = binding_descriptions;
-//    input_state_create_info.pVertexAttributeDescriptions = attribute_descriptions;
-
     render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     render_pass_create_info.pNext = NULL;
     render_pass_create_info.flags = 0;
@@ -2124,231 +1988,33 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
     vkCreateRenderPass(r_device.device, &render_pass_create_info, NULL, &render_pass->render_pass);
 
-    if(description->subpass_count > 1)
-    {
-        render_pass->pipelines = calloc(description->subpass_count, sizeof(struct r_pipeline_t));
-        pipelines = render_pass->pipelines;
-    }
-    else
-    {
-        pipelines = &render_pass->pipeline;
-    }
-
-    pipeline_create_info.pStages = calloc(sizeof(VkPipelineShaderStageCreateInfo), pipeline_create_info.stageCount);
-    pipeline_layout_create_info.pSetLayouts = calloc(sizeof(VkDescriptorSetLayout), pipeline_layout_create_info.setLayoutCount);
-    pipeline_layout_create_info.pPushConstantRanges = calloc(sizeof(VkPushConstantRange), pipeline_layout_create_info.pushConstantRangeCount);
-
-    descriptor_pool_create_info.pPoolSizes = calloc(sizeof(VkDescriptorPoolSize), max_shader_resources);
+    render_pass->subpasses = calloc(sizeof(struct r_subpass_t), render_pass->subpass_count);
+    render_pass->pipelines = calloc(sizeof(struct r_pipeline_h), pipeline_count);
+    pipeline_count = 0;
     for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
     {
-        /* create a pipeline object for each subpass in this render pass to reduce verbosity.
-        some fields in the pipeline description may be zero initialized (but not left uninitialized!).
-        Those zero initialized fields will be filled with some default values. */
+        struct r_subpass_t *subpass = render_pass->subpasses + subpass_index;
+        subpass->pipeline_count = description->subpasses[subpass_index].pipeline_description_count;
+        subpass->pipelines = render_pass->pipelines + pipeline_count;
+        pipeline_count += subpass->pipeline_count;
 
-        struct r_pipeline_t *pipeline = pipelines + subpass_index;
-        pipeline_layout_create_info.setLayoutCount = 0;
-        pipeline_layout_create_info.pushConstantRangeCount = 0;
-        pipeline_create_info.stageCount = 0;
-
-        struct r_subpass_description_t *subpass_description = subpass_descriptions + subpass_index;
-
-        for(uint32_t shader_index = 0; shader_index < subpass_description->pipeline_description->shader_count; shader_index++)
+        for(uint32_t pipeline_index = 0; pipeline_index < subpass->pipeline_count; pipeline_index++)
         {
-            struct r_shader_t *shader = subpass_description->pipeline_description->shaders[shader_index];
-            if(shader->descriptor_set_layout != VK_NULL_HANDLE)
-            {
-                VkDescriptorSetLayout *layout = (VkDescriptorSetLayout *)pipeline_layout_create_info.pSetLayouts + pipeline_layout_create_info.setLayoutCount;
-                *layout = shader->descriptor_set_layout;
-                pipeline_layout_create_info.setLayoutCount++;
-            }
-            if(shader->push_constant_count)
-            {
-                for(uint32_t range_index = 0; range_index < shader->push_constant_count; range_index++)
-                {
-                    VkPushConstantRange *range = (VkPushConstantRange *)pipeline_layout_create_info.pPushConstantRanges + pipeline_layout_create_info.pushConstantRangeCount;
-                    pipeline_layout_create_info.pushConstantRangeCount++;
-                    range->stageFlags = shader->stage;
-                    range->size = shader->push_constants[range_index].size;
-                    range->offset = shader->push_constants[range_index].offset;
-                }
-            }
-
-            uint32_t pool_list_index;
-            switch(shader->stage)
-            {
-                case VK_SHADER_STAGE_VERTEX_BIT:
-                    pool_list_index = 0;
-                    pipeline->vertex_shader = shader;
-                break;
-
-                case VK_SHADER_STAGE_FRAGMENT_BIT:
-                    pool_list_index = 1;
-                    pipeline->fragment_shader = shader;
-                break;
-            }
-
-            if(shader->resource_count)
-            {
-                descriptor_pool_create_info.poolSizeCount = shader->resource_count;
-                for(uint32_t resource_index = 0; resource_index < shader->resource_count; resource_index++)
-                {
-                    struct r_resource_binding_t *resource = shader->resources + resource_index;
-                    VkDescriptorPoolSize *size = (VkDescriptorPoolSize *)descriptor_pool_create_info.pPoolSizes + resource_index;
-                    size->type = resource->descriptor_type;
-                    size->descriptorCount = resource->count * descriptor_pool_create_info.maxSets;
-                }
-
-                struct r_descriptor_pool_list_t *list = pipeline->pool_lists + pool_list_index;
-                list->free_pools = create_list(sizeof(struct r_descriptor_pool_t), 16);
-                list->used_pools = create_list(sizeof(struct r_descriptor_pool_t), 16);
-
-                for(uint32_t pool_index = 0; pool_index < list->free_pools.size; pool_index++)
-                {
-                    struct r_descriptor_pool_t *pool = get_list_element(&list->free_pools, add_list_element(&list->free_pools, NULL));
-                    vkCreateDescriptorPool(r_device.device, &descriptor_pool_create_info, NULL, &pool->descriptor_pool);
-                    pool->exhaustion_event = r_CreateEvent();
-                    pool->set_count = descriptor_pool_create_info.maxSets;
-                    pool->free_count = pool->set_count;
-                }
-            }
-
-            VkPipelineShaderStageCreateInfo *shader_stage = (VkPipelineShaderStageCreateInfo *)pipeline_create_info.pStages + shader_index;
-            pipeline_create_info.stageCount++;
-            shader_stage->sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            shader_stage->pNext = NULL;
-            shader_stage->flags = 0;
-            shader_stage->pSpecializationInfo = NULL;
-            shader_stage->stage = shader->stage;
-            shader_stage->module = shader->module;
-            shader_stage->pName = "main";
-            shader_stage->pSpecializationInfo = NULL;
-        }
-
-        vkCreatePipelineLayout(r_device.device, &pipeline_layout_create_info, NULL, &pipelines[subpass_index].layout);
-        struct r_pipeline_description_t pipeline_description;
-        /* copy the pipeline description to a local variable so zero initialized fields can be filled
-        without affecting the description passed in. */
-        memcpy(&pipeline_description, subpass_description->pipeline_description, sizeof(struct r_pipeline_description_t));
-
-//        VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
-        pipeline_description.vertex_input_state = &input_state_create_info;
-
-        input_state_create_info.vertexBindingDescriptionCount = pipeline->vertex_shader->vertex_binding_count;
-        input_state_create_info.vertexAttributeDescriptionCount = 0;
-        /* first fill in the binding descriptions, and also accumulate how many attribute descriptions we have */
-        for(uint32_t binding_index = 0; binding_index < pipeline->vertex_shader->vertex_binding_count; binding_index++)
-        {
-            struct r_vertex_binding_t *binding = pipeline->vertex_shader->vertex_bindings + binding_index;
-            VkVertexInputBindingDescription *binding_description = (VkVertexInputBindingDescription *)input_state_create_info.pVertexBindingDescriptions + binding_index;
-            binding_description->binding = binding_index;
-            binding_description->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-            binding_description->stride = binding->size;
-
-            for(uint32_t attribute_index = 0; attribute_index < binding->attrib_count; attribute_index++)
-            {
-                struct r_vertex_attrib_t *attrib = binding->attribs + attribute_index;
-                VkVertexInputAttributeDescription *attrib_description = (VkVertexInputAttributeDescription *)input_state_create_info.pVertexAttributeDescriptions +
-                    input_state_create_info.vertexAttributeDescriptionCount;
-                input_state_create_info.vertexAttributeDescriptionCount++;
-
-                attrib_description->binding = binding_index;
-                attrib_description->format = attrib->format;
-                attrib_description->location = attribute_index;
-                attrib_description->offset = attrib->offset;
-            }
-        }
-
-//        memcpy(&vertex_input_state, pipeline_description.vertex_input_state, sizeof(VkPipelineVertexInputStateCreateInfo));
-//        vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-
-        if(pipeline_description.input_assembly_state)
-        {
-            memcpy(&input_assembly_state, pipeline_description.input_assembly_state, sizeof(VkPipelineInputAssemblyStateCreateInfo));
-            input_assembly_state.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        }
-        pipeline_description.input_assembly_state = &input_assembly_state;
-
-        if(!pipeline_description.viewport_state)
-        {
-            /* by default assume outside code will provide viewport and
-            scissor rects info */
-            pipeline_description.viewport_state = &viewport_state;
-        }
-
-        if(pipeline_description.rasterization_state)
-        {
-            memcpy(&rasterization_state, pipeline_description.rasterization_state, sizeof(VkPipelineRasterizationStateCreateInfo));
-            rasterization_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-
-            if(rasterization_state.lineWidth == 0.0)
-            {
-                rasterization_state.lineWidth = 1.0;
-            }
-
-        }
-        pipeline_description.rasterization_state = &rasterization_state;
-
-
-        if(!pipeline_description.multisample_state)
-        {
-            pipeline_description.multisample_state = &multisample_state;
-        }
-
-        if(!pipeline_description.depth_stencil_state)
-        {
-            /* OpenGL disabled depth testing, by default. Here we'll enable
-            it by default if there's a depth-stencil attachment reference in this subpass.
-            Stencil test remains disabled by default. */
-            pipeline_description.depth_stencil_state = &depth_stencil_state;
-            depth_stencil_state.depthTestEnable = subpass_description->depth_stencil_attachment != NULL;
-            depth_stencil_state.depthWriteEnable = subpass_description->depth_stencil_attachment != NULL;
-        }
-
-        if(!pipeline_description.color_blend_state)
-        {
+            struct r_pipeline_description_t pipeline_description = {};
+            memcpy(&pipeline_description, description->subpasses[subpass_index].pipeline_descriptions + pipeline_index, sizeof(struct r_pipeline_description_t));
+            pipeline_description.subpass_index = subpass_index;
+            pipeline_description.render_pass = render_pass->render_pass;
             pipeline_description.color_blend_state = &color_blend_state;
-            color_blend_state.attachmentCount = color_attachment_count;
+            subpass->pipelines[pipeline_index] = r_CreatePipeline(&pipeline_description);
         }
-
-        if(pipeline_description.dynamic_state)
-        {
-            memcpy(&dynamic_state, pipeline_description.dynamic_state, sizeof(VkPipelineDynamicStateCreateInfo));
-            dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        }
-
-        pipeline_description.dynamic_state = &dynamic_state;
-
-        pipeline_create_info.pVertexInputState = pipeline_description.vertex_input_state;
-        pipeline_create_info.pInputAssemblyState = pipeline_description.input_assembly_state;
-        pipeline_create_info.pTessellationState = pipeline_description.tesselation_state;
-        pipeline_create_info.pViewportState = pipeline_description.viewport_state;
-        pipeline_create_info.pRasterizationState = pipeline_description.rasterization_state;
-        pipeline_create_info.pMultisampleState = pipeline_description.multisample_state;
-        pipeline_create_info.pDepthStencilState = pipeline_description.depth_stencil_state;
-        pipeline_create_info.pColorBlendState = pipeline_description.color_blend_state;
-        pipeline_create_info.pDynamicState = pipeline_description.dynamic_state;
-        pipeline_create_info.layout = pipelines[subpass_index].layout;
-        pipeline_create_info.renderPass = render_pass->render_pass;
-        pipeline_create_info.subpass = subpass_index;
-        pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-        pipeline_create_info.basePipelineIndex = 0;
-
-        vkCreateGraphicsPipelines(r_device.device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &pipeline->pipeline);
     }
 
     free(subpass_descriptions);
     free(color_attachment_references);
     free(depth_stencil_attachment_references);
     free((VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments);
-    free((VkVertexInputAttributeDescription *)input_state_create_info.pVertexAttributeDescriptions);
-    free((VkVertexInputBindingDescription *)input_state_create_info.pVertexBindingDescriptions);
     free((VkAttachmentDescription *)render_pass_create_info.pAttachments);
     free((VkSubpassDescription *)render_pass_create_info.pSubpasses);
-    free((VkPipelineShaderStageCreateInfo *)pipeline_create_info.pStages);
-    free((VkPipelineLayout *)pipeline_layout_create_info.pSetLayouts);
-    free((VkPushConstantRange *)pipeline_layout_create_info.pPushConstantRanges);
-    free((VkDescriptorPoolSize *)descriptor_pool_create_info.pPoolSizes);
 
     return handle;
 }
@@ -2471,6 +2137,342 @@ VkDescriptorSet r_AllocateDescriptorSet(union r_command_buffer_h command_buffer,
 void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline)
 {
 
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *description)
+{
+    struct r_pipeline_h handle = R_INVALID_PIPELINE_HANDLE;
+    struct r_pipeline_description_t *description_copy;
+    struct r_pipeline_t *pipeline = NULL;
+
+    VkGraphicsPipelineCreateInfo pipeline_create_info = {};
+    VkPipelineLayoutCreateInfo layout_create_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
+    };
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    VkPipelineViewportStateCreateInfo viewport_state = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1,
+    };
+
+    VkPipelineRasterizationStateCreateInfo rasterization_state = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_NONE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .lineWidth = 1.0
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisample_state = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable = VK_FALSE,
+        .minSampleShading = 0.0,
+        .alphaToCoverageEnable = VK_FALSE,
+        .alphaToOneEnable = VK_FALSE,
+    };
+
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .front = (VkStencilOpState){
+            .failOp = VK_STENCIL_OP_KEEP,
+            .passOp = VK_STENCIL_OP_KEEP,
+            .depthFailOp = VK_STENCIL_OP_KEEP,
+            .compareOp = VK_COMPARE_OP_ALWAYS,
+            .writeMask = 0xffffffff,
+            .reference = 0xffffffff
+        },
+        .back = (VkStencilOpState){
+            .failOp = VK_STENCIL_OP_KEEP,
+            .passOp = VK_STENCIL_OP_KEEP,
+            .depthFailOp = VK_STENCIL_OP_KEEP,
+            .compareOp = VK_COMPARE_OP_ALWAYS,
+            .writeMask = 0xffffffff,
+            .reference = 0xffffffff
+        },
+    };
+
+    VkPipelineColorBlendStateCreateInfo color_blend_state = {
+//        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+//        .logicOpEnable = VK_FALSE,
+//        .logicOp = VK_LOGIC_OP_NO_OP,
+//        .blendConstants = {1.0, 1.0, 1.0, 1.0}
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamic_state = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2,
+        .pDynamicStates = (VkDynamicState []){
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR,
+        }
+    };
+
+    VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .maxSets = 1024,
+    };
+
+    VkPipelineVertexInputStateCreateInfo input_state_create_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
+    };
+
+    if(description)
+    {
+        handle.index = add_stack_list_element(&r_device.pipelines, NULL);
+        pipeline = get_stack_list_element(&r_device.pipelines, handle.index);
+
+        description_copy = alloca(sizeof(struct r_pipeline_description_t ));
+        memcpy(description_copy, description, sizeof(struct r_pipeline_description_t));
+        description = description_copy;
+
+        for(uint32_t shader_index = 0; shader_index < description->shader_count; shader_index++)
+        {
+            struct r_shader_t *shader = description->shaders[shader_index];
+            layout_create_info.setLayoutCount += shader->descriptor_set_layout != VK_NULL_HANDLE;
+            if(shader->resource_count > descriptor_pool_create_info.poolSizeCount)
+            {
+                descriptor_pool_create_info.poolSizeCount = shader->resource_count;
+            }
+            if(shader->push_constant_count > layout_create_info.pushConstantRangeCount)
+            {
+                layout_create_info.pushConstantRangeCount = shader->push_constant_count;
+            }
+//            if(shader->stage == VK_SHADER_STAGE_VERTEX_BIT)
+//            {
+//                if(shader->vertex_binding_count > input_state_create_info.vertexBindingDescriptionCount)
+//                {
+//                    input_state_create_info.vertexAttributeDescriptionCount = shader->vertex_binding_count;
+//                }
+//                if(shader->vertex_attrib_count > input_state_create_info.vertexAttributeDescriptionCount)
+//                {
+//                    input_state_create_info.vertexAttributeDescriptionCount = shader->vertex_attrib_count;
+//                }
+//            }
+        }
+
+        layout_create_info.pPushConstantRanges = alloca(sizeof(VkPushConstantRange) * layout_create_info.pushConstantRangeCount);
+        layout_create_info.pushConstantRangeCount = 0;
+        layout_create_info.pSetLayouts = alloca(sizeof(VkDescriptorSetLayout) * layout_create_info.setLayoutCount);
+        layout_create_info.setLayoutCount = 0;
+
+        descriptor_pool_create_info.pPoolSizes = alloca(sizeof(VkDescriptorPoolSize) * descriptor_pool_create_info.poolSizeCount);
+        descriptor_pool_create_info.poolSizeCount = 0;
+
+        pipeline_create_info.pStages = alloca(sizeof(VkPipelineShaderStageCreateInfo) * description->shader_count);
+
+        for(uint32_t shader_index = 0; shader_index < description->shader_count; shader_index++)
+        {
+            struct r_shader_t *shader = description->shaders[shader_index];
+            if(shader->descriptor_set_layout != VK_NULL_HANDLE)
+            {
+                VkDescriptorSetLayout *layout = (VkDescriptorSetLayout *)layout_create_info.pSetLayouts + layout_create_info.setLayoutCount;
+                *layout = shader->descriptor_set_layout;
+                layout_create_info.setLayoutCount++;
+            }
+            if(shader->push_constant_count)
+            {
+                for(uint32_t range_index = 0; range_index < shader->push_constant_count; range_index++)
+                {
+                    VkPushConstantRange *range = (VkPushConstantRange *)layout_create_info.pPushConstantRanges + layout_create_info.pushConstantRangeCount;
+                    layout_create_info.pushConstantRangeCount++;
+                    range->stageFlags = shader->stage;
+                    range->size = shader->push_constants[range_index].size;
+                    range->offset = shader->push_constants[range_index].offset;
+                }
+            }
+
+            uint32_t pool_list_index;
+            switch(shader->stage)
+            {
+                case VK_SHADER_STAGE_VERTEX_BIT:
+                    pool_list_index = 0;
+                    pipeline->vertex_shader = shader;
+                break;
+
+                case VK_SHADER_STAGE_FRAGMENT_BIT:
+                    pool_list_index = 1;
+                    pipeline->fragment_shader = shader;
+                break;
+            }
+
+            if(shader->resource_count)
+            {
+                descriptor_pool_create_info.poolSizeCount = shader->resource_count;
+                for(uint32_t resource_index = 0; resource_index < shader->resource_count; resource_index++)
+                {
+                    struct r_resource_binding_t *resource = shader->resources + resource_index;
+                    VkDescriptorPoolSize *size = (VkDescriptorPoolSize *)descriptor_pool_create_info.pPoolSizes + resource_index;
+                    size->type = resource->descriptor_type;
+                    size->descriptorCount = resource->count * descriptor_pool_create_info.maxSets;
+                }
+
+                struct r_descriptor_pool_list_t *list = pipeline->pool_lists + pool_list_index;
+                list->free_pools = create_list(sizeof(struct r_descriptor_pool_t), 16);
+                list->used_pools = create_list(sizeof(struct r_descriptor_pool_t), 16);
+
+                for(uint32_t pool_index = 0; pool_index < list->free_pools.size; pool_index++)
+                {
+                    struct r_descriptor_pool_t *pool = get_list_element(&list->free_pools, add_list_element(&list->free_pools, NULL));
+                    vkCreateDescriptorPool(r_device.device, &descriptor_pool_create_info, NULL, &pool->descriptor_pool);
+                    pool->exhaustion_event = r_CreateEvent();
+                    pool->set_count = descriptor_pool_create_info.maxSets;
+                    pool->free_count = pool->set_count;
+                }
+            }
+
+            VkPipelineShaderStageCreateInfo *shader_stage = (VkPipelineShaderStageCreateInfo *)pipeline_create_info.pStages + shader_index;
+            pipeline_create_info.stageCount++;
+            shader_stage->sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            shader_stage->pNext = NULL;
+            shader_stage->flags = 0;
+            shader_stage->pSpecializationInfo = NULL;
+            shader_stage->stage = shader->stage;
+            shader_stage->module = shader->module;
+            shader_stage->pName = "main";
+            shader_stage->pSpecializationInfo = NULL;
+        }
+
+        vkCreatePipelineLayout(r_device.device, &layout_create_info, NULL, &pipeline->layout);
+        description->vertex_input_state = &input_state_create_info;
+
+        input_state_create_info.vertexBindingDescriptionCount = pipeline->vertex_shader->vertex_binding_count;
+        input_state_create_info.pVertexBindingDescriptions = alloca(sizeof(VkVertexInputBindingDescription) * pipeline->vertex_shader->vertex_binding_count);
+        input_state_create_info.pVertexAttributeDescriptions = alloca(sizeof(VkVertexInputAttributeDescription) * pipeline->vertex_shader->vertex_attrib_count);
+        /* first fill in the binding descriptions, and also accumulate how many attribute descriptions we have */
+        for(uint32_t binding_index = 0; binding_index < pipeline->vertex_shader->vertex_binding_count; binding_index++)
+        {
+            struct r_vertex_binding_t *binding = pipeline->vertex_shader->vertex_bindings + binding_index;
+            VkVertexInputBindingDescription *binding_description = (VkVertexInputBindingDescription *)input_state_create_info.pVertexBindingDescriptions + binding_index;
+            binding_description->binding = binding_index;
+            binding_description->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+            binding_description->stride = binding->size;
+
+            for(uint32_t attribute_index = 0; attribute_index < binding->attrib_count; attribute_index++)
+            {
+                struct r_vertex_attrib_t *attrib = binding->attribs + attribute_index;
+                VkVertexInputAttributeDescription *attrib_description = (VkVertexInputAttributeDescription *)input_state_create_info.pVertexAttributeDescriptions +
+                    input_state_create_info.vertexAttributeDescriptionCount;
+                input_state_create_info.vertexAttributeDescriptionCount++;
+
+                attrib_description->binding = binding_index;
+                attrib_description->format = attrib->format;
+                attrib_description->location = attribute_index;
+                attrib_description->offset = attrib->offset;
+            }
+        }
+
+        if(description->input_assembly_state)
+        {
+            memcpy(&input_assembly_state, description->input_assembly_state, sizeof(VkPipelineInputAssemblyStateCreateInfo));
+            input_assembly_state.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        }
+        description->input_assembly_state = &input_assembly_state;
+
+        if(!description->viewport_state)
+        {
+            /* by default assume outside code will provide viewport and
+            scissor rects info */
+            description->viewport_state = &viewport_state;
+        }
+
+        if(description->rasterization_state)
+        {
+            memcpy(&rasterization_state, description->rasterization_state, sizeof(VkPipelineRasterizationStateCreateInfo));
+            rasterization_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+
+            if(rasterization_state.lineWidth == 0.0)
+            {
+                rasterization_state.lineWidth = 1.0;
+            }
+
+        }
+        description->rasterization_state = &rasterization_state;
+
+
+        if(!description->multisample_state)
+        {
+            description->multisample_state = &multisample_state;
+        }
+
+        if(description->depth_stencil_state)
+        {
+            memcpy(&depth_stencil_state, description->depth_stencil_state, sizeof(VkPipelineDepthStencilStateCreateInfo));
+            depth_stencil_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        }
+        description->depth_stencil_state = &depth_stencil_state;
+
+        memcpy(&color_blend_state, description->color_blend_state, sizeof(VkPipelineColorBlendStateCreateInfo));
+        description->color_blend_state = &color_blend_state;
+        color_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+
+        if(description->dynamic_state)
+        {
+            memcpy(&dynamic_state, description->dynamic_state, sizeof(VkPipelineDynamicStateCreateInfo));
+            dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        }
+        description->dynamic_state = &dynamic_state;
+
+        pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipeline_create_info.pVertexInputState = description->vertex_input_state;
+        pipeline_create_info.pInputAssemblyState = description->input_assembly_state;
+        pipeline_create_info.pTessellationState = description->tesselation_state;
+        pipeline_create_info.pViewportState = description->viewport_state;
+        pipeline_create_info.pRasterizationState = description->rasterization_state;
+        pipeline_create_info.pMultisampleState = description->multisample_state;
+        pipeline_create_info.pDepthStencilState = description->depth_stencil_state;
+        pipeline_create_info.pColorBlendState = description->color_blend_state;
+        pipeline_create_info.pDynamicState = description->dynamic_state;
+        pipeline_create_info.layout = pipeline->layout;
+        pipeline_create_info.renderPass = description->render_pass;
+        pipeline_create_info.subpass = description->subpass_index;
+        pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+        pipeline_create_info.basePipelineIndex = 0;
+
+        vkCreateGraphicsPipelines(r_device.device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &pipeline->pipeline);
+
+        pipeline->tag.depth_state.compare_op = description->depth_stencil_state->depthCompareOp;
+        pipeline->tag.depth_state.test_enable = description->depth_stencil_state->depthTestEnable;
+        pipeline->tag.depth_state.write_enable = description->depth_stencil_state->depthWriteEnable;
+        pipeline->tag.stencil_state.test_enable = description->depth_stencil_state->stencilTestEnable;
+        pipeline->tag.stencil_state.front.compare_op = description->depth_stencil_state->front.compareOp;
+        pipeline->tag.stencil_state.front.pass_op = description->depth_stencil_state->front.passOp;
+        pipeline->tag.stencil_state.front.fail_op = description->depth_stencil_state->front.failOp;
+        pipeline->tag.stencil_state.front.depth_fail_op = description->depth_stencil_state->front.depthFailOp;
+        pipeline->tag.stencil_state.back.compare_op = description->depth_stencil_state->back.compareOp;
+        pipeline->tag.stencil_state.back.pass_op = description->depth_stencil_state->back.passOp;
+        pipeline->tag.stencil_state.back.fail_op = description->depth_stencil_state->back.failOp;
+        pipeline->tag.stencil_state.back.depth_fail_op = description->depth_stencil_state->back.depthFailOp;
+    }
+    return handle;
+}
+
+struct r_pipeline_t *r_GetPipelinePointer(struct r_pipeline_h pipeline_handle)
+{
+    struct r_pipeline_t *pipeline = NULL;
+    pipeline = get_stack_list_element(&r_device.pipelines, pipeline_handle.index);
+    if(pipeline && pipeline->pipeline == VK_NULL_HANDLE)
+    {
+        pipeline = NULL;
+    }
+    return pipeline;
 }
 
 /*
@@ -2914,7 +2916,7 @@ void r_vkCmdSetLineWidth(union r_command_buffer_h command_buffer, float width)
     vkCmdSetLineWidth(command_buffer_ptr->command_buffer, width);
 }
 
-void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkPipelineStageFlags stage_flags, uint32_t offset, uint32_t size, void *data)
+void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void *data)
 {
     struct r_command_buffer_t *command_buffer_ptr;
     command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
