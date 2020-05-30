@@ -371,6 +371,8 @@ void r_vkCmdBindPipeline(union r_command_buffer_h command_buffer, VkPipelineBind
 
 void r_vkCmdBindVertexBuffers(union r_command_buffer_h command_buffer, uint32_t first_binding, uint32_t binding_count, VkBuffer *buffers, VkDeviceSize *offsets);
 
+void r_vkCmdBindIndexBuffer(union r_command_buffer_h command_buffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType index_type);
+
 void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, VkRenderPassBeginInfo *begin_info, VkSubpassContents subpass_contents);
 
 void r_vkCmdEndRenderPass(union r_command_buffer_h command_buffer);
@@ -384,6 +386,8 @@ void r_vkCmdSetLineWidth(union r_command_buffer_h command_buffer, float width);
 void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void *data);
 
 void r_vkCmdDraw(union r_command_buffer_h command_buffer, uint32_t count, uint32_t instance_count, uint32_t first, uint32_t first_instance);
+
+void r_vkCmdDrawIndexed(union r_command_buffer_h command_buffer, uint32_t index_count, uint32_t instance_count, uint32_t first_index, uint32_t vertex_offset, uint32_t first_instance);
 
 void r_vkCmdCopyBufferToImage(union r_command_buffer_h command_buffer, VkBuffer src_buffer, VkImage dst_image, VkImageLayout dst_layout, uint32_t region_count, VkBufferImageCopy *regions);
 

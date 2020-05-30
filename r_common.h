@@ -4,11 +4,11 @@
 #include <stdint.h>
 #include "lib/SDL/include/SDL2/SDL.h"
 //#include "SDL/include/SDL2/SDL_vulkan.h"
-#include "lib/dstuff/containers/stack_list.h"
-#include "lib/dstuff/containers/list.h"
-#include "lib/dstuff/containers/ringbuffer.h"
-#include "lib/dstuff/math/vector.h"
-#include "lib/dstuff/math/matrix.h"
+#include "lib/dstuff/ds_stack_list.h"
+#include "lib/dstuff/ds_list.h"
+#include "lib/dstuff/ds_ringbuffer.h"
+#include "lib/dstuff/ds_vector.h"
+#include "lib/dstuff/ds_matrix.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "lib/vulkan/Include/vulkan/vulkan.h"

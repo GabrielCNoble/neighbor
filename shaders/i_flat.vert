@@ -4,7 +4,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 layout (location = 0) in vec4 r_VertexPosition;
-layout (location = 1) in vec4 r_VertexColor;
+layout (location = 2) in vec4 r_VertexColor;
 
 layout (location = 0) out vec4 color;
 

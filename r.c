@@ -1,9 +1,10 @@
 #include "r.h"
-#include "lib/dstuff/file/path.h"
+#include "lib/dstuff/ds_mem.h"
+#include "lib/dstuff/ds_path.h"
 //#include "r_vk.h"
-#include "lib/dstuff/containers/stack_list.h"
-#include "lib/dstuff/containers/ringbuffer.h"
-#include "lib/dstuff/containers/list.h"
+#include "lib/dstuff/ds_stack_list.h"
+#include "lib/dstuff/ds_ringbuffer.h"
+#include "lib/dstuff/ds_list.h"
 #include <stdlib.h>
 #include <string.h>
 #include "lib/stb/stb_image.h"
@@ -141,27 +142,9 @@ void r_Init()
 =================================================================
 */
 
-void r_InitDevice()
+void r_CreateInstance()
 {
-    const char **extensions = NULL;
-    uint32_t extension_count = 0;
-    uint32_t physical_device_count = 1;
-    uint32_t queue_family_property_count;
-    uint32_t queue_create_info_count;
-    uint32_t present_supported;
-
-    VkExtensionProperties *extension_properties;
-//    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
-//    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
-//    extensions = calloc(sizeof(char *), extension_count);
-//    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, extension_properties);
-
-//    for(uint32_t i = 0; i < extension_count; i++)
-//    {
-//        extensions[i] = extension_properties[i].extensionName;
-//    }
-
-    extensions = (const char *[]){
+    const char *extensions[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
         VK_KHR_WIN32_SURFACE_EXTENSION_NAME
     };
@@ -177,19 +160,24 @@ void r_InitDevice()
     instance_create_info.enabledExtensionCount = 2;
     instance_create_info.ppEnabledExtensionNames = extensions;
     vkCreateInstance(&instance_create_info, NULL, &r_device.instance);
-//    free(extensions);
-//    free(extension_properties);
+}
 
-    r_device.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
-
+void r_CreateSurface()
+{
     SDL_Vulkan_CreateSurface(r_device.window, r_device.instance, &r_device.surface);
+}
+
+void r_CreateDevice()
+{
+    uint32_t physical_device_count = 1;
+    uint32_t queue_family_property_count = 0;
+    uint32_t present_supported = 0;
 
     vkEnumeratePhysicalDevices(r_device.instance, &physical_device_count, &r_device.physical_device);
     VkQueueFamilyProperties *queue_family_properties;
     vkGetPhysicalDeviceQueueFamilyProperties(r_device.physical_device, &queue_family_property_count, NULL);
-    queue_family_properties = calloc(sizeof(VkQueueFamilyProperties), queue_family_property_count);
+    queue_family_properties = mem_Calloc(sizeof(VkQueueFamilyProperties), queue_family_property_count);
     vkGetPhysicalDeviceQueueFamilyProperties(r_device.physical_device, &queue_family_property_count, queue_family_properties);
-
     for(uint32_t i = 0; i < queue_family_property_count; i++)
     {
         if(queue_family_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
@@ -200,9 +188,9 @@ void r_InitDevice()
                 r_device.graphics_queue_family = i;
             }
         }
-    }
 
-    free(queue_family_properties);
+    }
+    mem_Free(queue_family_properties);
 
     for(uint32_t i = 0; i < queue_family_property_count; i++)
     {
@@ -215,9 +203,9 @@ void r_InitDevice()
     }
 
     VkDeviceQueueCreateInfo *queue_create_info;
-    queue_create_info_count = 1 + (r_device.graphics_queue_family != r_device.present_queue_family);
-    queue_create_info = calloc(sizeof(VkDeviceQueueCreateInfo), queue_create_info_count);
-    float *queue_priorities = calloc(sizeof(float), r_device.graphics_queue_count);
+    uint32_t queue_create_info_count = 1 + (r_device.graphics_queue_family != r_device.present_queue_family);
+    queue_create_info = mem_Calloc(sizeof(VkDeviceQueueCreateInfo), queue_create_info_count);
+    float *queue_priorities = mem_Calloc(sizeof(float), r_device.graphics_queue_count);
 
     queue_create_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queue_create_info[0].pNext = NULL;
@@ -238,21 +226,7 @@ void r_InitDevice()
         queue_create_info[1].pQueuePriorities = queue_priorities;
     }
 
-//    vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, NULL);
-//    extensions = calloc(sizeof(char **), extension_count);
-//    extension_properties = calloc(sizeof(VkExtensionProperties), extension_count);
-//    vkEnumerateDeviceExtensionProperties(r_device.physical_device, NULL, &extension_count, extension_properties);
-
-//    for(uint32_t i = 0; i < extension_count; i++)
-//    {
-//        extensions[i] = extension_properties[i].extensionName;
-//        if(!strcmp(extension_properties[i].extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME))
-//        {
-//            r_supports_push_descriptors = 1;
-//        }
-//    }
-
-    extensions = (const char *[]){
+    const char *extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
@@ -271,11 +245,10 @@ void r_InitDevice()
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = NULL;
     device_create_info.pEnabledFeatures = &features;
-    vkCreateDevice(r_device.physical_device, &device_create_info, NULL, &r_device.device);
+    VkResult result = vkCreateDevice(r_device.physical_device, &device_create_info, NULL, &r_device.device);
 
-    free(queue_create_info);
-    free(queue_priorities);
-
+    mem_Free(queue_create_info);
+    mem_Free(queue_priorities);
 
     vkGetDeviceQueue(r_device.device, r_device.graphics_queue_family, 0, &r_device.queues[0].queue);
     r_device.draw_queue = &r_device.queues[0];
@@ -299,24 +272,10 @@ void r_InitDevice()
     {
         r_device.present_queue = r_device.draw_queue;
     }
+}
 
-    if(r_supports_push_descriptors)
-    {
-        vkCmdPushDescriptorSet = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(r_device.device, "vkCmdPushDescriptorSetKHR");
-    }
-
-//    VkFenceCreateInfo fence_create_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-//    vkCreateFence(r_device.device, &fence_create_info, NULL, &r_device.draw_fence);
-//    vkCreateFence(r_device.device, &fence_create_info, NULL, &r_device.transfer_fence);
-
-    r_device.transfer_fence = r_CreateFence();
-
-    /*
-    =================================================================
-    =================================================================
-    =================================================================
-    */
-
+void r_CreateDeviceCommandPool()
+{
     VkCommandPoolCreateInfo command_pool_create_info = {};
     command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     command_pool_create_info.pNext = NULL;
@@ -325,12 +284,23 @@ void r_InitDevice()
     vkCreateCommandPool(r_device.device, &command_pool_create_info, NULL, &r_device.draw_command_pool.command_pool);
     r_device.draw_command_pool.command_buffers = create_stack_list(sizeof(struct r_command_buffer_t), 128);
     r_device.draw_command_pool.pending_command_buffers = create_list(sizeof(uint32_t), 128);
+}
+
+void r_InitDevice()
+{
+    r_CreateInstance();
+    r_device.window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
+    r_CreateSurface();
+    r_CreateDevice();
+    r_CreateDeviceCommandPool();
+    r_device.transfer_fence = r_CreateFence();
 
     /*
     =================================================================
     =================================================================
     =================================================================
     */
+
     VkMemoryAllocateInfo memory_allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
     VkMemoryRequirements memory_requirements;
     VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -351,7 +321,7 @@ void r_InitDevice()
     vkMapMemory(r_device.device, r_device.staging.base_staging_memory, 0, buffer_create_info.size, 0, &r_device.staging.base_staging_pointer);
     r_device.staging.staging_buffer_count = 8;
     r_device.staging.staging_buffer_size = r_device.staging.base_staging_buffer_size / r_device.staging.staging_buffer_count;
-    r_device.staging.staging_buffers = calloc(sizeof(struct r_staging_buffer_t), r_device.staging.staging_buffer_count);
+    r_device.staging.staging_buffers = mem_Calloc(sizeof(struct r_staging_buffer_t), r_device.staging.staging_buffer_count);
     r_device.staging.free_buffers = create_list(sizeof(uint32_t ), r_device.staging.staging_buffer_count);
     r_device.staging.used_buffers = create_list(sizeof(uint32_t ), r_device.staging.staging_buffer_count);
     buffer_create_info.size /= r_device.staging.staging_buffer_count;
@@ -577,7 +547,7 @@ struct r_heap_h r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint
     uint32_t memory_type_bits = 0xffffffff;
     uint32_t memory_type_bits_copy;
 
-    supported_formats = alloca(sizeof(VkFormat) * format_count);
+    supported_formats = mem_Calloc(sizeof(VkFormat), format_count);
 
     dummy_image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     dummy_image_create_info.imageType = VK_IMAGE_TYPE_2D;
@@ -616,12 +586,11 @@ struct r_heap_h r_CreateImageHeap(VkFormat *formats, uint32_t format_count, uint
 
     handle = r_CreateHeap(size, R_HEAP_TYPE_IMAGE);
     heap = (struct r_image_heap_t *)r_GetHeapPointer(handle);
-    heap->supported_formats = calloc(sizeof(VkFormat), supported_formats_count);
+    heap->supported_formats = supported_formats;
     heap->supported_format_count = supported_formats_count;
-    memcpy(heap->supported_formats, supported_formats, sizeof(VkFormat) * supported_formats_count);
+//    memcpy(heap->supported_formats, supported_formats, sizeof(VkFormat) * supported_formats_count);
 
     vkAllocateMemory(r_device.device, &allocate_info, NULL, &heap->memory);
-
     return handle;
 }
 
@@ -1423,7 +1392,7 @@ void r_CreateDefaultTexture()
     default_texture = r_CreateTexture(&description);
     pixel_pitch = r_GetFormatPixelPitch(description.format);
 //    row_pitch = pixel_pitch * description.extent.width;
-    default_texture_pixels = calloc(pixel_pitch, description.extent.width * description.extent.height);
+    default_texture_pixels = mem_Calloc(pixel_pitch, description.extent.width * description.extent.height);
     texture = r_GetTexturePointer(default_texture);
     for(uint32_t y = 0; y < description.extent.height; y++)
     {
@@ -1435,7 +1404,7 @@ void r_CreateDefaultTexture()
 
     r_FillImageChunk(texture->image, default_texture_pixels, NULL);
     r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    free(default_texture_pixels);
+    mem_Free(default_texture_pixels);
 }
 
 struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *description)
@@ -1690,7 +1659,7 @@ struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *descripti
 
         if(description->push_constant_count)
         {
-            shader->push_constants = calloc(description->push_constant_count, sizeof(struct r_push_constant_t));
+            shader->push_constants = mem_Calloc(description->push_constant_count, sizeof(struct r_push_constant_t));
             memcpy(shader->push_constants, description->push_constants, description->push_constant_count *
                                                                     sizeof(struct r_push_constant_t));
         }
@@ -1707,7 +1676,7 @@ struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *descripti
             alloc_size += description->vertex_binding_count * sizeof(struct r_vertex_binding_t);
 
             /* single memory block for bindings and attributes */
-            shader->vertex_bindings = (struct r_vertex_binding_t *)calloc(1, alloc_size);
+            shader->vertex_bindings = (struct r_vertex_binding_t *)mem_Calloc(1, alloc_size);
             /* attributes exist in memory right after the bindings */
             attribs = (struct r_vertex_attrib_t *)(shader->vertex_bindings + description->vertex_binding_count);
             memcpy(shader->vertex_bindings, description->vertex_bindings, sizeof(struct r_vertex_binding_t) *
@@ -1726,11 +1695,10 @@ struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *descripti
 
         if(description->resource_count)
         {
-            shader->resources = calloc(description->resource_count, sizeof(struct r_resource_binding_t));
+            shader->resources = mem_Calloc(description->resource_count, sizeof(struct r_resource_binding_t));
             memcpy(shader->resources, description->resources, sizeof(struct r_resource_binding_t) * description->resource_count);
 
-            layout_bindings = alloca(sizeof(VkDescriptorSetLayoutBinding) * description->resource_count);
-
+            layout_bindings = mem_Calloc(sizeof(VkDescriptorSetLayoutBinding), description->resource_count);
             for(uint32_t i = 0; i < description->resource_count; i++)
             {
                 layout_binding = layout_bindings + i;
@@ -1750,6 +1718,7 @@ struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *descripti
             layout_create_info.bindingCount = description->resource_count;
             layout_create_info.pBindings = layout_bindings;
             vkCreateDescriptorSetLayout(r_device.device, &layout_create_info, NULL, &shader->descriptor_set_layout);
+            mem_Free(layout_bindings);
         }
 
         VkShaderModuleCreateInfo module_create_info = {};
@@ -1820,10 +1789,10 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
 //    struct r_subpass_description_t *subpass_description; /* used to iterate over the subpass_descriptions array */
 
-    VkAttachmentReference *color_attachment_references;
-    VkAttachmentReference *color_attachment_reference;
-    VkAttachmentReference *depth_stencil_attachment_references;
-    VkAttachmentReference *depth_stencil_attachment_reference;
+//    VkAttachmentReference *color_attachment_references;
+//    VkAttachmentReference *color_attachment_reference;
+//    VkAttachmentReference *depth_stencil_attachment_references;
+//    VkAttachmentReference *depth_stencil_attachment_reference;
 
     VkRenderPassCreateInfo render_pass_create_info = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
 
@@ -1837,10 +1806,14 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         .blendConstants = {1.0, 1.0, 1.0, 1.0}
     };
 
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+    };
+
     handle.index = add_stack_list_element(&r_device.render_passes, NULL);
     render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_device.render_passes, handle.index);
 
-    subpass_descriptions = calloc(sizeof(struct r_subpass_description_t), description->subpass_count);
+    subpass_descriptions = mem_Calloc(sizeof(struct r_subpass_description_t), description->subpass_count);
     memcpy(subpass_descriptions, description->subpasses, sizeof(struct r_subpass_description_t) * description->subpass_count);
 
     for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
@@ -1853,16 +1826,16 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         }
     }
 
-    color_attachment_references = calloc(sizeof(VkAttachmentReference), color_attachment_count * description->subpass_count);
-    color_attachment_reference = color_attachment_references;
-    depth_stencil_attachment_references = calloc(sizeof(VkAttachmentReference), description->subpass_count);
-    depth_stencil_attachment_reference = depth_stencil_attachment_references;
+    VkAttachmentReference *color_attachment_references = mem_Calloc(sizeof(VkAttachmentReference), color_attachment_count * description->subpass_count);
+    VkAttachmentReference *color_attachment_reference = color_attachment_references;
+    VkAttachmentReference *depth_stencil_attachment_references = mem_Calloc(sizeof(VkAttachmentReference), description->subpass_count);
+    VkAttachmentReference *depth_stencil_attachment_reference = depth_stencil_attachment_references;
     /* Each sub pass will have its own VkPipeline object. Each pipeline has a VkPipelineColorBlendStateCreateInfo,
     which contains an array of VkPipelineColorBlendAttachmentState. Each element of this array matches an element
     of the pColorAttachments array in the sub pass. Since pColorAttachments will have at most color_attachment_count
     elements, it's safe to allocate the same amount, as just a single VkPipeline will be created at each time, and
     a VkPipeline refers only to a single sub pass */
-    color_blend_state.pAttachments = calloc(sizeof(VkPipelineColorBlendAttachmentState), color_attachment_count);
+    color_blend_state.pAttachments = mem_Calloc(sizeof(VkPipelineColorBlendAttachmentState), color_attachment_count);
     color_blend_state.attachmentCount = color_attachment_count;
 
     /* since missing attachment state will be all the same, just pre fill everything with the same
@@ -1870,7 +1843,8 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     for(uint32_t attachment_index = 0; attachment_index < color_attachment_count; attachment_index++)
     {
         /* drop the pesky const */
-        VkPipelineColorBlendAttachmentState *color_blend_attachment_state = (VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments + attachment_index;
+        VkPipelineColorBlendAttachmentState *color_blend_attachment_state = (VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments +
+            attachment_index;
         color_blend_attachment_state->blendEnable = VK_FALSE;
         color_blend_attachment_state->srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
         color_blend_attachment_state->dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -1944,7 +1918,7 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     render_pass_create_info.pNext = NULL;
     render_pass_create_info.flags = 0;
     render_pass_create_info.attachmentCount = description->attachment_count;
-    render_pass_create_info.pAttachments = calloc(sizeof(VkAttachmentDescription), description->attachment_count);
+    render_pass_create_info.pAttachments = mem_Calloc(sizeof(VkAttachmentDescription), description->attachment_count);
 
     if(description->attachment_count)
     {
@@ -1965,6 +1939,8 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
                 didn't get one */
                 if(r_IsDepthStencilFormat(attachment_description->format))
                 {
+                    depth_stencil_state.depthTestEnable = VK_TRUE;
+                    depth_stencil_state.depthWriteEnable = VK_TRUE;
                     attachment_description->finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
                 }
                 else
@@ -1976,8 +1952,8 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     }
 
     render_pass_create_info.subpassCount = description->subpass_count;
-    render_pass_create_info.pSubpasses = calloc(sizeof(VkSubpassDescription), description->subpass_count);
-    memset((VkSubpassDescription *)render_pass_create_info.pSubpasses, 0, sizeof(VkSubpassDescription) * description->subpass_count);
+    render_pass_create_info.pSubpasses = mem_Calloc(sizeof(VkSubpassDescription), description->subpass_count);
+//    memset((VkSubpassDescription *)render_pass_create_info.pSubpasses, 0, sizeof(VkSubpassDescription) * description->subpass_count);
 
     for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
     {
@@ -1987,17 +1963,17 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     }
 
     vkCreateRenderPass(r_device.device, &render_pass_create_info, NULL, &render_pass->render_pass);
-
-    render_pass->subpasses = calloc(sizeof(struct r_subpass_t), render_pass->subpass_count);
-    render_pass->pipelines = calloc(sizeof(struct r_pipeline_h), pipeline_count);
+    render_pass->subpass_count = description->subpass_count;
+    render_pass->subpasses = mem_Calloc(sizeof(struct r_subpass_t), render_pass->subpass_count);
+    render_pass->pipelines = mem_Calloc(sizeof(struct r_pipeline_h), pipeline_count);
     pipeline_count = 0;
     for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
     {
         struct r_subpass_t *subpass = render_pass->subpasses + subpass_index;
+        subpass->pipeline_count = 0;
         subpass->pipeline_count = description->subpasses[subpass_index].pipeline_description_count;
         subpass->pipelines = render_pass->pipelines + pipeline_count;
         pipeline_count += subpass->pipeline_count;
-
         for(uint32_t pipeline_index = 0; pipeline_index < subpass->pipeline_count; pipeline_index++)
         {
             struct r_pipeline_description_t pipeline_description = {};
@@ -2005,16 +1981,17 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
             pipeline_description.subpass_index = subpass_index;
             pipeline_description.render_pass = render_pass->render_pass;
             pipeline_description.color_blend_state = &color_blend_state;
+            pipeline_description.depth_stencil_state = &depth_stencil_state;
             subpass->pipelines[pipeline_index] = r_CreatePipeline(&pipeline_description);
         }
     }
 
-    free(subpass_descriptions);
-    free(color_attachment_references);
-    free(depth_stencil_attachment_references);
-    free((VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments);
-    free((VkAttachmentDescription *)render_pass_create_info.pAttachments);
-    free((VkSubpassDescription *)render_pass_create_info.pSubpasses);
+//    free(subpass_descriptions);
+//    free(color_attachment_references);
+//    free(depth_stencil_attachment_references);
+//    free((VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments);
+//    free((VkAttachmentDescription *)render_pass_create_info.pAttachments);
+//    free((VkSubpassDescription *)render_pass_create_info.pSubpasses);
 
     return handle;
 }
@@ -2069,14 +2046,6 @@ VkDescriptorSet r_AllocateDescriptorSet(union r_command_buffer_h command_buffer,
     }
 
     list = &pipeline->pool_lists[list_index];
-
-//    if(list->current_pool == 0xffffffff)
-//    {
-//        descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-//        descriptor_pool_create_info.
-//
-//        descriptor_pool = alloca(sizeof(struct r_descriptor_pool_t));
-//    }
 
     /* many threads may use this pipeline to submit draw commands concurrently */
     SDL_AtomicLock(&list->spinlock);
@@ -2148,7 +2117,7 @@ void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline)
 struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *description)
 {
     struct r_pipeline_h handle = R_INVALID_PIPELINE_HANDLE;
-    struct r_pipeline_description_t *description_copy;
+    struct r_pipeline_description_t description_copy = {};
     struct r_pipeline_t *pipeline = NULL;
 
     VkGraphicsPipelineCreateInfo pipeline_create_info = {};
@@ -2237,11 +2206,13 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
     if(description)
     {
         handle.index = add_stack_list_element(&r_device.pipelines, NULL);
+        mem_CheckGuards();
         pipeline = get_stack_list_element(&r_device.pipelines, handle.index);
+        mem_CheckGuards();
 
-        description_copy = alloca(sizeof(struct r_pipeline_description_t ));
-        memcpy(description_copy, description, sizeof(struct r_pipeline_description_t));
-        description = description_copy;
+//        description_copy = alloca(sizeof(struct r_pipeline_description_t ));
+        memcpy(&description_copy, description, sizeof(struct r_pipeline_description_t));
+        description = &description_copy;
 
         for(uint32_t shader_index = 0; shader_index < description->shader_count; shader_index++)
         {
@@ -2255,28 +2226,20 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
             {
                 layout_create_info.pushConstantRangeCount = shader->push_constant_count;
             }
-//            if(shader->stage == VK_SHADER_STAGE_VERTEX_BIT)
-//            {
-//                if(shader->vertex_binding_count > input_state_create_info.vertexBindingDescriptionCount)
-//                {
-//                    input_state_create_info.vertexAttributeDescriptionCount = shader->vertex_binding_count;
-//                }
-//                if(shader->vertex_attrib_count > input_state_create_info.vertexAttributeDescriptionCount)
-//                {
-//                    input_state_create_info.vertexAttributeDescriptionCount = shader->vertex_attrib_count;
-//                }
-//            }
         }
 
-        layout_create_info.pPushConstantRanges = alloca(sizeof(VkPushConstantRange) * layout_create_info.pushConstantRangeCount);
+        layout_create_info.pPushConstantRanges = mem_Calloc(sizeof(VkPushConstantRange), layout_create_info.pushConstantRangeCount);
         layout_create_info.pushConstantRangeCount = 0;
-        layout_create_info.pSetLayouts = alloca(sizeof(VkDescriptorSetLayout) * layout_create_info.setLayoutCount);
+        layout_create_info.pSetLayouts = mem_Calloc(sizeof(VkDescriptorSetLayout), layout_create_info.setLayoutCount);
         layout_create_info.setLayoutCount = 0;
 
-        descriptor_pool_create_info.pPoolSizes = alloca(sizeof(VkDescriptorPoolSize) * descriptor_pool_create_info.poolSizeCount);
+        mem_CheckGuards();
+
+        descriptor_pool_create_info.pPoolSizes = mem_Calloc(sizeof(VkDescriptorPoolSize), descriptor_pool_create_info.poolSizeCount);
         descriptor_pool_create_info.poolSizeCount = 0;
 
-        pipeline_create_info.pStages = alloca(sizeof(VkPipelineShaderStageCreateInfo) * description->shader_count);
+        pipeline_create_info.pStages = mem_Calloc(sizeof(VkPipelineShaderStageCreateInfo), description->shader_count);
+        mem_CheckGuards();
 
         for(uint32_t shader_index = 0; shader_index < description->shader_count; shader_index++)
         {
@@ -2287,6 +2250,7 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
                 *layout = shader->descriptor_set_layout;
                 layout_create_info.setLayoutCount++;
             }
+            mem_CheckGuards();
             if(shader->push_constant_count)
             {
                 for(uint32_t range_index = 0; range_index < shader->push_constant_count; range_index++)
@@ -2298,6 +2262,7 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
                     range->offset = shader->push_constants[range_index].offset;
                 }
             }
+            mem_CheckGuards();
 
             uint32_t pool_list_index;
             switch(shader->stage)
@@ -2338,6 +2303,8 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
                 }
             }
 
+            mem_CheckGuards();
+
             VkPipelineShaderStageCreateInfo *shader_stage = (VkPipelineShaderStageCreateInfo *)pipeline_create_info.pStages + shader_index;
             pipeline_create_info.stageCount++;
             shader_stage->sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -2348,14 +2315,17 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
             shader_stage->module = shader->module;
             shader_stage->pName = "main";
             shader_stage->pSpecializationInfo = NULL;
+
+            mem_CheckGuards();
         }
 
+        mem_CheckGuards();
         vkCreatePipelineLayout(r_device.device, &layout_create_info, NULL, &pipeline->layout);
         description->vertex_input_state = &input_state_create_info;
 
         input_state_create_info.vertexBindingDescriptionCount = pipeline->vertex_shader->vertex_binding_count;
-        input_state_create_info.pVertexBindingDescriptions = alloca(sizeof(VkVertexInputBindingDescription) * pipeline->vertex_shader->vertex_binding_count);
-        input_state_create_info.pVertexAttributeDescriptions = alloca(sizeof(VkVertexInputAttributeDescription) * pipeline->vertex_shader->vertex_attrib_count);
+        input_state_create_info.pVertexBindingDescriptions = mem_Calloc(sizeof(VkVertexInputBindingDescription), pipeline->vertex_shader->vertex_binding_count);
+        input_state_create_info.pVertexAttributeDescriptions = mem_Calloc(sizeof(VkVertexInputAttributeDescription), pipeline->vertex_shader->vertex_attrib_count);
         /* first fill in the binding descriptions, and also accumulate how many attribute descriptions we have */
         for(uint32_t binding_index = 0; binding_index < pipeline->vertex_shader->vertex_binding_count; binding_index++)
         {
@@ -2378,6 +2348,8 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
                 attrib_description->offset = attrib->offset;
             }
         }
+
+        mem_CheckGuards();
 
         if(description->input_assembly_state)
         {
@@ -2448,18 +2420,25 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
 
         vkCreateGraphicsPipelines(r_device.device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &pipeline->pipeline);
 
-        pipeline->tag.depth_state.compare_op = description->depth_stencil_state->depthCompareOp;
-        pipeline->tag.depth_state.test_enable = description->depth_stencil_state->depthTestEnable;
-        pipeline->tag.depth_state.write_enable = description->depth_stencil_state->depthWriteEnable;
-        pipeline->tag.stencil_state.test_enable = description->depth_stencil_state->stencilTestEnable;
-        pipeline->tag.stencil_state.front.compare_op = description->depth_stencil_state->front.compareOp;
-        pipeline->tag.stencil_state.front.pass_op = description->depth_stencil_state->front.passOp;
-        pipeline->tag.stencil_state.front.fail_op = description->depth_stencil_state->front.failOp;
-        pipeline->tag.stencil_state.front.depth_fail_op = description->depth_stencil_state->front.depthFailOp;
-        pipeline->tag.stencil_state.back.compare_op = description->depth_stencil_state->back.compareOp;
-        pipeline->tag.stencil_state.back.pass_op = description->depth_stencil_state->back.passOp;
-        pipeline->tag.stencil_state.back.fail_op = description->depth_stencil_state->back.failOp;
-        pipeline->tag.stencil_state.back.depth_fail_op = description->depth_stencil_state->back.depthFailOp;
+//        pipeline->tag.depth_state.compare_op = description->depth_stencil_state->depthCompareOp;
+//        pipeline->tag.depth_state.test_enable = description->depth_stencil_state->depthTestEnable;
+//        pipeline->tag.depth_state.write_enable = description->depth_stencil_state->depthWriteEnable;
+//        pipeline->tag.stencil_state.test_enable = description->depth_stencil_state->stencilTestEnable;
+//        pipeline->tag.stencil_state.front.compare_op = description->depth_stencil_state->front.compareOp;
+//        pipeline->tag.stencil_state.front.pass_op = description->depth_stencil_state->front.passOp;
+//        pipeline->tag.stencil_state.front.fail_op = description->depth_stencil_state->front.failOp;
+//        pipeline->tag.stencil_state.front.depth_fail_op = description->depth_stencil_state->front.depthFailOp;
+//        pipeline->tag.stencil_state.back.compare_op = description->depth_stencil_state->back.compareOp;
+//        pipeline->tag.stencil_state.back.pass_op = description->depth_stencil_state->back.passOp;
+//        pipeline->tag.stencil_state.back.fail_op = description->depth_stencil_state->back.failOp;
+//        pipeline->tag.stencil_state.back.depth_fail_op = description->depth_stencil_state->back.depthFailOp;
+
+//        free((VkPushConstantRange *)layout_create_info.pPushConstantRanges);
+//        free((VkDescriptorSetLayout *)layout_create_info.pSetLayouts);
+//        free((VkDescriptorPoolSize *)descriptor_pool_create_info.pPoolSizes);
+//        free((VkPipelineShaderStageCreateInfo *)pipeline_create_info.pStages);
+//        free((VkVertexInputAttributeDescription *)input_state_create_info.pVertexAttributeDescriptions);
+//        free((VkVertexInputBindingDescription *)input_state_create_info.pVertexBindingDescriptions);
     }
     return handle;
 }
@@ -2495,8 +2474,8 @@ struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_descripti
     {
         handle.index = add_stack_list_element(&r_device.framebuffers, NULL);
         framebuffer = get_stack_list_element(&r_device.framebuffers, handle.index);
-        framebuffer->buffers = calloc(description->frame_count, sizeof(VkFramebuffer));
-        framebuffer->textures = calloc(description->attachment_count * description->frame_count, sizeof(struct r_texture_handle_t));
+        framebuffer->buffers = mem_Calloc(description->frame_count, sizeof(VkFramebuffer));
+        framebuffer->textures = mem_Calloc(description->attachment_count * description->frame_count, sizeof(struct r_texture_handle_t));
 //        framebuffer->attachment_count = description->attachment_count;
 
         framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -2504,7 +2483,7 @@ struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_descripti
         framebuffer_create_info.flags = 0;
         framebuffer_create_info.renderPass = description->render_pass->render_pass;
         framebuffer_create_info.attachmentCount = description->attachment_count;
-        framebuffer_create_info.pAttachments = alloca(sizeof(VkImageView) * description->attachment_count);
+        framebuffer_create_info.pAttachments = mem_Calloc(sizeof(VkImageView), description->attachment_count);
         framebuffer_create_info.width = description->width;
         framebuffer_create_info.height = description->height;
         framebuffer_create_info.layers = 1;
@@ -2536,6 +2515,8 @@ struct r_framebuffer_handle_t r_CreateFramebuffer(struct r_framebuffer_descripti
 
             vkCreateFramebuffer(r_device.device, &framebuffer_create_info, NULL, framebuffer->buffers + frame_index);
         }
+
+        mem_Free(framebuffer_create_info.pAttachments);
     }
 
     return handle;
@@ -2614,7 +2595,7 @@ struct r_swapchain_handle_t r_CreateSwapchain(VkSwapchainCreateInfoKHR *descript
 {
     struct r_swapchain_handle_t handle = R_INVALID_SWAPCHAIN_HANDLE;
     struct r_swapchain_t *swapchain;
-    VkSwapchainCreateInfoKHR *description_copy;
+    VkSwapchainCreateInfoKHR description_copy;
     VkImageCreateInfo image_description = {};
     VkSurfaceCapabilitiesKHR surface_capabilites;
     VkSurfaceFormatKHR surface_format;
@@ -2625,9 +2606,9 @@ struct r_swapchain_handle_t r_CreateSwapchain(VkSwapchainCreateInfoKHR *descript
     handle.index = add_stack_list_element(&r_device.swapchains, NULL);
     swapchain = get_stack_list_element(&r_device.swapchains, handle.index);
 
-    description_copy = alloca(sizeof(VkSwapchainCreateInfoKHR));
-    memcpy(description_copy, description, sizeof(VkSwapchainCreateInfoKHR));
-    description = description_copy;
+//    description_copy = alloca(sizeof(VkSwapchainCreateInfoKHR));
+    memcpy(&description_copy, description, sizeof(VkSwapchainCreateInfoKHR));
+    description = &description_copy;
 
     description->sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 
@@ -2668,8 +2649,8 @@ struct r_swapchain_handle_t r_CreateSwapchain(VkSwapchainCreateInfoKHR *descript
 
     vkCreateSwapchainKHR(r_device.device, description, NULL, &swapchain->swapchain);
     swapchain->image_count = description->minImageCount;
-    swapchain->images = calloc(sizeof(struct r_image_handle_t), swapchain->image_count);
-    swapchain_images = alloca(sizeof(VkImage) * swapchain->image_count);
+    swapchain->images = mem_Calloc(sizeof(struct r_image_handle_t), swapchain->image_count);
+    swapchain_images = mem_Calloc(sizeof(VkImage), swapchain->image_count);
 
     vkGetSwapchainImagesKHR(r_device.device, swapchain->swapchain, &swapchain_image_count, NULL);
     vkGetSwapchainImagesKHR(r_device.device, swapchain->swapchain, &swapchain_image_count, swapchain_images);
@@ -2687,6 +2668,8 @@ struct r_swapchain_handle_t r_CreateSwapchain(VkSwapchainCreateInfoKHR *descript
         vkDestroyImage(r_device.device, image->image, NULL);
         image->image = swapchain_images[image_index];
     }
+
+    mem_Free(swapchain_images);
 
     return handle;
 }
@@ -2881,6 +2864,13 @@ void r_vkCmdBindVertexBuffers(union r_command_buffer_h command_buffer, uint32_t 
     vkCmdBindVertexBuffers(command_buffer_ptr->command_buffer, first_binding, binding_count, buffers, offsets);
 }
 
+void r_vkCmdBindIndexBuffer(union r_command_buffer_h command_buffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType index_type)
+{
+    struct r_command_buffer_t *command_buffer_ptr;
+    command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
+    vkCmdBindIndexBuffer(command_buffer_ptr->command_buffer, buffer, offset, index_type);
+}
+
 void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, VkRenderPassBeginInfo *begin_info, VkSubpassContents subpass_contents)
 {
     struct r_command_buffer_t *command_buffer_ptr;
@@ -2928,6 +2918,13 @@ void r_vkCmdDraw(union r_command_buffer_h command_buffer, uint32_t count, uint32
     struct r_command_buffer_t *command_buffer_ptr;
     command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
     vkCmdDraw(command_buffer_ptr->command_buffer, count, instance_count, first, first_instance);
+}
+
+void r_vkCmdDrawIndexed(union r_command_buffer_h command_buffer, uint32_t index_count, uint32_t instance_count, uint32_t first_index, uint32_t vertex_offset, uint32_t first_instance)
+{
+    struct r_command_buffer_t *command_buffer_ptr;
+    command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
+    vkCmdDrawIndexed(command_buffer_ptr->command_buffer, index_count, instance_count, first_index, vertex_offset, first_instance);
 }
 
 void r_vkCmdCopyBufferToImage(union r_command_buffer_h command_buffer, VkBuffer src_buffer, VkImage dst_image, VkImageLayout dst_layout, uint32_t region_count, VkBufferImageCopy *regions)

@@ -2,8 +2,8 @@
 #define ENT_H
 
 #include <stdint.h>
-#include "lib/dstuff/math/vector.h"
-#include "lib/dstuff/math/matrix.h"
+#include "lib/dstuff/ds_vector.h"
+#include "lib/dstuff/ds_matrix.h"
 //#include "mdl.h"
 struct entity_prop_t
 {

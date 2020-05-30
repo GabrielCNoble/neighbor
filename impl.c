@@ -1,28 +1,35 @@
-#define DSTUFF_MATH_VECTOR_IMPLEMENTATION
-#define DSTUFF_MATH_MATRIX_IMPLEMENTATION
-//#define DSTUFF_MATH_GEOMETRY_IMPLEMENTATION
-#include "lib/dstuff/math/matrix.h"
-#include "lib/dstuff/math/vector.h"
-//#include "lib/dstuff/math/geometry.h"
+#define DS_VECTOR_IMPLEMENTATION
+#include "lib/dstuff/ds_vector.h"
 
-#define DSTUFF_CONTAINERS_LIST_IMPLEMENTATION
-#include "lib/dstuff/containers/list.h"
-#define DSTUFF_CONTAINERS_STACK_LIST_IMPLEMENTATION
-#include "lib/dstuff/containers/stack_list.h"
-#define DSTUFF_CONTAINERS_RING_BUFFER_IMPLEMENTATION
-#include "lib/dstuff/containers/ringbuffer.h"
+#define DS_MATRIX_IMPLEMENTATION
+#include "lib/dstuff/ds_matrix.h"
 
-#define DSTUFF_ACCEL_STRUCTS_DBVH_IMPLEMENTATION
-#include "lib/dstuff/accel_structs/dbvh.h"
+#define DS_MEMORY_IMPLEMENTATION
+#include "lib/dstuff/ds_mem.h"
 
-#define DSTUFF_FILE_PATH_IMPLEMENTATION
-#include "lib/dstuff/file/path.h"
-#define DSTUFF_FILE_FILE_IMPLEMENTATION
+#define DS_LIST_IMPLEMENTATION
+#include "lib/dstuff/ds_list.h"
 
-#define DSTUFF_SPRITE_SPRPK_IMPLEMENTATION
-#include "lib/dstuff/sprite/sprpk.h"
+#define DS_STACK_LIST_IMPLEMENTATION
+#include "lib/dstuff/ds_stack_list.h"
+
+#define DS_RINGBUFFER_IMPLEMENTATION
+#include "lib/dstuff/ds_ringbuffer.h"
+
+#define DS_DBVH_IMPLEMENTATION
+#include "lib/dstuff/ds_dbvh.h"
+
+#define DS_PATH_IMPLEMENTATION
+#include "lib/dstuff/ds_path.h"
+
+#define DS_FILE_IMPLEMENTATION
+#include "lib/dstuff/ds_file.h"
+
+#define DS_SPRPK_IMPLEMENTATION
+#include "lib/dstuff/ds_sprpk.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "lib/stb/stb_image.h"
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb/stb_image_write.h"

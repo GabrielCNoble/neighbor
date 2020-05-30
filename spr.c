@@ -1,8 +1,8 @@
 #include "r.h"
 #include "spr.h"
-#include "lib/dstuff/containers/stack_list.h"
-#include "lib/dstuff/containers/list.h"
-#include "lib/dstuff/sprite/sprpk.h"
+#include "lib/dstuff/ds_stack_list.h"
+#include "lib/dstuff/ds_list.h"
+#include "lib/dstuff/ds_sprpk.h"
 #include "lib/stb/stb_image.h"
 
 

@@ -1,7 +1,7 @@
 #ifndef PHY_H
 #define PHY_H
 
-#include "lib/dstuff/math/vector.h"
+#include "lib/dstuff/ds_vector.h"
 #include <stdint.h>
 
 enum PHY_SHAPE_TYPES

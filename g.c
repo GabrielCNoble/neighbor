@@ -4,6 +4,7 @@
 #include "r.h"
 #include "r_draw.h"
 #include "phy.h"
+#include "ui.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -45,6 +46,7 @@ void g_MainLoop()
     r_DrawInit();
     phy_Init();
     spr_Init();
+    ui_Init();
 
     if(g_InitCallback)
     {
@@ -57,10 +59,12 @@ void g_MainLoop()
     {
         g_UpdateDeltaTime();
         in_ReadInput();
+        r_BeginFrame();
+        ui_BeginFrame();
         spr_UpdateAnimPlayers(g_delta_time);
         phy_Step(g_delta_time);
-        r_BeginFrame();
         g_MainLoopCallback(g_delta_time);
+        ui_EndFrame();
         r_EndFrame();
     }
 

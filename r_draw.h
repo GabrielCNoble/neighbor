@@ -2,10 +2,10 @@
 #define R_DRAW_H
 
 #include "r.h"
-#include "lib/dstuff/math/matrix.h"
-#include "lib/dstuff/containers/list.h"
-#include "lib/dstuff/containers/stack_list.h"
-#include "lib/dstuff/containers/ringbuffer.h"
+#include "lib/dstuff/ds_matrix.h"
+#include "lib/dstuff/ds_list.h"
+#include "lib/dstuff/ds_stack_list.h"
+#include "lib/dstuff/ds_ringbuffer.h"
 #include "spr.h"
 
 struct r_submission_state_t
@@ -57,24 +57,31 @@ struct r_vertex_t
     vec4_t tex_coords;
 };
 
-#define R_I_DRAW_DATA_SIZE 64
+#define R_I_DRAW_DATA_SLOT_SIZE 64
+
+struct r_i_draw_data_slot_t
+{
+    uint8_t data[R_I_DRAW_DATA_SLOT_SIZE];
+};
 
 struct r_i_draw_data_t
 {
-    uint8_t data[R_I_DRAW_DATA_SIZE];
+    uint32_t indexed;
 };
 
 struct r_i_draw_line_data_t
 {
     float size;
     uint32_t vert_count;
-    struct r_i_vertex_t verts[];
+    struct r_i_vertex_t *verts;
 };
 
 struct r_i_draw_tri_data_t
 {
+    uint32_t indice_count;
+    uint32_t *indices;
     uint32_t vert_count;
-    struct r_i_vertex_t verts[];
+    struct r_i_vertex_t *verts;
 };
 
 struct r_i_set_pipeline_data_t
@@ -84,20 +91,22 @@ struct r_i_set_pipeline_data_t
 
 enum R_I_DRAW_CMDS
 {
-    R_I_DRAW_CMD_DRAW_LINE,
-    R_I_DRAW_CMD_DRAW_TRI,
-    R_I_DRAW_CMD_DRAW_TRI_FILL_TEXTURED,
-    R_I_DRAW_CMD_BEGIN,
-    R_I_DRAW_CMD_END,
+    R_I_DRAW_CMD_DRAW_LINE_LIST,
+    R_I_DRAW_CMD_DRAW_LINE_STRIP,
+    R_I_DRAW_CMD_DRAW_TRI_LINE,
+    R_I_DRAW_CMD_DRAW_TRI_FILL,
+    R_I_DRAW_CMD_DRAW_TRI_TEX,
     R_I_DRAW_CMD_SET_PIPELINE,
     R_I_DRAW_CMD_LAST,
 };
 
 enum R_I_PIPELINES
 {
-    R_I_PIPELINE_LINE,
+    R_I_PIPELINE_LINE_LIST,
+    R_I_PIPELINE_LINE_STRIP,
     R_I_PIPELINE_TRI_LINE,
     R_I_PIPELINE_TRI_FILL,
+    R_I_PIPELINE_TRI_TEX,
     R_I_PIPELINE_LAST,
 };
 
@@ -215,15 +224,19 @@ void *r_i_AllocateDrawCmdData(uint32_t size);
 
 void r_i_DrawCmd(uint32_t type, void *data);
 
-void r_i_DrawLine(vec3_t *from, vec3_t *to, vec3_t *color, float size);
+void r_i_SetPipeline(uint32_t pipeline_index);
 
-void r_i_DrawLines(vec3_t *verts, uint32_t vert_count, vec3_t *color, float size);
+void r_i_DrawLines(struct r_i_vertex_t *verts, uint32_t vert_count, float size, uint32_t line_strip);
 
-void r_i_DrawTri(vec3_t *a, vec3_t *b, vec3_t *c, vec3_t *color, uint32_t fill);
+void r_i_DrawLine(struct r_i_vertex_t *from, struct r_i_vertex_t *to, float size);
 
-void r_i_DrawTriLine(vec3_t *a, vec3_t *b, vec3_t *c, vec3_t *color);
+void r_i_DrawLineStrip(struct r_i_vertex_t *verts, uint32_t vert_count, float size);
 
-void r_i_DrawTriFill(vec3_t *a, vec3_t *b, vec3_t *c, vec3_t *color);
+void r_i_DrawTris(struct r_i_vertex_t *verts, uint32_t vert_count, uint32_t *indices, uint32_t indice_count, uint32_t fill);
+
+void r_i_DrawTriLine(struct r_i_vertex_t *verts);
+
+void r_i_DrawTriFill(struct r_i_vertex_t *verts);
 
 
 

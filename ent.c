@@ -1,8 +1,8 @@
 #include "ent.h"
-#include "lib/dstuff/containers/stack_list.h"
-#include "lib/dstuff/accel_structs/dbvh.h"
-#include "lib/dstuff/math/vector.h"
-#include "lib/dstuff/math/matrix.h"
+#include "lib/dstuff/ds_stack_list.h"
+#include "lib/dstuff/ds_dbvh.h"
+#include "lib/dstuff/ds_vector.h"
+#include "lib/dstuff/ds_matrix.h"
 #include "r.h"
 #include <stdio.h>
 #include <string.h>

@@ -3,8 +3,8 @@
 #include <float.h>
 #include <stdio.h>
 #include "phy.h"
-#include "lib/dstuff/containers/stack_list.h"
-#include "lib/dstuff/accel_structs/dbvh.h"
+#include "lib/dstuff/ds_stack_list.h"
+#include "lib/dstuff/ds_dbvh.h"
 
 
 
