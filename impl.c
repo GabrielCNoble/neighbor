@@ -28,6 +28,9 @@
 #define DS_SPRPK_IMPLEMENTATION
 #include "lib/dstuff/ds_sprpk.h"
 
+#define DS_WAVEFRONT_IMPLEMENTATION
+#include "lib/dstuff/ds_obj.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "lib/stb/stb_image.h"
 

@@ -5,9 +5,9 @@
 
 layout (location = 0) in vec4 tex_coords;
 layout (location = 1) in vec4 tex_normal;
-layout (location = 2) in vec4 offset_size;
+//layout (location = 2) in vec4 offset_size;
 
-layout (set = 1, binding = 0) uniform sampler2D r_Sampler0;
+layout (set = 0, binding = 0) uniform sampler2D r_Sampler0;
 // layout (set = 0, binding = 1) uniform sampler2D r_Sampler1;
 
 // struct light_params
@@ -17,13 +17,12 @@ layout (set = 1, binding = 0) uniform sampler2D r_Sampler0;
 
 void main()
 {
-    vec4 color = texture(r_Sampler0, vec2(offset_size.x + offset_size.z * tex_coords.x,
-                                            offset_size.y + offset_size.w * tex_coords.y));
+    vec4 color = texture(r_Sampler0, tex_coords.xy);
 
-    if(color.a < 0.2)
-    {
-        discard;
-    }
+//    if(color.a < 0.2)
+//    {
+//        discard;
+//    }
 
     gl_FragColor = color;
 }

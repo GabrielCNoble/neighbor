@@ -50,6 +50,8 @@ struct phy_collider_t
     uint32_t dbvh_node;
     uint32_t step;
     uint32_t active_index;
+    uint32_t first_pair;
+    uint32_t last_pair;
     uint16_t first_contact;
     uint16_t contact_count;
 };
@@ -93,8 +95,8 @@ struct phy_collision_pair_t
 struct phy_contact_point_t
 {
     struct phy_collider_h collider;
-    vec2_t relative_pos;
     vec2_t normal;
+    vec2_t step_back;
     float penetration;
 };
 
@@ -117,15 +119,21 @@ struct phy_collider_h phy_CreateCollider(uint32_t type, struct phy_shape_h shape
 
 struct phy_collider_h phy_CreateDynamicCollider(struct phy_shape_h shape_handle);
 
+struct phy_collider_h phy_CreateKinematicCollider(struct phy_shape_h shape_handle);
+
 struct phy_collider_h phy_CreateStaticCollider(struct phy_shape_h shape_handle);
 
 struct phy_collider_t *phy_GetColliderPointer(struct phy_collider_h collider_handle);
+
+void phy_GetColliderVertices(struct phy_collider_h collider, struct r_i_vertex_t **vertices, uint32_t *vertice_count);
 
 void phy_AddColliderToWorld(struct phy_collider_h collider_handle);
 
 void phy_SetColliderPosition(struct phy_collider_h collider_handle, vec2_t *position);
 
 void phy_SetColliderVelocity(struct phy_collider_h collider_handle, vec2_t *velocity);
+
+void phy_SetColliderRotation(struct phy_collider_h collider_handle, float rotation);
 
 
 
@@ -140,11 +148,15 @@ vec2_t phy_GetColliderExtends(struct phy_collider_h collider_handle);
 
 void phy_Step(float delta_time);
 
+void phy_MoveCollider(struct phy_collider_h collider_handle);
+
 void phy_IntersectNodes(struct phy_collider_h collider_handle);
 
-void phy_CollideStaticDynamic(struct phy_collider_h collider_a, struct phy_collider_h collider_b);
+void phy_CollideStaticKinematic(struct phy_collider_h collider_a, struct phy_collider_h collider_b);
 
 uint32_t phy_ContactBoxBox(struct phy_collision_data_t *data_a, struct phy_collision_data_t *data_b, struct phy_contact_point_t *contact);
+
+void phy_SupportEdge(struct phy_box_shape_t *box, vec2_t *direction, vec2_t *points, vec2_t *normal);
 
 void phy_SupportVertexBox(struct phy_box_shape_t *box, vec2_t *direction, vec2_t *point, vec2_t *normal);
 

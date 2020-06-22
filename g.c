@@ -5,6 +5,7 @@
 #include "r_draw.h"
 #include "phy.h"
 #include "ui.h"
+#include "scr.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -16,6 +17,8 @@ uint32_t g_run_loop = 1;
 uint64_t g_timer_frequency;
 uint64_t g_timer_count;
 float g_delta_time;
+
+SDL_Window *g_window;
 
 void g_SetInitCallback(void (*callback)())
 {
@@ -41,12 +44,20 @@ void g_MainLoop()
     }
 
     g_timer_frequency = SDL_GetPerformanceFrequency();
-
-    r_Init();
+    g_window = SDL_CreateWindow("game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
+    
+    VkInstance instance = r_InitInstance();
+    VkSurfaceKHR surface;
+    SDL_Vulkan_CreateSurface(g_window, instance, &surface);
+    r_InitDevice(surface);
+    
+//    r_Init();
     r_DrawInit();
+    scr_Init();
     phy_Init();
     spr_Init();
     ui_Init();
+    mdl_Init();
 
     if(g_InitCallback)
     {
@@ -64,6 +75,7 @@ void g_MainLoop()
         spr_UpdateAnimPlayers(g_delta_time);
         phy_Step(g_delta_time);
         g_MainLoopCallback(g_delta_time);
+        scr_UpdateScripts(g_delta_time);
         ui_EndFrame();
         r_EndFrame();
     }

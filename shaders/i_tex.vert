@@ -4,9 +4,10 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 layout (location = 0) in vec4 r_VertexPosition;
+layout (location = 1) in vec4 r_VertexTexCoords;
 layout (location = 2) in vec4 r_VertexColor;
 
-layout (location = 0) out vec4 color;
+layout (location = 0) out vec2 tex_coords;
 
 layout(push_constant) uniform r_Input
 {
@@ -16,5 +17,5 @@ layout(push_constant) uniform r_Input
 void main()
 {
     gl_Position = r_ModelViewProjectionMatrix * r_VertexPosition;
-    color = r_VertexColor;
+    tex_coords = r_VertexTexCoords.xy;
 }

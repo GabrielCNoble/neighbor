@@ -9,32 +9,14 @@ layout (location = 2) in vec4 r_VertexTexCoords;
 
 layout (location = 0) out vec4 tex_coords;
 layout (location = 1) out vec4 tex_normal;
-layout (location = 2) out vec4 offset_size;
 
-struct r_input_params_t
+layout (push_constant) uniform r_InputParams
 {
-    mat4 model_view_projection_matrix;
-    vec4 offset_size;
+    mat4 r_ModelViewProjectionMatrix;
 };
-
-layout (set = 0, binding = 0) uniform r_Input
-{
-    r_input_params_t r_input_params[32];
-};
-
-
 
 void main()
 {
-    gl_Position =  r_input_params[gl_InstanceIndex].model_view_projection_matrix * r_VertexPosition;
-    offset_size = r_input_params[gl_InstanceIndex].offset_size;
+    gl_Position =  r_ModelViewProjectionMatrix * r_VertexPosition;
     tex_coords = r_VertexTexCoords;
-
-//    gl_Position = r_VertexPosition;
-
-    if(r_input_params[gl_InstanceIndex].offset_size.z < 0.0)
-    {
-        tex_coords.x = 1.0 - tex_coords.x;
-        offset_size.z = -offset_size.z;
-    }
 }

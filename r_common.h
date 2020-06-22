@@ -382,7 +382,7 @@ struct r_texture_t
     char *name;
 };
 
-struct r_texture_handle_t
+struct r_texture_h
 {
     uint32_t index;
 };
@@ -390,7 +390,7 @@ struct r_texture_handle_t
 #define R_DEFAULT_TEXTURE_INDEX 0x00000000
 #define R_MISSING_TEXTURE_INDEX 0x00000001
 #define R_INVALID_TEXTURE_INDEX 0xffffffff
-#define R_TEXTURE_HANDLE(index) (struct r_texture_handle_t){index}
+#define R_TEXTURE_HANDLE(index) (struct r_texture_h){index}
 #define R_INVALID_TEXTURE_HANDLE R_TEXTURE_HANDLE(R_INVALID_TEXTURE_INDEX)
 #define R_DIFFUSE_TEXTURE_BINDING 0
 #define R_NORMAL_TEXTURE_BINDING 1
@@ -457,7 +457,7 @@ struct r_pipeline_description_t
     uint32_t subpass_index;
 };
 
-struct r_pipeline_tag_t
+struct r_pipeline_state_t
 {
     struct
     {
@@ -478,7 +478,25 @@ struct r_pipeline_tag_t
         }front, back;
 
     }stencil_state;
+    
+    struct 
+    {
+        uint32_t polygon_mode: 2;
+        uint32_t cull_mode: 2;
+        uint32_t front_face: 1;
+    }rasterizer_state;
+    
+    struct
+    {
+        uint32_t topology: 4;
+    }input_assembly;
 };
+
+//union r_pipeline_tag_t
+//{
+//    uint32_t tag;
+//    struct r_pipeline_state_t state;
+//};
 
 /* each pipeline will have a list of command pools,
 and all command pools will use the same descriptor set layout.
@@ -496,7 +514,7 @@ struct r_pipeline_t
 
     VkPipeline pipeline;
     VkPipelineLayout layout;
-    struct r_pipeline_tag_t tag;
+    struct r_pipeline_state_t state;
     struct r_descriptor_pool_list_t pool_lists[2];
 };
 
@@ -550,6 +568,7 @@ struct r_render_pass_t
     VkRenderPass render_pass;
     struct r_pipeline_h *pipelines;
     struct r_subpass_t *subpasses;
+    uint32_t pipeline_count;
     uint8_t subpass_count;
 };
 
@@ -598,7 +617,7 @@ struct r_framebuffer_t
 {
     VkFramebuffer *buffers; /* struct r_framebuffer_t object will group several VkFramebuffer objects.
     This is to allow handling several VkFramebuffer objects with a single higher level object. */
-    struct r_texture_handle_t *textures;
+    struct r_texture_h *textures;
     uint8_t texture_count;
     uint8_t current_buffer;
 };

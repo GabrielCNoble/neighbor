@@ -15,12 +15,12 @@ struct spr_sprite_entry_t
 
 struct spr_sprite_sheet_t
 {
-    uint32_t width;
-    uint32_t height;
-    struct r_texture_handle_t texture;
-    uint32_t sprite_count;
-    struct spr_sprite_t *sprites;
-    struct spr_sprite_entry_t *entries;
+//    uint32_t width;
+//    uint32_t height;
+//    struct r_texture_handle_t texture;
+//    uint32_t sprite_count;
+//    struct spr_sprite_t *sprites;
+//    struct spr_sprite_entry_t *entries;
 };
 
 struct spr_sprite_sheet_h

@@ -3,11 +3,13 @@
 
 #include "r_common.h"
 
-void r_Init();
+VkInstance r_InitInstance();
 
-void r_InitDevice();
+void r_InitDevice(VkSurfaceKHR surface);
 
 void r_Shutdown();
+
+SDL_Window *r_GetWindowPointer();
 
 /*
 =================================================================
@@ -55,7 +57,7 @@ void *r_GetBufferChunkMappedMemory(struct r_chunk_h handle);
 
 void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageCopy *copy);
 
-void r_FillBufferChunk(struct r_buffer_h handle, void *data, uint32_t size, uint32_t offset);
+void r_FillBufferChunk(struct r_chunk_h handle, void *data, uint32_t size, uint32_t offset);
 
 struct r_staging_buffer_t *r_AllocateStagingBuffer(union r_command_buffer_h command_buffer);
 
@@ -119,21 +121,21 @@ void r_SetImageLayout(struct r_image_handle_t image, VkImageLayout new_layout);
 
 void r_CreateDefaultTexture();
 
-struct r_texture_handle_t r_CreateTexture(struct r_texture_description_t *description);
+struct r_texture_h r_CreateTexture(struct r_texture_description_t *description);
 
-void r_DestroyTexture(struct r_texture_handle_t handle);
+void r_DestroyTexture(struct r_texture_h handle);
 
 VkSampler r_TextureSampler(struct r_sampler_params_t *params);
 
-struct r_texture_handle_t r_LoadTexture(char *file_name, char *texture_name);
+struct r_texture_h r_LoadTexture(char *file_name, char *texture_name);
 
-struct r_texture_t *r_GetTexturePointer(struct r_texture_handle_t handle);
+struct r_texture_t *r_GetTexturePointer(struct r_texture_h handle);
 
-struct r_texture_t* r_GetDefaultTexturePointer();
+struct r_texture_t *r_GetDefaultTexturePointer();
 
-struct r_texture_handle_t r_GetDefaultTextureHandle();
+struct r_texture_h r_GetDefaultTextureHandle();
 
-struct r_texture_handle_t r_GetTextureHandle(char *name);
+struct r_texture_h r_GetTextureHandle(char *name);
 
 
 /*
@@ -154,115 +156,6 @@ struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle);
 =================================================================
 */
 
-/*
-    The amount of stuff filled in the description may vary. To reduce the verbosity
-    of Vulkan, it's possible to only pass the attachments used, and a sub pass description
-    will be created automatically, which will use all attachments, and won't cause any
-    image layout transitions. For example,
-
-    struct r_render_pass_description_t description = (struct r_render_pass_description_t){
-        .attachment_count = 3,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...}
-        }
-    };
-
-    Is the same as
-
-    struct r_render_pass_description description = (struct r_render_pass_description_t){
-        .attachment_count = 3,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...}
-        },
-        .subpasses = (VkSubpassDescription []){
-            .colorAttachmentCount = 3,
-            .pColorAttachments = (VkAttachmentReference []){
-                {.attachment = 0},
-                {.attachment = 1},
-                {.attachment = 2}
-            }
-        }
-    }
-
-    Also notice that the attachments are not being described fully here. Only their formats are
-    being given. In this case, zero initialized fields will receive default values. The default
-    values are as follows:
-
-    samples = VK_SAMPLE_COUNT_1_BIT,
-    loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-    storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-    stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-    stencolStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-    initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL if color format.
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL if depth / stencil format.
-
-    The attachment references also don't need to be fully described. Whenever layout
-    is zero (VK_IMAGE_LAYOUT_UNDEFINED), it will be filled based on the format of the
-    attachment it references. If the attachment is a color attachment, the layout will
-    be VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL. If it's a depth / stencil format,
-    the value will be VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL.
-
-    In the case where sub passes are given, the pColorAttachment array will be filled with
-    unused references, so it'll always have the same length as pColorAttachments. For example,
-
-    struct r_render_pass_description_t description = (struct r_render_pass_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-        },
-        .subpass_count = 1,
-        .subpasses = (VkSubpassDescription []){
-                {
-                .color_attachment_count = 1,
-                .color_attachments = (VkAttachmentReference []){
-                    {.attachment = 2}
-                },
-                .pipeline_description = &(struct r_pipeline_description_t){
-                    ...
-                }
-            }
-        }
-    }
-
-    will be the same as
-
-    struct r_render_pass_description_t description = (struct r_render_pass_description_t){
-        .attachment_count = 4,
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...},
-            {.format = VK_FORMAT...}
-            {.format = VK_FORMAT...},
-        },
-        .subpass_count = 1,
-        .subpasses = (struct r_subpass_description_t[]){
-                {
-                .color_attachment_count = 4,
-                .color_attachments = (VkAttachmentReference []){
-                    {.attachment = VK_ATTACHMENT_UNUSED},
-                    {.attachment = VK_ATTACHMENT_UNUSED},
-                    {.attachment = 2},
-                    {.attachment = VK_ATTACHMENT_UNUSED},
-                },
-                .pipeline_description = &(struct r_pipeline_description_t ){
-                    ...
-                }
-            }
-        }
-    }
-
-    This is to allow render passes created from the same set of attachments to be compatible
-    with one another.
-
- */
 struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_description_t *description);
 
 void r_DestroyRenderPass(struct r_render_pass_handle_t handle);
@@ -305,15 +198,9 @@ void r_PresentFramebuffer(struct r_framebuffer_handle_t handle);
 =================================================================
 */
 
-struct r_swapchain_handle_t r_CreateSwapchain(VkSwapchainCreateInfoKHR *description);
+void r_SetSwapchainSurface(VkSurfaceKHR surface);
 
-void r_DestroySwapchain(struct r_swapchain_handle_t handle);
-
-struct r_swapchain_t *r_GetSwapchainPointer(struct r_swapchain_handle_t handle);
-
-void r_NextImage(struct r_swapchain_handle_t handle);
-
-void r_ResizeSwapchain(struct r_swapchain_handle_t swapchain, uint32_t width, uint32_t height);
+uint32_t r_NextSwapchainImage();
 
 /*
 =================================================================
@@ -408,7 +295,7 @@ void r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptor
 
 void r_UpdateUniformBufferDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, VkBuffer uniform_buffer, uint32_t offset, uint32_t range);
 
-void r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_handle_t texture);
+void r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, uint32_t dst_binding, struct r_texture_h texture);
 
 void r_vkEndCommandBuffer(union r_command_buffer_h command_buffer);
 

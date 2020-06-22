@@ -1,6 +1,7 @@
 .vscode
 lib/vulkan
 lib/SDL
+lib/angelscript
 test 
 sprites
 *.bsp
@@ -16,3 +17,5 @@ sprites
 *.cbp
 *.layout
 *.depend
+*.as
+*.ini
