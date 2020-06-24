@@ -1,7 +1,7 @@
 #include "lib/SDL/include/SDL2/SDL.h"
 #include "g.h"
 #include "in.h"
-#include "r.h"
+#include "r_nvkl.h"
 #include "r_draw.h"
 #include "phy.h"
 #include "ui.h"
@@ -18,7 +18,7 @@ uint64_t g_timer_frequency;
 uint64_t g_timer_count;
 float g_delta_time;
 
-SDL_Window *g_window;
+//SDL_Window *g_window;
 
 void g_SetInitCallback(void (*callback)())
 {
@@ -44,13 +44,8 @@ void g_MainLoop()
     }
 
     g_timer_frequency = SDL_GetPerformanceFrequency();
-    g_window = SDL_CreateWindow("game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
     
-    VkInstance instance = r_InitInstance();
-    VkSurfaceKHR surface;
-    SDL_Vulkan_CreateSurface(g_window, instance, &surface);
-    r_InitDevice(surface);
-    
+    float delta_time;
 //    r_Init();
     r_DrawInit();
     scr_Init();
@@ -78,6 +73,8 @@ void g_MainLoop()
         scr_UpdateScripts(g_delta_time);
         ui_EndFrame();
         r_EndFrame();
+        
+        while(g_GetCurrentDeltaTime(NULL) < 16.666);
     }
 
     if(g_ShutdownCallback)

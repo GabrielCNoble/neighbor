@@ -115,6 +115,7 @@ enum R_HEAP_TYPE
 #define BASE_HEAP_FIELDS \
     struct stack_list_t alloc_chunks; \
     struct list_t free_chunks; \
+    struct list_t move_chunks; \
     SDL_SpinLock spinlock; \
     uint32_t size; \
     uint32_t type
@@ -166,6 +167,12 @@ struct r_chunk_h
 #define R_INVALID_CHUNK_INDEX 0xffffffff
 #define R_CHUNK_HANDLE(index, heap) (struct r_chunk_h){index, heap}
 #define R_INVALID_CHUNK_HANDLE R_CHUNK_HANDLE(R_INVALID_CHUNK_INDEX, R_INVALID_HEAP_HANDLE)
+
+struct r_chunk_move_t
+{
+    struct r_chunk_h chunk;
+    uint32_t new_start;
+};
 
 //
 //struct r_alloc_t
@@ -622,13 +629,13 @@ struct r_framebuffer_t
     uint8_t current_buffer;
 };
 
-struct r_framebuffer_handle_t
+struct r_framebuffer_h
 {
     uint32_t index;
 };
 
 #define R_INVALID_FRAMEBUFFER_INDEX 0xffffffff
-#define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_handle_t){index}
+#define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_h){index}
 #define R_INVALID_FRAMEBUFFER_HANDLE R_FRAMEBUFFER_HANDLE(R_INVALID_FRAMEBUFFER_INDEX)
 
 /*

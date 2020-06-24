@@ -1,7 +1,7 @@
 #include "in.h"
 #include "r_common.h"
 #include <stdio.h>
-#include "r.h"
+//#include "r_nvkl.h"
 
 
 
@@ -19,7 +19,7 @@ int32_t mouse_x;
 int32_t mouse_y;
 
 //extern struct r_renderer_t r_renderer;
-extern SDL_Window *g_window;
+extern SDL_Window *r_window;
 
 void in_ReadInput()
 {
@@ -40,7 +40,8 @@ void in_ReadInput()
 
     normalized_dx = ((float)mouse_x / (float)window_width) * 2.0 - 1.0;
     normalized_dy = -((float)mouse_y / (float)window_height) * 2.0 + 1.0;
-    SDL_WarpMouseInWindow(g_window, window_width >> 1, window_height >> 1);
+    SDL_WarpMouseInWindow(r_window, window_width >> 1, window_height >> 1);
+    SDL_ShowCursor(0);
 
     for(uint32_t mouse_button = IN_MOUSE_BUTTON_LEFT; mouse_button < IN_MOUSE_BUTTON_LAST; mouse_button++)
     {

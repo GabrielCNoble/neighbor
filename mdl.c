@@ -7,7 +7,7 @@
 //#include "lib/dstuff/loaders/bsp.h"
 #include "lib/dstuff/ds_vector.h"
 #include "lib/dstuff/ds_mem.h"
-#include "r.h"
+#include "r_nvkl.h"
 #include "r_draw.h"
 #include <stdlib.h>
 #include <string.h>

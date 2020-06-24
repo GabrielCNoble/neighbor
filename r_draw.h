@@ -1,7 +1,7 @@
 #ifndef R_DRAW_H
 #define R_DRAW_H
 
-#include "r.h"
+#include "r_nvkl.h"
 #include "lib/dstuff/ds_matrix.h"
 #include "lib/dstuff/ds_list.h"
 #include "lib/dstuff/ds_stack_list.h"
@@ -244,6 +244,10 @@ void r_RecomputeInvViewMatrix();
 void r_RecomputeProjectionMatrix();
 
 struct r_view_t *r_GetViewPointer();
+
+void r_SetWindowSize(uint32_t width, uint32_t height);
+
+void r_Fullscreen(uint32_t enable);
 
 /*
 =================================================================

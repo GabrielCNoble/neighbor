@@ -19,7 +19,7 @@ VkPhysicalDeviceLimits *r_limits;
 
 struct r_render_pass_handle_t r_render_pass;
 struct r_render_pass_handle_t r_i_render_pass;
-struct r_framebuffer_handle_t r_framebuffer;
+struct r_framebuffer_h r_framebuffer;
 struct r_buffer_h r_i_vertex_buffer;
 struct r_buffer_h r_i_index_buffer;
 VkQueue r_draw_queue;
@@ -27,6 +27,7 @@ VkFence r_draw_fence;
 
 struct r_heap_h r_vertex_heap;
 struct r_heap_h r_index_heap;
+SDL_Window *r_window;
 
 uint32_t r_i_pipeline_map[] = {
     [R_I_DRAW_CMD_DRAW_LINE_LIST] = R_I_PIPELINE_LINE_LIST,
@@ -43,9 +44,17 @@ uint32_t r_i_pipeline_map[] = {
 #define R_I_INDEX_BUFFER_MEMORY 8388608
 
 struct r_view_t r_view;
+extern SDL_Window *r_window;
+VkInstance r_instance;
 
 void r_DrawInit()
 {
+    r_window = SDL_CreateWindow("game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
+    r_instance = r_InitInstance();
+    VkSurfaceKHR surface;
+    SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
+    r_InitDevice(surface);
+    
     FILE *file;
     struct r_shader_description_t shader_description = {};
     struct r_render_pass_description_t render_pass_description = {};
@@ -113,7 +122,7 @@ void r_DrawInit()
 
     render_pass_description = (struct r_render_pass_description_t){
         .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, .storeOp = VK_ATTACHMENT_STORE_OP_STORE},
+            {.format = VK_FORMAT_B8G8R8A8_UNORM, .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, .storeOp = VK_ATTACHMENT_STORE_OP_STORE},
             {.format = VK_FORMAT_D32_SFLOAT, .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, .storeOp = VK_ATTACHMENT_STORE_OP_STORE}
         },
         .attachment_count = 2,
@@ -166,19 +175,6 @@ void r_DrawInit()
     
     r_vertex_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, R_VERTEX_BUFFER_MEMORY);
     r_index_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, R_INDEX_BUFFER_MEMORY);
-
-//    struct r_vertex_t *data = (struct r_vertex_t []){
-//        {.position = vec4_t_c(-1.0, -1.0, -1.0, 1.0),.tex_coords = vec4_t_c(0.0, 1.0, 0.0, 0.0)},
-//        {.position = vec4_t_c(1.0, -1.0, -1.0, 1.0),.tex_coords = vec4_t_c(1.0, 1.0, 0.0, 0.0)},
-//        {.position = vec4_t_c(1.0, 1.0, -1.0, 1.0),.tex_coords = vec4_t_c(1.0, 0.0, 0.0, 0.0)},
-//
-//
-//        {.position = vec4_t_c(1.0, 1.0, -1.0, 1.0),.tex_coords = vec4_t_c(1.0, 0.0, 0.0, 0.0)},
-//        {.position = vec4_t_c(-1.0, 1.0, -1.0, 1.0),.tex_coords = vec4_t_c(0.0, 0.0, 0.0, 0.0)},
-//        {.position = vec4_t_c(-1.0, -1.0, -1.0, 1.0),.tex_coords = vec4_t_c(0.0, 1.0, 0.0, 0.0)},
-//    };
-//
-//    r_FillBufferChunk(r_vertex_buffer, data, sizeof(struct r_vertex_t) * 6, 0);
 
     r_submission_state.base.draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 32);
     r_submission_state.base.pending_draw_cmd_lists = create_list(sizeof(uint32_t), 32);
@@ -241,7 +237,7 @@ void r_DrawInit()
 
     render_pass_description.attachment_count = 2;
     render_pass_description.attachments = (VkAttachmentDescription []){
-        {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,},
+        {.format = VK_FORMAT_B8G8R8A8_UNORM, .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,},
         {.format = VK_FORMAT_D32_SFLOAT, .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,}
     };
     render_pass_description.subpass_count = 1;
@@ -358,6 +354,49 @@ void r_RecomputeProjectionMatrix()
 struct r_view_t *r_GetViewPointer()
 {
     return &r_view;
+}
+
+void r_SetWindowSize(uint32_t width, uint32_t height)
+{
+    VkSurfaceKHR surface;
+    
+    r_view.viewport.width = width;
+    r_view.viewport.height = height;
+    r_view.scissor.extent.width = width;
+    r_view.scissor.extent.height = height;
+    
+    SDL_SetWindowSize(r_window, width, height);
+    SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
+    r_ResizeFramebuffer(r_framebuffer, width, height);
+    r_SetSwapchainSurface(surface);
+    r_RecomputeProjectionMatrix();
+}
+
+void r_Fullscreen(uint32_t enable)
+{
+    VkSurfaceKHR surface;
+    
+    if(enable)
+    {
+        SDL_SetWindowFullscreen(r_window, SDL_WINDOW_FULLSCREEN);
+        SDL_SetWindowSize(r_window, 1366, 768);
+    }
+    else
+    {
+        SDL_SetWindowFullscreen(r_window, 0);
+        SDL_SetWindowSize(r_window, 800, 600);
+    }
+    
+    SDL_GetWindowSize(r_window, &r_view.scissor.extent.width, &r_view.scissor.extent.height);
+    r_view.viewport.width = r_view.scissor.extent.width;
+    r_view.viewport.height = r_view.scissor.extent.height;
+//    SDL_SetWindowFullscreen(r_window, 0);
+    
+    
+    SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
+    r_ResizeFramebuffer(r_framebuffer, r_view.scissor.extent.width, r_view.scissor.extent.height);
+    r_SetSwapchainSurface(surface);
+    r_RecomputeProjectionMatrix();
 }
 
 /*
