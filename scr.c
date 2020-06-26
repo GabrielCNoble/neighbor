@@ -371,7 +371,7 @@ void scr_RunScript(struct scr_script_h script_handle, void *data)
                 
                 case SCR_ARG_TYPE_STRING:   
                 {
-                    uint64_t string_index = scr_ConstructString();
+                    uint64_t string_index = (uint64_t)scr_ConstructString();
                     struct scr_string_t *string = scr_GetStringPointer(string_index);
                     string->data = arg->value.string_value;
                     string->length = strlen(string->data);

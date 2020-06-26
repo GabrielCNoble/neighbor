@@ -79,7 +79,7 @@ void r_DrawInit()
     r_RecomputeInvViewMatrix();
     r_RecomputeProjectionMatrix();
 
-    file = fopen("shaders/shader.vert.spv", "rb");
+    file = fopen("./neighbor/shaders/shader.vert.spv", "rb");
     read_file(file, &shader_description.code, &code_size);
     shader_description.code_size = (uint32_t)code_size;
     fclose(file);
@@ -110,7 +110,7 @@ void r_DrawInit()
     mem_Free(shader_description.code);
 
     memset(&shader_description, 0, sizeof(struct r_shader_description_t));
-    fopen("shaders/shader.frag.spv", "rb");
+    fopen("neighbor/shaders/shader.frag.spv", "rb");
     read_file(file, &shader_description.code, &code_size);
     shader_description.code_size = (uint32_t)code_size;
     fclose(file);
@@ -200,7 +200,7 @@ void r_DrawInit()
     r_free_uniform_buffers = create_list(sizeof(uint32_t), 64);
     r_used_uniform_buffers = create_list(sizeof(uint32_t), 64);
 
-    file = fopen("shaders/i_draw.vert.spv", "rb");
+    file = fopen("neighbor/shaders/i_draw.vert.spv", "rb");
     read_file(file, &shader_description.code, &code_size);
     fclose(file);
     shader_description.code_size = code_size;
@@ -219,7 +219,7 @@ void r_DrawInit()
     shader_description.push_constants = &(struct r_push_constant_t ){.size = sizeof(mat4_t), .offset = 0};
     vertex_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
 
-    file = fopen("shaders/i_draw.frag.spv", "rb");
+    file = fopen("neighbor/shaders/i_draw.frag.spv", "rb");
     read_file(file, &shader_description.code, &code_size);
     fclose(file);
     shader_description.code_size = code_size;
