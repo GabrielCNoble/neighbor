@@ -473,7 +473,7 @@ void phy_IntersectNodes(struct phy_collider_h collider_handle)
     node->min.x = collider->position.x - extents.x;
     node->min.y = collider->position.y - extents.y;
     node->min.z = -0.2;
-    
+     
     switch(collider->type)
     {
         case PHY_COLLIDER_TYPE_KINEMATIC:

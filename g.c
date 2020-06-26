@@ -46,13 +46,13 @@ void g_MainLoop()
     g_timer_frequency = SDL_GetPerformanceFrequency();
     
     float delta_time;
-//    r_Init();
     r_DrawInit();
     scr_Init();
     phy_Init();
     spr_Init();
     ui_Init();
     mdl_Init();
+    ent_Init();
 
     if(g_InitCallback)
     {

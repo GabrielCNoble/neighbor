@@ -302,6 +302,10 @@ void r_BeginFrame()
 
 void r_EndFrame()
 {
+    r_RecomputeInvViewMatrix();
+    r_RecomputeProjectionMatrix();
+    r_VisibleWorld();
+    r_VisibleEntities();
     r_DispatchPending();
     r_i_DispatchPending();
     r_PresentFramebuffer(r_framebuffer);
@@ -309,7 +313,7 @@ void r_EndFrame()
 
 void r_SetViewPosition(vec2_t *position)
 {
-    r_RecomputeInvViewMatrix();
+//    r_RecomputeInvViewMatrix();
 }
 
 void r_TranslateView(vec3_t *translation)
@@ -317,13 +321,14 @@ void r_TranslateView(vec3_t *translation)
     r_view.view_transform.rows[3].x += translation->x;
     r_view.view_transform.rows[3].y += translation->y;
     r_view.view_transform.rows[3].z += translation->z;
-    r_RecomputeInvViewMatrix();
+//    r_RecomputeInvViewMatrix();
 }
 
 void r_PitchYawView(float pitch, float yaw)
 {
     mat4_t pitch_matrix;
     mat4_t yaw_matrix;
+    vec4_t translation;
     
     mat4_t_identity(&pitch_matrix);
     mat4_t_identity(&yaw_matrix);
@@ -331,14 +336,17 @@ void r_PitchYawView(float pitch, float yaw)
     mat4_t_rotate_x(&pitch_matrix, pitch);
     mat4_t_rotate_y(&yaw_matrix, yaw);
     
+    translation = r_view.view_transform.rows[3];
+    
     mat4_t_mul(&r_view.view_transform, &pitch_matrix, &yaw_matrix);
-    r_RecomputeInvViewMatrix();
+    r_view.view_transform.rows[3] = translation;
+//    r_RecomputeInvViewMatrix();
 }
 
 void r_SetViewZoom(float zoom)
 {
     r_view.zoom = zoom;
-    r_RecomputeProjectionMatrix();
+//    r_RecomputeProjectionMatrix();
 }
 
 void r_RecomputeInvViewMatrix()

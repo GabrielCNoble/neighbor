@@ -1,4 +1,4 @@
-#include "r.h"
+//#include "r_.h"
 #include "spr.h"
 #include "lib/dstuff/ds_stack_list.h"
 #include "lib/dstuff/ds_list.h"
@@ -108,7 +108,7 @@ void spr_CreateDefaultSpriteSheet()
 //    sprite->frame_count = 1;
 //    sprite->sprite_sheet = handle;
 //    sprite->name = "default_sprite";
-//    sprite->first_entry = 0;
+//    sprite->first_entry = 0; 
 }
 
 struct spr_sprite_sheet_h spr_GetDefaultSpriteSheetHandle()

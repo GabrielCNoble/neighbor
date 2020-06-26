@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "lib/dstuff/ds_vector.h"
 #include "lib/dstuff/ds_matrix.h"
-//#include "mdl.h"
+#include "mdl.h"
 struct entity_prop_t
 {
     struct entity_prop_t *next;
@@ -13,49 +13,49 @@ struct entity_prop_t
     void *data;
 };
 
-struct entity_t
+struct ent_entity_t
 {
     char *name;
     uint32_t type;
     // uint32_t node;
     mat4_t transform;
-//    struct model_handle_t model;
+    struct mdl_model_h model;
     struct entity_prop_t *props;
 };
 
-union entity_handle_t
+union ent_entity_h
 {
     uint32_t index;
     void *punned;
 };
 
 #define ENT_INVALID_ENTITY_INDEX 0xffffffff
-#define ENT_ENTITY_HANDLE(index) (union entity_handle_t ){index}
+#define ENT_ENTITY_HANDLE(index) (union ent_entity_h ){index}
 #define ENT_INVALID_ENTITY_HANDLE ENT_ENTITY_HANDLE(ENT_INVALID_ENTITY_INDEX)
 
 void ent_Init();
 
 void ent_Shutdown();
 
-union entity_handle_t ent_CreateEntity(char* name, vec3_t* position, mat3_t* orientation, uint32_t type);
+union ent_entity_h ent_CreateEntity(char* name, vec3_t* position, mat3_t* orientation, uint32_t type);
 
-void ent_DestroyEntity(union entity_handle_t handle);
+void ent_DestroyEntity(union ent_entity_h handle);
 
-struct entity_t* ent_GetEntityPointer(union entity_handle_t handle);
+struct ent_entity_t *ent_GetEntityPointer(union ent_entity_h handle);
 
-// void ent_SetEntityModel(union entity_handle_t handle, struct model_handle_t model);
+ void ent_SetEntityModel(union ent_entity_h handle, struct mdl_model_h model);
 
-struct entity_prop_t* ent_AddProp(union entity_handle_t handle, char* name, uint32_t size);
+struct entity_prop_t* ent_AddProp(union ent_entity_h handle, char* name, uint32_t size);
 
-void ent_RemoveProp(union entity_handle_t handle, char* name);
+void ent_RemoveProp(union ent_entity_h handle, char* name);
 
-void ent_RemoveAllProps(union entity_handle_t handle);
+void ent_RemoveAllProps(union ent_entity_h handle);
 
-struct entity_prop_t* ent_GetProp(union entity_handle_t handle, char* name);
+struct entity_prop_t *ent_GetProp(union ent_entity_h handle, char* name);
 
-void *ent_GetPropData(union entity_handle_t handle, char* name);
+void *ent_GetPropData(union ent_entity_h handle, char* name);
 
-struct stack_list_t* ent_GetEntityList();
+struct stack_list_t *ent_GetEntityList();
 
 void ent_DrawEntities();
 
