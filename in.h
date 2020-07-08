@@ -38,4 +38,6 @@ void in_GetMouseDelta(float *dx, float *dy);
 
 void in_GetMousePos(int32_t *x, int32_t *y);
 
+void in_RelativeMode(uint32_t enable);
+
 #endif

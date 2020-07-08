@@ -3,15 +3,17 @@
 
 #include "r_common.h"
 
-VkInstance r_InitInstance();
+VkInstance r_CreateInstance();
 
 VkInstance r_GetInstance();
 
-void r_InitDevice(VkSurfaceKHR surface);
+void r_DestroyInstance();
 
-void r_Shutdown();
+VkDevice r_CreateDevice(VkSurfaceKHR surface);
 
-SDL_Window *r_GetWindowPointer();
+VkDevice r_GetDevice();
+
+void r_DestroyDevice();
 
 /*
 =================================================================

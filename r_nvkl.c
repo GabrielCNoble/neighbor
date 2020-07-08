@@ -91,7 +91,7 @@ struct
 uint32_t r_supports_push_descriptors = 0;
 PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSet = NULL;
 
-VkInstance r_InitInstance()
+VkInstance r_CreateInstance()
 {
     VkInstanceCreateInfo instance_create_info = {};
     instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -111,7 +111,12 @@ VkInstance r_GetInstance()
     return r_device.instance;
 }
 
-void r_InitDevice(VkSurfaceKHR surface)
+void r_DestroyInstance()
+{
+    
+}
+
+VkDevice r_CreateDevice(VkSurfaceKHR surface)
 {
     uint32_t physical_device_count = 1;
     uint32_t queue_family_property_count = 0;
@@ -291,11 +296,18 @@ void r_InitDevice(VkSurfaceKHR surface)
     
     r_SetSwapchainSurface(surface);
     r_CreateDefaultTexture();
+    
+    return r_device.device;
 }
 
-void r_Shutdown()
+VkDevice r_GetDevice()
 {
+    return r_device.device;
+}
 
+void r_DestroyDevice()
+{
+    
 }
 
 /*
@@ -1808,7 +1820,8 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
     handle.index = add_stack_list_element(&r_device.render_passes, NULL);
     render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_device.render_passes, handle.index);
-
+//    render_pass->description = mem_Calloc(1, sizeof(struct r_render_pass_description_t));
+    
     subpass_descriptions = mem_Calloc(sizeof(struct r_subpass_description_t), description->subpass_count);
     memcpy(subpass_descriptions, description->subpasses, sizeof(struct r_subpass_description_t) * description->subpass_count);
 
@@ -1918,30 +1931,40 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
     if(description->attachment_count)
     {
-        memcpy((void *)render_pass_create_info.pAttachments, description->attachments, sizeof(VkAttachmentDescription) * description->attachment_count);
+//        memcpy((void *)render_pass_create_info.pAttachments, description->attachments, sizeof(VkAttachmentDescription) * description->attachment_count);
         for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
         {
-            VkAttachmentDescription *attachment_description = (VkAttachmentDescription *)render_pass_create_info.pAttachments + attachment_index;
-
-            if(!attachment_description->samples)
+            struct r_attachment_d *attachment_description = description->attachments + attachment_index;
+            VkAttachmentDescription *render_pass_attachment_description = (VkAttachmentDescription *)render_pass_create_info.pAttachments + attachment_index;
+            
+            render_pass_attachment_description->format = attachment_description->format;
+            render_pass_attachment_description->samples = attachment_description->samples;
+            render_pass_attachment_description->initialLayout = attachment_description->initial_layout;
+            render_pass_attachment_description->finalLayout = attachment_description->final_layout;
+            render_pass_attachment_description->loadOp = attachment_description->load_op;
+            render_pass_attachment_description->storeOp = attachment_description->store_op;
+            render_pass_attachment_description->stencilLoadOp = attachment_description->stencil_load_op;
+            render_pass_attachment_description->stencilStoreOp = attachment_description->stencil_store_op;
+            
+            if(!render_pass_attachment_description->samples)
             {
                 /* probably zero initialized. No samples means one sample */
-                attachment_description->samples = VK_SAMPLE_COUNT_1_BIT;
+                render_pass_attachment_description->samples = VK_SAMPLE_COUNT_1_BIT;
             }
 
-            if(attachment_description->finalLayout == VK_IMAGE_LAYOUT_UNDEFINED)
+            if(render_pass_attachment_description->finalLayout == VK_IMAGE_LAYOUT_UNDEFINED)
             {
                 /* fill in the final layout with a sane value if we
                 didn't get one */
-                if(r_IsDepthStencilFormat(attachment_description->format))
+                if(r_IsDepthStencilFormat(render_pass_attachment_description->format))
                 {
                     depth_stencil_state.depthTestEnable = VK_TRUE;
                     depth_stencil_state.depthWriteEnable = VK_TRUE;
-                    attachment_description->finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+                    render_pass_attachment_description->finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
                 }
                 else
                 {
-                    attachment_description->finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                    render_pass_attachment_description->finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 }
             }
         }
@@ -1985,13 +2008,9 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         }
     }
     render_pass->pipeline_count = pipeline_count;
-
-//    free(subpass_descriptions);
-//    free(color_attachment_references);
-//    free(depth_stencil_attachment_references);
-//    free((VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments);
-//    free((VkAttachmentDescription *)render_pass_create_info.pAttachments);
-//    free((VkSubpassDescription *)render_pass_create_info.pSubpasses);
+    render_pass->attachments = mem_Calloc(description->attachment_count, sizeof(struct r_attachment_d));
+    render_pass->attachment_count = description->attachment_count;
+    memcpy(render_pass->attachments, description->attachments, sizeof(struct r_attachment_d) * description->attachment_count);
 
     return handle;
 }
@@ -2004,13 +2023,11 @@ void r_DestroyRenderPass(struct r_render_pass_handle_t handle)
 struct r_render_pass_t *r_GetRenderPassPointer(struct r_render_pass_handle_t handle)
 {
     struct r_render_pass_t *render_pass;
-
     render_pass = get_stack_list_element(&r_device.render_passes, handle.index);
-//
-//    if(render_pass && !(render_pass->description.attachment_count && render_pass->description.subpass_count))
-//    {
-//        render_pass = NULL;
-//    }
+    if(render_pass && render_pass->render_pass == VK_NULL_HANDLE)
+    {
+        render_pass = NULL;
+    }
 
     return render_pass;
 }
@@ -2482,15 +2499,24 @@ struct r_framebuffer_h r_CreateFramebuffer(struct r_framebuffer_description_t *d
         add_stack_list_element(&r_device.framebuffer_descriptions, NULL);
         framebuffer = get_stack_list_element(&r_device.framebuffers, handle.index);
         description_copy = get_stack_list_element(&r_device.framebuffer_descriptions, handle.index);
-        
         memcpy(description_copy, description, sizeof(struct r_framebuffer_description_t));
-        description_copy->attachments = mem_Calloc(sizeof(VkAttachmentDescription), description->attachment_count);
-        memcpy(description_copy->attachments, description->attachments, sizeof(VkAttachmentDescription) * description->attachment_count);
         
-//        for(uint32_t attachment_index = 0; attachment_description)
+        if(!description->attachments)
+        {
+            description_copy->attachment_count = description_copy->render_pass->attachment_count;
+            description_copy->attachments = mem_Calloc(sizeof(struct r_attachment_d), description_copy->attachment_count);
+            memcpy(description_copy->attachments, description_copy->render_pass->attachments, 
+                sizeof(struct r_attachment_d) * description_copy->attachment_count);
+        }
+        else
+        {
+            description_copy->attachments = mem_Calloc(sizeof(struct r_attachment_d), description_copy->attachment_count);
+            memcpy(description_copy->attachments, description->attachments, sizeof(struct r_attachment_d) * description->attachment_count);
+        }
         
-        framebuffer->buffers = mem_Calloc(description->frame_count, sizeof(VkFramebuffer));
-        framebuffer->textures = mem_Calloc(description->attachment_count * description->frame_count, sizeof(struct r_texture_h));   
+        framebuffer->buffers = mem_Calloc(description_copy->frame_count, sizeof(VkFramebuffer));
+        framebuffer->texture_count = description_copy->attachment_count * description_copy->frame_count;
+        framebuffer->textures = mem_Calloc(framebuffer->texture_count, sizeof(struct r_texture_h));   
         
         r_InitializeFramebuffer(framebuffer, description_copy);
     }
@@ -2531,9 +2557,9 @@ void r_InitializeFramebuffer(struct r_framebuffer_t *framebuffer, struct r_frame
         struct r_texture_h *textures = framebuffer->textures + frame_index * description->attachment_count;
         for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
         {
-            VkAttachmentDescription *attachment_description = description->attachments + attachment_index;
+            struct r_attachment_d *attachment_description = description->attachments + attachment_index;
             texture_description.format = attachment_description->format;
-            
+            texture_description.tiling = attachment_description->tiling;
             if(r_IsDepthStencilFormat(attachment_description->format))
             {
                 texture_description.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
@@ -2562,24 +2588,22 @@ void r_InitializeFramebuffer(struct r_framebuffer_t *framebuffer, struct r_frame
         vkCreateFramebuffer(r_device.device, &framebuffer_create_info, NULL, framebuffer->buffers + frame_index);
     }
 
-    mem_Free(framebuffer_create_info.pAttachments);
+    mem_Free((void *)framebuffer_create_info.pAttachments);
 }
 
 void r_DestroyFramebuffer(struct r_framebuffer_h handle)
 {
-
+    
 }
 
 struct r_framebuffer_t *r_GetFramebufferPointer(struct r_framebuffer_h handle)
 {
     struct r_framebuffer_t *framebuffer;
-//
     framebuffer = get_stack_list_element(&r_device.framebuffers, handle.index);
-//    if(framebuffer && framebuffer->description.attachment_count == 0xff)
-//    {
-//        framebuffer = NULL;
-//    }
-//
+    if(framebuffer && !framebuffer->texture_count)
+    {
+        framebuffer = NULL;
+    }
     return framebuffer;
 }
 
@@ -2603,7 +2627,6 @@ void r_ResizeFramebuffer(struct r_framebuffer_h handle, uint32_t width, uint32_t
     struct r_framebuffer_description_t *description;
     
     framebuffer = r_GetFramebufferPointer(handle);
-    
     if(framebuffer)
     {
         description = r_GetFramebufferDescriptionPointer(handle);
@@ -2689,6 +2712,7 @@ void r_SetSwapchainSurface(VkSurfaceKHR surface)
     
     VkPresentModeKHR test_present_modes[] = {
         VK_PRESENT_MODE_MAILBOX_KHR,
+        VK_PRESENT_MODE_FIFO_RELAXED_KHR,
         VK_PRESENT_MODE_IMMEDIATE_KHR,
     };
     
@@ -2842,16 +2866,6 @@ VkPhysicalDeviceLimits *r_GetDeviceLimits()
     return &r_device.physical_device_limits;
 }
 
-//VkBuffer r_GetStagingBuffer()
-//{
-//    return r_device.staging.base_staging_buffer;
-//}
-
-//uint32_t r_GetStagingMemorySize()
-//{
-//    return r_device.staging.staging_memory_size;
-//}
-
 /*
 =================================================================
 =================================================================
@@ -2872,58 +2886,6 @@ VkEvent r_CreateEvent()
     VkEvent event;
     vkCreateEvent(r_device.device, &event_create_info, NULL, &event);
     return event;
-}
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-struct r_light_handle_t r_CreateLight(vec3_t *position, float radius, vec3_t *color)
-{
-//    struct r_light_handle_t handle = R_INVALID_LIGHT_HANDLE;
-//    struct r_light_t *light;
-//
-//    handle.index = add_stack_list_element(&r_renderer.lights, NULL);
-//
-//    light = (struct r_light_t*)get_stack_list_element(&r_renderer.lights, handle.index);
-//    light->pos_radius.comps[0] = position->comps[0];
-//    light->pos_radius.comps[1] = position->comps[1];
-//    light->pos_radius.comps[2] = position->comps[2];
-//    light->pos_radius.comps[3] = radius;
-//    light->color.comps[0] = color->comps[0];
-//    light->color.comps[1] = color->comps[1];
-//    light->color.comps[2] = color->comps[2];
-//    light->color.comps[3] = 0.0;
-//
-//    return handle;
-}
-
-struct r_light_t *r_GetLightPointer(struct r_light_handle_t handle)
-{
-//    struct r_light_t *light;
-//    light = (struct r_light_t*)get_stack_list_element(&r_renderer.lights, handle.index);
-//
-//    if(light && light->pos_radius.comps[3] < 0.0)
-//    {
-//        light = NULL;
-//    }
-//
-//    return light;
-}
-
-void r_DestroyLight(struct r_light_handle_t handle)
-{
-//    struct r_light_t *light;
-//
-//    light = r_GetLightPointer(handle);
-//
-//    if(light)
-//    {
-//        light->pos_radius.comps[3] = -1.0;
-//        remove_stack_list_element(&r_renderer.lights, handle.index);
-//    }
 }
 
 /*

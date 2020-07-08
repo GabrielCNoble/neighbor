@@ -1,5 +1,6 @@
 #include "in.h"
-#include "r_common.h"
+#include "lib/SDL/include/SDL2/SDL_events.h"
+#include "lib/SDL/include/SDL2/SDL_video.h"
 #include <stdio.h>
 //#include "r_nvkl.h"
 
@@ -15,8 +16,10 @@ float normalized_x = 0.0;
 float normalized_y = 0.0;
 float normalized_dx = 0.0;
 float normalized_dy = 0.0;
-int32_t mouse_x;
-int32_t mouse_y;
+int32_t in_mouse_x;
+int32_t in_mouse_y;
+
+uint32_t in_relative_mode;
 
 //extern struct r_renderer_t r_renderer;
 extern SDL_Window *r_window;
@@ -26,27 +29,27 @@ void in_ReadInput()
     const uint8_t *keyboard_state;
     struct key_state_t *key_state;
     uint32_t scancode;
-//    int mouse_x;
-//    int mouse_y;
-    uint32_t window_width;
-    uint32_t window_height;
+    int32_t window_width;
+    int32_t window_height;
     uint32_t mouse_buttons;
-
+    int32_t mouse_x;
+    int32_t mouse_y;
+    
+    SDL_GetWindowSize(r_window, &window_width, &window_height);
+    SDL_GetMouseState(&in_mouse_x, &in_mouse_y);
+    
     SDL_PollEvent(&event);
     keyboard_state = SDL_GetKeyboardState(NULL);
-    mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
-    window_width = 800;
-    window_height = 600;
+    mouse_buttons = SDL_GetRelativeMouseState(&mouse_x, &mouse_y);
 
-    normalized_dx = ((float)mouse_x / (float)window_width) * 2.0 - 1.0;
-    normalized_dy = -((float)mouse_y / (float)window_height) * 2.0 + 1.0;
-    SDL_WarpMouseInWindow(r_window, window_width >> 1, window_height >> 1);
-    SDL_ShowCursor(0);
+    normalized_dx = ((float)mouse_x / (float)window_width);
+    normalized_dy = -((float)mouse_y / (float)window_height);
+    
+    
 
     for(uint32_t mouse_button = IN_MOUSE_BUTTON_LEFT; mouse_button < IN_MOUSE_BUTTON_LAST; mouse_button++)
     {
         mouse_state[mouse_button] &= ~(IN_INPUT_STATE_JUST_PRESSED | IN_INPUT_STATE_JUST_RELEASED);
-        
         if(mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT + mouse_button))
         {
             if(!(mouse_state[mouse_button] & IN_INPUT_STATE_PRESSED))
@@ -160,6 +163,11 @@ void in_GetMouseDelta(float *dx, float *dy)
 
 void in_GetMousePos(int32_t *x, int32_t *y)
 {
-    *x = mouse_x;
-    *y = mouse_y;
+    *x = in_mouse_x;
+    *y = in_mouse_y;
+}
+
+void in_RelativeMode(uint32_t enable)
+{
+    SDL_SetRelativeMouseMode(enable);
 }

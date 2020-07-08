@@ -8,10 +8,10 @@ layout(location = 1) in vec2 tex_coords;
 
 layout(push_constant) uniform r_TextureParams
 {
-    int textured;
+    layout(offset = 64) int textured;
 };
 
-layout(set = 1, binding = 0) uniform sampler2D r_Sampler0;
+layout(set = 0, binding = 0) uniform sampler2D r_Sampler0;
 
 void main()
 {

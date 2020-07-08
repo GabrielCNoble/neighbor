@@ -144,6 +144,12 @@ void ui_EndFrame()
     r_i_EndSubmission();
 }
 
+uint32_t ui_MouseOverUi()
+{
+    ImGuiIO *io;
+    io = igGetIO();
+    return io->WantCaptureMouse;
+}
 
 
 

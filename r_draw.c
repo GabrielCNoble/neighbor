@@ -28,6 +28,8 @@ VkFence r_draw_fence;
 struct r_heap_h r_vertex_heap;
 struct r_heap_h r_index_heap;
 SDL_Window *r_window;
+uint32_t r_window_width;
+uint32_t r_window_height;
 
 uint32_t r_i_pipeline_map[] = {
     [R_I_DRAW_CMD_DRAW_LINE_LIST] = R_I_PIPELINE_LINE_LIST,
@@ -44,16 +46,15 @@ uint32_t r_i_pipeline_map[] = {
 #define R_I_INDEX_BUFFER_MEMORY 8388608
 
 struct r_view_t r_view;
-extern SDL_Window *r_window;
 VkInstance r_instance;
 
 void r_DrawInit()
 {
     r_window = SDL_CreateWindow("game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, R_DEFAULT_WIDTH, R_DEFAULT_HEIGHT, SDL_WINDOW_VULKAN);
-    r_instance = r_InitInstance();
+    r_instance = r_CreateInstance();
     VkSurfaceKHR surface;
     SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
-    r_InitDevice(surface);
+    r_CreateDevice(surface);
     
     FILE *file;
     struct r_shader_description_t shader_description = {};
@@ -80,8 +81,7 @@ void r_DrawInit()
     r_RecomputeProjectionMatrix();
 
     file = fopen("./neighbor/shaders/shader.vert.spv", "rb");
-    read_file(file, &shader_description.code, &code_size);
-    shader_description.code_size = (uint32_t)code_size;
+    read_file(file, &shader_description.code, &shader_description.code_size);
     fclose(file);
     shader_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
     shader_description.vertex_binding_count = 1;
@@ -111,8 +111,7 @@ void r_DrawInit()
 
     memset(&shader_description, 0, sizeof(struct r_shader_description_t));
     fopen("neighbor/shaders/shader.frag.spv", "rb");
-    read_file(file, &shader_description.code, &code_size);
-    shader_description.code_size = (uint32_t)code_size;
+    read_file(file, &shader_description.code, &shader_description.code_size);
     fclose(file);
     shader_description.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     shader_description.resource_count = 1;
@@ -121,9 +120,9 @@ void r_DrawInit()
     mem_Free(shader_description.code);
 
     render_pass_description = (struct r_render_pass_description_t){
-        .attachments = (VkAttachmentDescription []){
-            {.format = VK_FORMAT_B8G8R8A8_UNORM, .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, .storeOp = VK_ATTACHMENT_STORE_OP_STORE},
-            {.format = VK_FORMAT_D32_SFLOAT, .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, .storeOp = VK_ATTACHMENT_STORE_OP_STORE}
+        .attachments = (struct r_attachment_d []){
+            {.format = VK_FORMAT_B8G8R8A8_UNORM, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR, .store_op = VK_ATTACHMENT_STORE_OP_STORE},
+            {.format = VK_FORMAT_D32_SFLOAT, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR, .store_op = VK_ATTACHMENT_STORE_OP_STORE}
         },
         .attachment_count = 2,
         .subpass_count = 1,
@@ -150,8 +149,6 @@ void r_DrawInit()
     r_render_pass = r_CreateRenderPass(&render_pass_description);
 
     struct r_framebuffer_description_t framebuffer_description = (struct r_framebuffer_description_t){
-        .attachment_count = render_pass_description.attachment_count,
-        .attachments = render_pass_description.attachments,
         .frame_count = 2,
         .width = R_DEFAULT_WIDTH,
         .height = R_DEFAULT_HEIGHT,
@@ -199,94 +196,157 @@ void r_DrawInit()
     r_uniform_buffers = create_list(sizeof(struct r_uniform_buffer_t), 64);
     r_free_uniform_buffers = create_list(sizeof(uint32_t), 64);
     r_used_uniform_buffers = create_list(sizeof(uint32_t), 64);
-
-    file = fopen("neighbor/shaders/i_draw.vert.spv", "rb");
-    read_file(file, &shader_description.code, &code_size);
-    fclose(file);
-    shader_description.code_size = code_size;
-    shader_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shader_description.vertex_binding_count = 1;
-    shader_description.vertex_bindings = &(struct r_vertex_binding_t){
-        .size = sizeof(struct r_i_vertex_t),
-        .attrib_count = 3,
-        .attribs = (struct r_vertex_attrib_t []){
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_i_vertex_t, position)},
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_i_vertex_t, tex_coords)},
-            {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_i_vertex_t, color)},
-        }
+    
+    shader_description = (struct r_shader_description_t){
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .vertex_binding_count = 1,
+        .vertex_bindings = &(struct r_vertex_binding_t){
+            .size = sizeof(struct r_i_vertex_t),
+            .attrib_count = 3,
+            .attribs = (struct r_vertex_attrib_t []){
+                {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_i_vertex_t, position)},
+                {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_i_vertex_t, tex_coords)},
+                {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_i_vertex_t, color)},
+            }
+        },
+        .push_constant_count = 1,
+        .push_constants = &(struct r_push_constant_t ){.size = sizeof(mat4_t), .offset = 0},
     };
-    shader_description.push_constant_count = 1;
-    shader_description.push_constants = &(struct r_push_constant_t ){.size = sizeof(mat4_t), .offset = 0};
+    file = fopen("neighbor/shaders/i_draw.vert.spv", "rb");
+    read_file(file, &shader_description.code, &shader_description.code_size);
+    fclose(file);
     vertex_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
 
-    file = fopen("neighbor/shaders/i_draw.frag.spv", "rb");
-    read_file(file, &shader_description.code, &code_size);
-    fclose(file);
-    shader_description.code_size = code_size;
-    shader_description.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shader_description.vertex_binding_count = 0;
-    shader_description.resource_count = 1;
-    shader_description.resources = &(struct r_resource_binding_t){
-        .descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .count = 1
+    shader_description = (struct r_shader_description_t){
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .resource_count = 1,
+        .resources = &(struct r_resource_binding_t){
+            .descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .count = 1
+        },        
+        .push_constant_count = 1,
+        .push_constants = &(struct r_push_constant_t){.size = sizeof(uint32_t), .offset = sizeof(mat4_t)},
     };
-    
-    shader_description.push_constant_count = 1;
-    shader_description.push_constants = &(struct r_push_constant_t){.size = sizeof(uint32_t), .offset = sizeof(mat4_t)};
-    fragment_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
 
-    render_pass_description.attachment_count = 2;
-    render_pass_description.attachments = (VkAttachmentDescription []){
-        {.format = VK_FORMAT_B8G8R8A8_UNORM, .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,},
-        {.format = VK_FORMAT_D32_SFLOAT, .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,}
-    };
-    render_pass_description.subpass_count = 1;
-    render_pass_description.subpasses = &(struct r_subpass_description_t){
-        .color_attachment_count = 1,
-        .color_attachments = (VkAttachmentReference[]){{.attachment = 0}},
-        .depth_stencil_attachment = &(VkAttachmentReference){.attachment = 1},
-        .pipeline_description_count = 5,
-        .pipeline_descriptions = (struct r_pipeline_description_t []){
-            {
-                .shader_count = 2,
-                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
-                    .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST
+    file = fopen("neighbor/shaders/i_draw.frag.spv", "rb");
+    read_file(file, &shader_description.code, &shader_description.code_size);
+    fclose(file);
+    fragment_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
+    
+    render_pass_description = (struct r_render_pass_description_t){
+        .attachment_count = 2,
+        .attachments = (struct r_attachment_d []){
+            {.format = VK_FORMAT_B8G8R8A8_UNORM, .initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,},
+            {.format = VK_FORMAT_D32_SFLOAT, .initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,}
+        },
+        .subpass_count = 1,
+        .subpasses = &(struct r_subpass_description_t){
+            .color_attachment_count = 1,
+            .color_attachments = (VkAttachmentReference[]){{.attachment = 0}},
+            .depth_stencil_attachment = &(VkAttachmentReference){.attachment = 1},
+            .pipeline_description_count = 5,
+            .pipeline_descriptions = (struct r_pipeline_description_t []){
+                {
+                    .shader_count = 2,
+                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+                    .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
+                        .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST
+                    },
+                    .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
+                        .polygonMode = VK_POLYGON_MODE_LINE
+                    }
                 },
-            },
-            {
-                .shader_count = 2,
-                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
-                    .topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
+                {
+                    .shader_count = 2,
+                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+                    .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
+                        .topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
+                    },
+                    .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
+                        .polygonMode = VK_POLYGON_MODE_LINE
+                    }
                 },
-            },
-            {
-                .shader_count = 2,
-                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
-                    .polygonMode = VK_POLYGON_MODE_LINE,
-                }
-            },
-            {
-                .shader_count = 2,
-                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-            },
-            {
-                .shader_count = 2,
-                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                .depth_stencil_state = &(VkPipelineDepthStencilStateCreateInfo){
-                    .depthTestEnable = VK_FALSE,
-                    .depthWriteEnable = VK_TRUE,
-                    .depthCompareOp = VK_COMPARE_OP_LESS
-                }
-            },
+                {
+                    .shader_count = 2,
+                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+                    .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
+                        .polygonMode = VK_POLYGON_MODE_LINE,
+                    }
+                },
+                {
+                    .shader_count = 2,
+                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+                },
+                {
+                    .shader_count = 2,
+                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+                    .depth_stencil_state = &(VkPipelineDepthStencilStateCreateInfo){
+                        .depthTestEnable = VK_FALSE,
+                        .depthWriteEnable = VK_TRUE,
+                        .depthCompareOp = VK_COMPARE_OP_LESS
+                    }
+                },
+            }
         }
     };
+ 
+//    render_pass_description.attachment_count = 2;
+//    render_pass_description.attachments = (struct r_attachment_d []){
+//        {.format = VK_FORMAT_B8G8R8A8_UNORM, .initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,},
+//        {.format = VK_FORMAT_D32_SFLOAT, .initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,}
+//    };
+//    render_pass_description.subpass_count = 1;
+//    render_pass_description.subpasses = &(struct r_subpass_description_t){
+//        .color_attachment_count = 1,
+//        .color_attachments = (VkAttachmentReference[]){{.attachment = 0}},
+//        .depth_stencil_attachment = &(VkAttachmentReference){.attachment = 1},
+//        .pipeline_description_count = 5,
+//        .pipeline_descriptions = (struct r_pipeline_description_t []){
+//            {
+//                .shader_count = 2,
+//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+//                .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
+//                    .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST
+//                },
+//                .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
+//                    .polygonMode = VK_POLYGON_MODE_LINE
+//                }
+//            },
+//            {
+//                .shader_count = 2,
+//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+//                .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
+//                    .topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
+//                },
+//                .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
+//                    .polygonMode = VK_POLYGON_MODE_LINE
+//                }
+//            },
+//            {
+//                .shader_count = 2,
+//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+//                .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
+//                    .polygonMode = VK_POLYGON_MODE_LINE,
+//                }
+//            },
+//            {
+//                .shader_count = 2,
+//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+//            },
+//            {
+//                .shader_count = 2,
+//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
+//                .depth_stencil_state = &(VkPipelineDepthStencilStateCreateInfo){
+//                    .depthTestEnable = VK_FALSE,
+//                    .depthWriteEnable = VK_TRUE,
+//                    .depthCompareOp = VK_COMPARE_OP_LESS
+//                }
+//            },
+//        }
+//    };
 
     r_i_render_pass = r_CreateRenderPass(&render_pass_description);
     r_materials = create_stack_list(sizeof(struct r_material_t), 128);
-    
     r_CreateDefaultMaterial();
 }
 
@@ -367,6 +427,8 @@ struct r_view_t *r_GetViewPointer()
 void r_SetWindowSize(uint32_t width, uint32_t height)
 {
     VkSurfaceKHR surface;
+    r_window_width = width;
+    r_window_height = height;
     
     r_view.viewport.width = width;
     r_view.viewport.height = height;
@@ -374,8 +436,8 @@ void r_SetWindowSize(uint32_t width, uint32_t height)
     r_view.scissor.extent.height = height;
     
     SDL_SetWindowSize(r_window, width, height);
-    SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
     r_ResizeFramebuffer(r_framebuffer, width, height);
+    SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
     r_SetSwapchainSurface(surface);
     r_RecomputeProjectionMatrix();
 }
@@ -383,28 +445,23 @@ void r_SetWindowSize(uint32_t width, uint32_t height)
 void r_Fullscreen(uint32_t enable)
 {
     VkSurfaceKHR surface;
-    
+    int width;
+    int height;
     if(enable)
     {
         SDL_SetWindowFullscreen(r_window, SDL_WINDOW_FULLSCREEN);
-        SDL_SetWindowSize(r_window, 1366, 768);
+        width = 1360;
+        height = 768;
+//        SDL_SetWindowSize(r_window, 1366, 768);
     }
     else
     {
         SDL_SetWindowFullscreen(r_window, 0);
-        SDL_SetWindowSize(r_window, 800, 600);
+        width = 800;
+        height = 600;
+//        SDL_SetWindowSize(r_window, 800, 600);
     }
-    
-    SDL_GetWindowSize(r_window, &r_view.scissor.extent.width, &r_view.scissor.extent.height);
-    r_view.viewport.width = r_view.scissor.extent.width;
-    r_view.viewport.height = r_view.scissor.extent.height;
-//    SDL_SetWindowFullscreen(r_window, 0);
-    
-    
-    SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
-    r_ResizeFramebuffer(r_framebuffer, r_view.scissor.extent.width, r_view.scissor.extent.height);
-    r_SetSwapchainSurface(surface);
-    r_RecomputeProjectionMatrix();
+    r_SetWindowSize(width, height);
 }
 
 /*
@@ -613,10 +670,13 @@ void r_DispatchPending()
     VkClearValue clear_values[2];
     clear_values[0].color.float32[0] = 0.1;
     clear_values[0].color.float32[1] = 0.1;
-    clear_values[0].color.float32[2] = 0.1;
+    clear_values[0].color.float32[2] = 0.3;
     clear_values[0].color.float32[3] = 1.0;
     clear_values[1].depthStencil.depth = 1.0;
-
+    
+//    VkRect2D scissor = {};
+//    scissor.extent.width = 1366;
+//    scissor.extent.height = 768;
     VkRenderPassBeginInfo render_pass_begin_info = {};
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.renderPass = render_pass->render_pass;
@@ -780,6 +840,7 @@ void r_i_DispatchPending()
     uint32_t vertex_start;
     uint32_t count;
     uint32_t indexed;
+    VkRect2D scissor;
     
 //    struct r_i_vertex_t *verts = NULL;
 //    uint32_t *indices = NULL;
@@ -792,7 +853,11 @@ void r_i_DispatchPending()
 
     render_pass = r_GetRenderPassPointer(r_i_render_pass);
 //    pipeline = r_GetPipelinePointer(render_pass->pipelines[0]);
-
+    
+//    scissor.offset.x = 0;
+//    scissor.offset.y = 0;
+//    scissor.extent.width = 1366;
+//    scissor.extent.height = 768;
 
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.framebuffer = framebuffer->buffers[0];
@@ -805,6 +870,7 @@ void r_i_DispatchPending()
     r_vkCmdBindIndexBuffer(command_buffer, index_buffer->buffer, (VkDeviceSize){0}, VK_INDEX_TYPE_UINT32);
     r_vkCmdSetViewport(command_buffer, 0, 1, &r_view.viewport);
     r_vkCmdSetScissor(command_buffer, 0, 1, &r_view.scissor);
+//    printf("%d %d\n", r_view.scissor.extent.width, r_view.scissor.extent.height);
     r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
     for(uint32_t pending_index = 0; pending_index < r_i_submission_state.base.pending_draw_cmd_lists.cursor; pending_index++)
     {
@@ -920,7 +986,7 @@ void r_i_DispatchPending()
                         descriptor_write.pImageInfo = &image_info;
                         
                         r_vkUpdateDescriptorSets(1, &descriptor_write);                        
-                        r_vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->layout, 1, 1, &descriptor_set, 0, NULL);
+                        r_vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->layout, 0, 1, &descriptor_set, 0, NULL);
                     }
                     
                     continue;
@@ -1131,14 +1197,16 @@ void r_i_Draw(uint32_t type, uint32_t first_vertex, uint32_t first_index, uint32
     
 }
 
-void r_i_DrawLines(struct r_i_vertex_t *verts, uint32_t vert_count, float size, uint32_t line_strip)
+void r_i_DrawLines(uint32_t first_vertex, uint32_t first_index, uint32_t count, uint32_t indexed, uint32_t line_strip)
 {
     struct r_i_draw_line_data_t *line_data;
     
-    line_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_draw_line_data_t) + sizeof(struct r_i_vertex_t) * vert_count);
-    line_data->count = vert_count;
-    line_data->vert_start = r_i_UploadVertices(verts, vert_count, 1);
-    line_data->indexed = 0;
+    line_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_draw_line_data_t) + sizeof(struct r_i_vertex_t) * count);
+    line_data->count = count;
+    line_data->vert_start = first_vertex;
+    line_data->indexed = indexed;
+    
+    r_i_SetPolygonMode(VK_POLYGON_MODE_LINE);
     
     if(line_strip)
     {
@@ -1152,14 +1220,28 @@ void r_i_DrawLines(struct r_i_vertex_t *verts, uint32_t vert_count, float size, 
     }
 }
 
+void r_i_DrawLinesImmediate(struct r_i_vertex_t *verts, uint32_t vert_count, float size, uint32_t line_strip)
+{
+    uint32_t first_vertex;
+    
+    if(!vert_count)
+    {
+        return;
+    }
+    
+    first_vertex = r_i_UploadVertices(verts, vert_count, 1);
+    
+    r_i_DrawLines(first_vertex, 0, vert_count, 0, line_strip);
+}
+
 void r_i_DrawLine(struct r_i_vertex_t *from, struct r_i_vertex_t *to, float size)
 {
-    r_i_DrawLines((struct r_i_vertex_t []){*from, *to}, 2, size, 0);
+//    r_i_DrawLines((struct r_i_vertex_t []){*from, *to}, 2, size, 0);
 }
 
 void r_i_DrawLineStrip(struct r_i_vertex_t *verts, uint32_t vert_count, float size)
 {
-    r_i_DrawLines(verts, vert_count, size, 1);
+//    r_i_DrawLines(verts, vert_count, size, 1);
 }
 
 void r_i_DrawTris(uint32_t first_vertex, uint32_t first_index, uint32_t count, uint32_t indexed, uint32_t fill)

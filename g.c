@@ -6,6 +6,7 @@
 #include "phy.h"
 #include "ui.h"
 #include "scr.h"
+#include "ent.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -82,7 +83,7 @@ void g_MainLoop()
         g_ShutdownCallback();
     }
 
-    r_Shutdown();
+    r_DrawShutdown();
 }
 
 void g_Quit()

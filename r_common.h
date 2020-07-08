@@ -347,14 +347,6 @@ struct r_sampler_params_t
 
 struct r_texture_description_t
 {
-//    uint16_t width;
-//    uint16_t height;
-//    uint16_t depth;
-//    uint16_t layers;
-//    uint8_t type;
-//    uint8_t format;
-//    uint8_t mip_levels;
-//    uint8_t aspect_mask;
     VkStructureType s_type;
     const void *next;
     VkImageCreateFlags flags;
@@ -539,6 +531,19 @@ struct r_pipeline_h
 =================================================================================
 */
 
+struct r_attachment_d
+{
+    VkFormat format;
+    VkSampleCountFlagBits samples;
+    VkImageTiling tiling;
+    VkAttachmentLoadOp load_op;
+    VkAttachmentStoreOp store_op; 
+    VkAttachmentLoadOp stencil_load_op;
+    VkAttachmentStoreOp stencil_store_op;
+    VkImageLayout initial_layout;
+    VkImageLayout final_layout;
+};
+
 struct r_subpass_description_t
 {
     VkSubpassDescriptionFlags flags;
@@ -558,7 +563,8 @@ struct r_subpass_description_t
 
 struct r_render_pass_description_t
 {
-    VkAttachmentDescription *attachments;
+//    VkAttachmentDescription *attachments;
+    struct r_attachment_d *attachments;
     struct r_subpass_description_t *subpasses;
     uint8_t attachment_count;
     uint8_t subpass_count;
@@ -577,6 +583,8 @@ struct r_render_pass_t
     struct r_subpass_t *subpasses;
     uint32_t pipeline_count;
     uint8_t subpass_count;
+    struct r_attachment_d *attachments;
+    uint32_t attachment_count;
 };
 
 struct r_render_pass_handle_t
@@ -612,7 +620,8 @@ struct r_render_pass_handle_t
 
 struct r_framebuffer_description_t
 {
-    VkAttachmentDescription *attachments;
+//    VkAttachmentDescription *attachments;
+    struct r_attachment_d *attachments;
     struct r_render_pass_t *render_pass;
     uint16_t width;
     uint16_t height;

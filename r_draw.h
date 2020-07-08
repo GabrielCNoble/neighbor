@@ -335,9 +335,9 @@ void r_i_SetScissor(uint32_t offset_x, uint32_t offset_y, uint32_t width, uint32
 
 void r_i_Draw(uint32_t type, uint32_t first_vertex, uint32_t first_index, uint32_t count);
 
-void r_i_DrawLines(struct r_i_vertex_t *verts, uint32_t vert_count, float size, uint32_t line_strip);
+void r_i_DrawLines(uint32_t first_vertex, uint32_t first_index, uint32_t count, uint32_t indexed, uint32_t line_strip);
 
-void r_i_DrawLine(struct r_i_vertex_t *from, struct r_i_vertex_t *to, float size);
+void r_i_DrawLinesImmediate(struct r_i_vertex_t *verts, uint32_t vert_count, float size, uint32_t line_strip);
 
 void r_i_DrawLineStrip(struct r_i_vertex_t *verts, uint32_t vert_count, float size);
 
