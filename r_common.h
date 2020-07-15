@@ -2,8 +2,7 @@
 #define R_COMMON_H
 
 #include <stdint.h>
-#include "lib/SDL/include/SDL2/SDL.h"
-//#include "SDL/include/SDL2/SDL_vulkan.h"
+#include "lib/SDL/include/SDL.h"
 #include "lib/dstuff/ds_stack_list.h"
 #include "lib/dstuff/ds_list.h"
 #include "lib/dstuff/ds_ringbuffer.h"

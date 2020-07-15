@@ -1,9 +1,6 @@
 #ifndef G_H
 #define G_H
 
-//#include "SDL/include/SDL2/SDL.h"
-//#undef main
-
 #include <stdint.h>
 
 void g_SetInitCallback(void (*callback)());

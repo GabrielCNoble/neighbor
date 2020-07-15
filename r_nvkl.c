@@ -12,8 +12,6 @@
 #include "lib/SDL/include/SDL2/SDL_atomic.h"
 #include "lib/SDL/include/SDL2/SDL_vulkan.h"
 
-//struct r_renderer_t r_renderer;
-
 #define R_SWAPCHAIN_IMAGE_COUNT 2
 
 struct
@@ -283,7 +281,8 @@ VkDevice r_CreateDevice(VkSurfaceKHR surface)
         VK_FORMAT_R32G32B32A32_SFLOAT,
         VK_FORMAT_R8G8B8A8_UNORM,
         VK_FORMAT_D32_SFLOAT,
-        VK_FORMAT_D24_UNORM_S8_UINT
+        VK_FORMAT_D24_UNORM_S8_UINT,
+        VK_FORMAT_R32_UINT,
     };
 
     r_device.buffer_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 33554432);

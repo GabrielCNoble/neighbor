@@ -80,42 +80,43 @@ void r_DrawInit()
     r_RecomputeInvViewMatrix();
     r_RecomputeProjectionMatrix();
 
+    
+    shader_description = (struct r_shader_description_t){
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .vertex_binding_count = 1,
+        .vertex_bindings = (struct r_vertex_binding_t []){
+            {
+                .size = sizeof(struct r_vertex_t),
+                .attrib_count = 3,
+                .attribs = (struct r_vertex_attrib_t []){
+                    {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_vertex_t, position)},
+                    {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_vertex_t, normal)},
+                    {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_vertex_t, tex_coords)}
+                },
+            }
+        },
+        .push_constant_count = 1,
+        .push_constants = &(struct r_push_constant_t ){
+            .size = sizeof(mat4_t),
+            .offset = 0
+        }
+    };
     file = fopen("./neighbor/shaders/shader.vert.spv", "rb");
     read_file(file, &shader_description.code, &shader_description.code_size);
     fclose(file);
-    shader_description.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shader_description.vertex_binding_count = 1;
-    shader_description.vertex_bindings = (struct r_vertex_binding_t []){
-        {
-            .size = sizeof(struct r_vertex_t),
-            .attrib_count = 3,
-            .attribs = (struct r_vertex_attrib_t []){
-                {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_vertex_t, position)},
-                {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_vertex_t, normal)},
-                {.format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(struct r_vertex_t, tex_coords)}
-            },
-        }
-    };
-    shader_description.push_constant_count = 1;
-    shader_description.push_constants = &(struct r_push_constant_t ){
-        .size = sizeof(mat4_t),
-        .offset = 0
-    };
-//    shader_description.resource_count = 1;
-//    shader_description.resources = (struct r_resource_binding_t []){
-//        {.descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .count = 1}
-//    };
-
     struct r_shader_t *vertex_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
     mem_Free(shader_description.code);
 
-    memset(&shader_description, 0, sizeof(struct r_shader_description_t));
+//    memset(&shader_description, 0, sizeof(struct r_shader_description_t));
+    
+    shader_description = (struct r_shader_description_t){
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .resource_count = 1,
+        .resources = (struct r_resource_binding_t []){{.descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .count = 1}}
+    };
     fopen("neighbor/shaders/shader.frag.spv", "rb");
     read_file(file, &shader_description.code, &shader_description.code_size);
     fclose(file);
-    shader_description.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shader_description.resource_count = 1;
-    shader_description.resources = (struct r_resource_binding_t []){{.descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .count = 1}};
     struct r_shader_t *fragment_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
     mem_Free(shader_description.code);
 
@@ -290,61 +291,6 @@ void r_DrawInit()
         }
     };
  
-//    render_pass_description.attachment_count = 2;
-//    render_pass_description.attachments = (struct r_attachment_d []){
-//        {.format = VK_FORMAT_B8G8R8A8_UNORM, .initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,},
-//        {.format = VK_FORMAT_D32_SFLOAT, .initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,}
-//    };
-//    render_pass_description.subpass_count = 1;
-//    render_pass_description.subpasses = &(struct r_subpass_description_t){
-//        .color_attachment_count = 1,
-//        .color_attachments = (VkAttachmentReference[]){{.attachment = 0}},
-//        .depth_stencil_attachment = &(VkAttachmentReference){.attachment = 1},
-//        .pipeline_description_count = 5,
-//        .pipeline_descriptions = (struct r_pipeline_description_t []){
-//            {
-//                .shader_count = 2,
-//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-//                .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
-//                    .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST
-//                },
-//                .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
-//                    .polygonMode = VK_POLYGON_MODE_LINE
-//                }
-//            },
-//            {
-//                .shader_count = 2,
-//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-//                .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
-//                    .topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
-//                },
-//                .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
-//                    .polygonMode = VK_POLYGON_MODE_LINE
-//                }
-//            },
-//            {
-//                .shader_count = 2,
-//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-//                .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
-//                    .polygonMode = VK_POLYGON_MODE_LINE,
-//                }
-//            },
-//            {
-//                .shader_count = 2,
-//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-//            },
-//            {
-//                .shader_count = 2,
-//                .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-//                .depth_stencil_state = &(VkPipelineDepthStencilStateCreateInfo){
-//                    .depthTestEnable = VK_FALSE,
-//                    .depthWriteEnable = VK_TRUE,
-//                    .depthCompareOp = VK_COMPARE_OP_LESS
-//                }
-//            },
-//        }
-//    };
-
     r_i_render_pass = r_CreateRenderPass(&render_pass_description);
     r_materials = create_stack_list(sizeof(struct r_material_t), 128);
     r_CreateDefaultMaterial();
@@ -369,44 +315,6 @@ void r_EndFrame()
     r_DispatchPending();
     r_i_DispatchPending();
     r_PresentFramebuffer(r_framebuffer);
-}
-
-void r_SetViewPosition(vec2_t *position)
-{
-//    r_RecomputeInvViewMatrix();
-}
-
-void r_TranslateView(vec3_t *translation)
-{
-    r_view.view_transform.rows[3].x += translation->x;
-    r_view.view_transform.rows[3].y += translation->y;
-    r_view.view_transform.rows[3].z += translation->z;
-//    r_RecomputeInvViewMatrix();
-}
-
-void r_PitchYawView(float pitch, float yaw)
-{
-    mat4_t pitch_matrix;
-    mat4_t yaw_matrix;
-    vec4_t translation;
-    
-    mat4_t_identity(&pitch_matrix);
-    mat4_t_identity(&yaw_matrix);
-    
-    mat4_t_rotate_x(&pitch_matrix, pitch);
-    mat4_t_rotate_y(&yaw_matrix, yaw);
-    
-    translation = r_view.view_transform.rows[3];
-    
-    mat4_t_mul(&r_view.view_transform, &pitch_matrix, &yaw_matrix);
-    r_view.view_transform.rows[3] = translation;
-//    r_RecomputeInvViewMatrix();
-}
-
-void r_SetViewZoom(float zoom)
-{
-    r_view.zoom = zoom;
-//    r_RecomputeProjectionMatrix();
 }
 
 void r_RecomputeInvViewMatrix()

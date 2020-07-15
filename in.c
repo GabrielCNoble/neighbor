@@ -1,6 +1,6 @@
 #include "in.h"
-#include "lib/SDL/include/SDL2/SDL_events.h"
-#include "lib/SDL/include/SDL2/SDL_video.h"
+#include "lib/SDL/include/SDL.h"
+//#include "lib/SDL/include/SDL2/SDL_video.h"
 #include <stdio.h>
 //#include "r_nvkl.h"
 

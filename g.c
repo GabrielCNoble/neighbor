@@ -1,4 +1,4 @@
-#include "lib/SDL/include/SDL2/SDL.h"
+#include "lib/SDL/include/SDL.h"
 #include "g.h"
 #include "in.h"
 #include "r_nvkl.h"

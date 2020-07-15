@@ -40,8 +40,6 @@ struct r_d_submission_state_t
     struct list_t draw_calls;
 };
 
-
-
 struct r_i_draw_state_t
 {
     struct r_pipeline_state_t pipeline_state;
@@ -226,18 +224,6 @@ void r_DrawShutdown();
 void r_BeginFrame();
 
 void r_EndFrame();
-
-//void r_SetViewMatrix(mat4_t *view_matrix);
-
-//void r_SetProjectionMatrix(mat4_t *projection_matrix);
-
-void r_SetViewPosition(vec2_t *position);
-
-void r_TranslateView(vec3_t *translation);
-
-void r_PitchYawView(float pitch, float yaw);
-
-void r_SetViewZoom(float zoom);
 
 void r_RecomputeInvViewMatrix();
 
