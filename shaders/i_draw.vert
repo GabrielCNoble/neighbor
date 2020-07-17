@@ -13,7 +13,7 @@ layout (location = 1) out vec2 tex_coords;
 layout(push_constant) uniform r_Input
 {
      mat4 r_ModelViewProjectionMatrix;
-     float r_PointSize;
+     layout(offset = 64)float r_PointSize;
 };
 
 void main()

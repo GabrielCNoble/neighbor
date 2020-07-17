@@ -753,14 +753,6 @@ void r_i_DispatchPending()
     struct r_render_pass_t *render_pass;
     struct r_buffer_t *vertex_buffer;
     struct r_buffer_t *index_buffer;
-//    struct r_d_draw_line_data_t *line_data;
-//    struct r_pipeline_t *pipeline = NULL;
-//    uint32_t vertex_buffer_cursor = 0;
-//    uint32_t vertex_buffer_offset = 0;
-//    uint32_t index_buffer_cursor = 0;
-//    uint32_t index_buffer_offset = 0;
-//    mat4_t *model_view_projection_matrix = NULL;
-//    struct r_debug_vertex_t verts[2];
 
     uint32_t vertex_start;
     uint32_t index_start;
