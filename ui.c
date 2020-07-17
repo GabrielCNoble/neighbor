@@ -96,6 +96,9 @@ void ui_EndFrame()
     r_i_BeginSubmission(&ui_inv_view_matrix, &ui_projection_matrix);
     r_i_SetTexture(ui_font_texture);
     r_i_SetDepthTest(VK_FALSE);
+    r_i_SetCullMode(VK_CULL_MODE_NONE);
+    r_i_SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    r_i_SetPolygonMode(VK_POLYGON_MODE_FILL);
     for(uint32_t cmd_list_index = 0; cmd_list_index < draw_data->CmdListsCount; cmd_list_index++)
     {
         ImDrawList *cmd_list = draw_data->CmdLists[cmd_list_index];
@@ -123,21 +126,21 @@ void ui_EndFrame()
             ui_vertices[vertex_offset].color.w = (float)((verts[vert_index].col >> 24) & 0xff) / 255.0;
         }
         
-        vertex_offset = r_i_UploadVertices(ui_vertices, vertex_offset, 1);
+        vertex_offset = r_i_UploadVertices(ui_vertices, vertex_offset);
         
         for(uint32_t index = 0; index < cmd_list->IdxBuffer.Size; index++, index_offset++)
         {
             ui_indices[index_offset] = indices[index];
         }
         
-        index_offset = r_i_UploadIndices(ui_indices, index_offset, 1);
+        index_offset = r_i_UploadIndices(ui_indices, index_offset);
         
         for(uint32_t cmd_index = 0; cmd_index < cmd_list->CmdBuffer.Size; cmd_index++)
         {
             ImDrawCmd *draw_cmd = cmd_list->CmdBuffer.Data + cmd_index;
             r_i_SetScissor(draw_cmd->ClipRect.x, draw_cmd->ClipRect.y, 
                            draw_cmd->ClipRect.z - draw_cmd->ClipRect.x, draw_cmd->ClipRect.w - draw_cmd->ClipRect.y);
-            r_i_DrawTris(vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1, 1);
+            r_i_Draw(vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1);
         }
     }
     r_i_SetDepthTest(VK_TRUE);

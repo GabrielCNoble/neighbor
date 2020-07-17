@@ -411,11 +411,6 @@ struct r_descriptor_pool_t
     executing before other threads that were also allocating descriptor sets from this pool.
     This means that the pool may get reset while the descriptor sets are being used by gpu. */
 
-//    VkFence submission_fence; /* once a pool gets depleted, it gets put in an used
-//    pools list. To know when it's safe to recycle it, the fence used in the submission
-//    that depleted this pool gets stored here. A pool can be used in several submissions,
-//    but only the one that depleted it is enough to tell whether it's safe to recycle it. */
-
     VkEvent exhaustion_event;
     uint32_t set_count;
     uint32_t free_count;
@@ -487,14 +482,8 @@ struct r_pipeline_state_t
     struct
     {
         uint32_t topology: 4;
-    }input_assembly;
+    }input_assembly_state;
 };
-
-//union r_pipeline_tag_t
-//{
-//    uint32_t tag;
-//    struct r_pipeline_state_t state;
-//};
 
 /* each pipeline will have a list of command pools,
 and all command pools will use the same descriptor set layout.
@@ -562,7 +551,6 @@ struct r_subpass_description_t
 
 struct r_render_pass_description_t
 {
-//    VkAttachmentDescription *attachments;
     struct r_attachment_d *attachments;
     struct r_subpass_description_t *subpasses;
     uint8_t attachment_count;
@@ -674,115 +662,6 @@ struct r_swapchain_handle_t
 =================================================================
 =================================================================
 */
-
-
-//
-//enum R_MATERIAL_FLAGS
-//{
-//    R_MATERIAL_FLAG_INVALID = 1,
-//    R_MATERIAL_FLAG_USE_DIFFUSE_TEXTURE = 1 << 1,
-//    R_MATERIAL_FLAG_USE_NORMAL_TEXTURE = 1 << 2,
-//};
-//
-//struct r_material_handle_t
-//{
-//    uint32_t index;
-//};
-//
-//struct r_material_t
-//{
-//    uint32_t flags;
-//    char *name;
-//    vec4_t base_color;
-//    struct r_texture_t *diffuse_texture;
-//    struct r_texture_t *normal_texture;
-//    // struct r_texture_handle_t diffuse_texture;
-//    // struct r_texture_handle_t normal_texture;
-//};
-//
-//#define R_INVALID_MATERIAL_INDEX 0xffffffff
-//#define R_MATERIAL_HANDLE(index) (struct r_material_handle_t){index}
-//#define R_INVALID_MATERIAL_HANDLE R_MATERIAL_HANDLE(R_INVALID_MATERIAL_INDEX)
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-struct r_light_handle_t
-{
-    uint32_t index;
-};
-struct r_light_t
-{
-    vec4_t pos_radius;
-    vec4_t color;
-};
-
-#define R_INVALID_LIGHT_INDEX 0xffffffff
-#define R_LIGHT_HANDLE(index) (struct r_light_handle_t){index}
-#define R_INVALID_LIGHT_HANDLE R_LIGHT_HANDLE(R_INVALID_LIGHT_INDEX)
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-/* 64 MB */
-//#define R_HEAP_SIZE 67108864
-
-//#define R_SAMPLER_COUNT 4
-// #define R_MAX_DRAW_CMDS 64
-// #define R_MAX_UNORDERED_DRAW_CMDS 1024
-//#define R_DRAW_CMD_BUFFER_DRAW_CMDS 1024
-//#define R_CMD_DATA_ELEM_SIZE 64
-
-//enum R_CMD_TYPE
-//{
-//    R_CMD_TYPE_BEGIN_FRAME,
-//    R_CMD_TYPE_DRAW,
-//    R_CMD_TYPE_SORT_DRAW_CMDS,
-//    R_CMD_TYPE_END_FRAME,
-//};
-
-//struct r_cmd_t
-//{
-//    uint32_t cmd_type;
-//    void *data;
-//};
-//struct r_draw_range_t
-//{
-//    uint32_t start;
-//    uint32_t count;
-//};
-
-/* unordered draw cmds */
-// struct r_udraw_cmd_t
-// {
-//     mat4_t model_matrix;
-//     struct r_material_t *material;
-//     struct r_draw_range_t range;
-// };
-// struct r_udraw_cmd_buffer_t
-// {
-//     mat4_t view_projection_matrix;
-//     mat4_t view_matrix;
-//     uint32_t draw_cmd_count;
-//     struct r_udraw_cmd_t draw_cmds[1];
-// };
-
-
-/* ordered draw cmds, ready for consumption by the renderer */
-//struct r_draw_cmd_t
-//{
-//    mat4_t model_matrix;
-////    struct r_material_t *material;  /* necessary for sorting... */
-////    struct r_draw_range_t range;
-//};
-
-
 
 #define R_DEFAULT_WIDTH 800
 #define R_DEFAULT_HEIGHT 600

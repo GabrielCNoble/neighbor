@@ -8,7 +8,7 @@ layout(location = 1) in vec2 tex_coords;
 
 layout(push_constant) uniform r_TextureParams
 {
-    layout(offset = 64) int textured;
+    layout(offset = 68) int textured;
 };
 
 layout(set = 0, binding = 0) uniform sampler2D r_Sampler0;

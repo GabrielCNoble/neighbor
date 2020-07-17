@@ -172,7 +172,7 @@ struct r_descriptor_pool_list_t *r_GetDescriptorPoolListPointer(struct r_pipelin
 
 VkDescriptorSet r_AllocateDescriptorSet(union r_command_buffer_h command_buffer, struct r_pipeline_t *pipeline, VkShaderStageFlagBits stage);
 
-void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline);
+struct r_pipeline_t *r_GetPipelinePointerByState(struct r_render_pass_handle_t render_pass_handle, uint32_t subpass_index, struct r_pipeline_state_t *pipeline_state);
 
 /*
 =================================================================
@@ -275,6 +275,8 @@ void r_vkCmdSetViewport(union r_command_buffer_h command_buffer, uint32_t first_
 void r_vkCmdSetScissor(union r_command_buffer_h command_buffer, uint32_t first_scissor, uint32_t scissor_count, VkRect2D *scissors);
 
 void r_vkCmdSetLineWidth(union r_command_buffer_h command_buffer, float width);
+
+void r_vkCmdSetPointSize(union r_command_buffer_h command_buffer, float size);
 
 void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void *data);
 

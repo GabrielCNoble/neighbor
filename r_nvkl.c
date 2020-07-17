@@ -1787,31 +1787,36 @@ struct r_shader_t *r_GetShaderPointer(struct r_shader_handle_t handle)
 =================================================================
 */
 
+VkPipelineColorBlendAttachmentState default_color_blend_attachment = {
+    .blendEnable = VK_FALSE,
+    .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+    .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+    .colorBlendOp = VK_BLEND_OP_ADD,
+    .srcAlphaBlendFactor = 1.0,
+    .dstAlphaBlendFactor = 1.0,
+    .alphaBlendOp = VK_BLEND_OP_ADD,
+    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+};
+
+VkPipelineColorBlendStateCreateInfo default_color_blend_state = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+    .logicOpEnable = VK_FALSE,
+    .logicOp = VK_LOGIC_OP_NO_OP,
+    .blendConstants = {1.0, 1.0, 1.0, 1.0}
+};
+
 struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_description_t *description)
 {
     struct r_render_pass_handle_t handle = R_INVALID_RENDER_PASS_HANDLE;
     struct r_render_pass_t *render_pass;
-    struct r_subpass_description_t *subpass_descriptions; /* will contain the subpass descriptions that came
-    in, or the one that was created in here in the case one wasn't provided by the caller */
-
-//    struct r_subpass_description_t *subpass_description; /* used to iterate over the subpass_descriptions array */
-
-//    VkAttachmentReference *color_attachment_references;
-//    VkAttachmentReference *color_attachment_reference;
-//    VkAttachmentReference *depth_stencil_attachment_references;
-//    VkAttachmentReference *depth_stencil_attachment_reference;
-
+    struct r_subpass_description_t *subpass_descriptions;
     VkRenderPassCreateInfo render_pass_create_info = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
 
     uint32_t color_attachment_count = 0;
     uint32_t pipeline_count = 0;
 
-    VkPipelineColorBlendStateCreateInfo color_blend_state = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_NO_OP,
-        .blendConstants = {1.0, 1.0, 1.0, 1.0}
-    };
+    VkPipelineColorBlendStateCreateInfo color_blend_state = default_color_blend_state;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {
         .depthCompareOp = VK_COMPARE_OP_LESS,
@@ -1819,7 +1824,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
     handle.index = add_stack_list_element(&r_device.render_passes, NULL);
     render_pass = (struct r_render_pass_t *)get_stack_list_element(&r_device.render_passes, handle.index);
-//    render_pass->description = mem_Calloc(1, sizeof(struct r_render_pass_description_t));
     
     subpass_descriptions = mem_Calloc(sizeof(struct r_subpass_description_t), description->subpass_count);
     memcpy(subpass_descriptions, description->subpasses, sizeof(struct r_subpass_description_t) * description->subpass_count);
@@ -1838,11 +1842,7 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
     VkAttachmentReference *color_attachment_reference = color_attachment_references;
     VkAttachmentReference *depth_stencil_attachment_references = mem_Calloc(sizeof(VkAttachmentReference), description->subpass_count);
     VkAttachmentReference *depth_stencil_attachment_reference = depth_stencil_attachment_references;
-    /* Each sub pass will have its own VkPipeline object. Each pipeline has a VkPipelineColorBlendStateCreateInfo,
-    which contains an array of VkPipelineColorBlendAttachmentState. Each element of this array matches an element
-    of the pColorAttachments array in the sub pass. Since pColorAttachments will have at most color_attachment_count
-    elements, it's safe to allocate the same amount, as just a single VkPipeline will be created at each time, and
-    a VkPipeline refers only to a single sub pass */
+    
     color_blend_state.pAttachments = mem_Calloc(sizeof(VkPipelineColorBlendAttachmentState), color_attachment_count);
     color_blend_state.attachmentCount = color_attachment_count;
 
@@ -1853,15 +1853,7 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
         /* drop the pesky const */
         VkPipelineColorBlendAttachmentState *color_blend_attachment_state = (VkPipelineColorBlendAttachmentState *)color_blend_state.pAttachments +
             attachment_index;
-        color_blend_attachment_state->blendEnable = VK_FALSE;
-        color_blend_attachment_state->srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-        color_blend_attachment_state->dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-        color_blend_attachment_state->colorBlendOp = VK_BLEND_OP_ADD;
-        color_blend_attachment_state->srcAlphaBlendFactor = 1.0;
-        color_blend_attachment_state->dstAlphaBlendFactor = 1.0;
-        color_blend_attachment_state->alphaBlendOp = VK_BLEND_OP_ADD;
-        color_blend_attachment_state->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        memcpy(color_blend_attachment_state, &default_color_blend_attachment, sizeof(VkPipelineColorBlendAttachmentState));
     }
 
     for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
@@ -1930,7 +1922,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
     if(description->attachment_count)
     {
-//        memcpy((void *)render_pass_create_info.pAttachments, description->attachments, sizeof(VkAttachmentDescription) * description->attachment_count);
         for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
         {
             struct r_attachment_d *attachment_description = description->attachments + attachment_index;
@@ -1971,7 +1962,6 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
 
     render_pass_create_info.subpassCount = description->subpass_count;
     render_pass_create_info.pSubpasses = mem_Calloc(sizeof(VkSubpassDescription), description->subpass_count);
-//    memset((VkSubpassDescription *)render_pass_create_info.pSubpasses, 0, sizeof(VkSubpassDescription) * description->subpass_count);
 
     for(uint32_t subpass_index = 0; subpass_index < description->subpass_count; subpass_index++)
     {
@@ -2119,9 +2109,132 @@ VkDescriptorSet r_AllocateDescriptorSet(union r_command_buffer_h command_buffer,
     return descriptor_set;
 }
 
-void r_ResetPipelineDescriptorPools(struct r_pipeline_t *pipeline)
+struct r_pipeline_t *r_GetPipelinePointerByState(struct r_render_pass_handle_t render_pass_handle, uint32_t subpass_index, struct r_pipeline_state_t *pipeline_state)
 {
-
+    struct r_pipeline_t *pipeline;
+    struct r_pipeline_h pipeline_handle;
+    struct r_render_pass_t *render_pass;
+    struct r_subpass_t *subpass;
+    uint32_t offset = 0;
+    
+    VkPipelineColorBlendStateCreateInfo blend_state;
+    VkPipelineColorBlendAttachmentState *attachments;
+    uint32_t color_attachment_count = 0;
+    
+    render_pass = r_GetRenderPassPointer(render_pass_handle);
+    subpass = render_pass->subpasses + subpass_index;
+    
+    for(uint32_t pipeline_index = 0; pipeline_index < subpass->pipeline_count; pipeline_index++)
+    {
+        pipeline = r_GetPipelinePointer(subpass->pipelines[pipeline_index]);
+        if(!memcmp(&pipeline->state, pipeline_state, sizeof(struct r_pipeline_state_t)))
+        {
+            return pipeline;
+        }
+    }
+    
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state = (VkPipelineInputAssemblyStateCreateInfo){
+        .topology = pipeline_state->input_assembly_state.topology
+    };
+    
+    VkPipelineRasterizationStateCreateInfo rasterization_state = (VkPipelineRasterizationStateCreateInfo){
+        .cullMode = pipeline_state->rasterizer_state.cull_mode,
+        .frontFace = pipeline_state->rasterizer_state.front_face,
+        .polygonMode = pipeline_state->rasterizer_state.polygon_mode,
+    };
+    
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state = (VkPipelineDepthStencilStateCreateInfo){
+        .depthTestEnable = pipeline_state->depth_state.test_enable,
+        .depthWriteEnable = pipeline_state->depth_state.write_enable,
+        .depthCompareOp = pipeline_state->depth_state.compare_op,
+        
+        .stencilTestEnable = pipeline_state->stencil_state.test_enable,
+        .front = (VkStencilOpState){
+            .failOp = pipeline_state->stencil_state.front.fail_op,
+            .passOp = pipeline_state->stencil_state.front.pass_op,
+            .depthFailOp = pipeline_state->stencil_state.front.depth_fail_op,
+            .compareOp = pipeline_state->stencil_state.front.compare_op            
+        },
+        .back = (VkStencilOpState){
+            .failOp = pipeline_state->stencil_state.back.fail_op,
+            .passOp = pipeline_state->stencil_state.back.pass_op,
+            .depthFailOp = pipeline_state->stencil_state.back.depth_fail_op,
+            .compareOp = pipeline_state->stencil_state.back.compare_op            
+        }
+    };
+    
+    attachments = alloca(sizeof(VkPipelineColorBlendAttachmentState) * render_pass->attachment_count);
+    for(uint32_t attachment_index = 0; attachment_index < render_pass->attachment_count; attachment_index++)
+    {
+        VkPipelineColorBlendAttachmentState *attachment = attachments + attachment_index;
+        memcpy(attachment, &default_color_blend_attachment, sizeof(VkPipelineColorBlendAttachmentState));
+        
+        if(!r_IsDepthStencilFormat(render_pass->attachments[attachment_index].format))
+        {
+            color_attachment_count++;
+        }
+    }
+    
+    VkPipelineColorBlendStateCreateInfo color_blend_state = default_color_blend_state;
+    color_blend_state.attachmentCount = color_attachment_count;
+    color_blend_state.pAttachments = attachments;
+    
+    pipeline = r_GetPipelinePointer(subpass->pipelines[0]);
+    
+    struct r_pipeline_description_t description = {
+        .shaders = (struct r_shader_t *[]){
+            pipeline->vertex_shader,
+            pipeline->fragment_shader
+        },
+        .shader_count = 2,
+        .color_blend_state = &color_blend_state,
+        .rasterization_state = &rasterization_state,
+        .depth_stencil_state = &depth_stencil_state,
+        .input_assembly_state = &input_assembly_state,
+        .render_pass = render_pass->render_pass,
+        .subpass_index = subpass_index,
+    };
+    
+    subpass->pipeline_count++;
+    render_pass->pipeline_count++;
+    pipeline_handle = r_CreatePipeline(&description);
+    render_pass->pipelines = mem_Realloc(render_pass->pipelines, sizeof(struct r_pipeline_h) * (render_pass->pipeline_count + 1));
+    offset = render_pass->pipeline_count;
+    
+    uint32_t index = render_pass->subpass_count - 1;
+    uint32_t stop_index = subpass_index;
+    
+    for(uint32_t half = 0; half < 2; half++)
+    {
+        for(; index >= stop_index + 1; index--)
+        {
+            /* move the handles of all the subpasses before and after subpass_index */
+            subpass = render_pass->subpasses + index;
+            offset -= subpass->pipeline_count;
+            subpass->pipelines = render_pass->pipelines + offset;
+            for(uint32_t pipeline_index = subpass->pipeline_count - 1; pipeline_index > 0; pipeline_index--)
+            {
+                subpass->pipelines[pipeline_index] = subpass->pipelines[pipeline_index - 1];
+            }
+        }
+        
+        subpass = render_pass->subpasses + subpass_index;
+        offset -= subpass->pipeline_count;
+        subpass->pipelines = render_pass->pipelines + offset;
+        subpass->pipelines[subpass->pipeline_count - 1] = pipeline_handle;
+        index--;
+        
+        if(!stop_index)
+        {
+            /* subpass_index is the first on the list, so there's no
+            second half to update */
+            break;
+        }
+        
+        stop_index = 0;
+    }
+    
+    return r_GetPipelinePointer(pipeline_handle);
 }
 
 /*
@@ -2439,7 +2552,7 @@ struct r_pipeline_h r_CreatePipeline(struct r_pipeline_description_t *descriptio
         pipeline->state.stencil_state.back.fail_op = description->depth_stencil_state->back.failOp;
         pipeline->state.stencil_state.back.depth_fail_op = description->depth_stencil_state->back.depthFailOp;
         
-        pipeline->state.input_assembly.topology = description->input_assembly_state->topology;
+        pipeline->state.input_assembly_state.topology = description->input_assembly_state->topology;
         
         pipeline->state.rasterizer_state.polygon_mode = description->rasterization_state->polygonMode;
         pipeline->state.rasterizer_state.front_face = description->rasterization_state->frontFace;
@@ -2965,6 +3078,12 @@ void r_vkCmdSetLineWidth(union r_command_buffer_h command_buffer, float width)
     struct r_command_buffer_t *command_buffer_ptr;
     command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
     vkCmdSetLineWidth(command_buffer_ptr->command_buffer, width);
+}
+
+void r_vkCmdSetPointSize(union r_command_buffer_h command_buffer, float size)
+{
+    struct r_command_buffer_t *command_buffer_ptr;
+    command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
 }
 
 void r_vkCmdPushConstants(union r_command_buffer_h command_buffer, VkPipelineLayout layout, VkShaderStageFlags stage_flags, uint32_t offset, uint32_t size, void *data)

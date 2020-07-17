@@ -13,11 +13,13 @@ layout (location = 1) out vec2 tex_coords;
 layout(push_constant) uniform r_Input
 {
      mat4 r_ModelViewProjectionMatrix;
+     float r_PointSize;
 };
 
 void main()
 {
     gl_Position = r_ModelViewProjectionMatrix * r_VertexPosition;
+    gl_PointSize = r_PointSize;
     color = r_VertexColor;
     tex_coords = r_VertexTexCoords.xy;
 }
