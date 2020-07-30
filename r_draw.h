@@ -93,52 +93,6 @@ struct r_i_draw_data_slot_t
     uint8_t data[R_I_DRAW_DATA_SLOT_SIZE];
 };
 
-//struct r_i_draw_data_t
-//{
-//    uint32_t index_start;
-//    uint32_t vertex_start;
-//    uint32_t count;
-//    uint32_t indexed;
-//};
-
-struct r_i_draw_point_data_t
-{
-    float size;
-    uint32_t start;
-    uint32_t count;
-};
-
-struct r_i_draw_line_data_t
-{
-    float size;
-    uint32_t index_start;
-    uint32_t vert_start;
-    uint32_t count;
-    uint32_t indexed;
-};
-
-struct r_i_draw_tri_data_t
-{
-    uint32_t index_start;
-    uint32_t vert_start;
-    uint32_t count;
-    uint32_t indexed;
-};
-
-struct r_i_upload_vertex_data_t
-{
-    uint32_t vert_count;
-    uint32_t start;
-    struct r_i_vertex_t *vertices;
-};
-
-struct r_i_upload_index_data_t
-{
-    uint32_t index_count;
-    uint32_t start;
-    uint32_t *indices;
-};
-
 struct r_i_upload_buffer_data_t
 {
     uint32_t start;
@@ -153,39 +107,13 @@ struct r_i_set_draw_state_data_t
     struct r_i_draw_state_t draw_state;
 };
 
-//struct r_i_set_texture_data_t
-//{
-//    struct r_texture_handle_t texture_handle;
-//};
-
 enum R_I_DRAW_CMDS
 {
-    R_I_DRAW_CMD_DRAW_POINT_LIST,
-    R_I_DRAW_CMD_DRAW_LINE_LIST,
-    R_I_DRAW_CMD_DRAW_LINE_STRIP,
-    R_I_DRAW_CMD_DRAW_TRI_LINE,
-    R_I_DRAW_CMD_DRAW_TRI_FILL,
-    R_I_DRAW_CMD_DRAW_TRI_TEX,
-    R_I_DRAW_CMD_DRAW_INDEXED,
     R_I_DRAW_CMD_DRAW,
     R_I_DRAW_CMD_DRAW_LAST,
-    
-//    R_I_DRAW_CMD_SET_PIPELINE,
     R_I_DRAW_CMD_SET_DRAW_STATE,
-    R_I_DRAW_CMD_UPLOAD_VERTICES,
-    R_I_DRAW_CMD_UPLOAD_INDICES,
     R_I_DRAW_CMD_UPLOAD_DATA,
     R_I_DRAW_CMD_LAST,
-};
-
-enum R_I_PIPELINES
-{
-    R_I_PIPELINE_LINE_LIST,
-    R_I_PIPELINE_LINE_STRIP,
-    R_I_PIPELINE_TRI_LINE,
-    R_I_PIPELINE_TRI_FILL,
-    R_I_PIPELINE_TRI_TEX,
-    R_I_PIPELINE_LAST,
 };
 
 struct r_i_draw_cmd_t
@@ -204,6 +132,16 @@ struct r_i_draw_cmd_data_t
 
 #define R_MAX_SPRITE_LAYER 4
 
+struct r_begin_submission_info_t
+{
+    mat4_t inv_view_matrix;
+    mat4_t projection_matrix;
+    struct r_framebuffer_h framebuffer;
+    uint32_t clear_framebuffer;
+    VkViewport viewport;
+    VkRect2D scissor;
+};
+
 struct r_draw_cmd_t
 {
     uint32_t start;
@@ -214,8 +152,8 @@ struct r_draw_cmd_t
 
 struct r_draw_cmd_list_t
 {
+    struct r_begin_submission_info_t begin_info;
     mat4_t view_projection_matrix;
-    mat4_t inv_view_matrix;
     struct list_t draw_cmds;
 };
 
@@ -264,6 +202,10 @@ void r_SetWindowSize(uint32_t width, uint32_t height);
 
 void r_Fullscreen(uint32_t enable);
 
+struct r_framebuffer_h r_CreateDrawableFramebuffer(uint32_t width, uint32_t height);
+
+struct r_framebuffer_h r_GetBackbufferHandle();
+
 /*
 =================================================================
 =================================================================
@@ -282,6 +224,8 @@ struct r_material_h r_GetMaterialHandle(char *name);
 
 struct r_material_h r_GetDefaultMaterialHandle();
 
+struct r_material_t *r_GetDefaultMaterialPointer();
+
 /*
 =================================================================
 =================================================================
@@ -298,11 +242,11 @@ struct r_chunk_h r_AllocIndexes(uint32_t count);
 =================================================================
 */
 
-void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, mat4_t *inv_view_matrix, mat4_t *projection_matrix);
+void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, struct r_begin_submission_info_t *begin_info);
 
 uint32_t r_EndDrawCmdSubmission(struct r_submission_state_t *submission_state);
 
-void r_BeginSubmission();
+void r_BeginSubmission(struct r_begin_submission_info_t *begin_info);
 
 void r_EndSubmission();
 
@@ -319,7 +263,7 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
 */
 
 
-void r_i_BeginSubmission(mat4_t *inv_view_matrix, mat4_t *projection_matrix);
+void r_i_BeginSubmission(struct r_begin_submission_info_t *begin_info);
 
 void r_i_EndSubmission();
 

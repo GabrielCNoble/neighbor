@@ -123,6 +123,8 @@ void r_BlitImage(struct r_image_handle_t src_handle, struct r_image_handle_t dst
 
 void r_SetImageLayout(struct r_image_handle_t image, VkImageLayout new_layout);
 
+void *r_MapImageMemory(struct r_image_handle_t handle);
+
 
 
 void r_CreateDefaultTexture();
@@ -204,6 +206,8 @@ void r_ResizeFramebuffer(struct r_framebuffer_h handle, uint32_t width, uint32_t
 
 void r_PresentFramebuffer(struct r_framebuffer_h handle);
 
+//void r_ClearFramebuffer(struct r_framebuffer_h handle, )
+
 /*
 =================================================================
 =================================================================
@@ -266,7 +270,7 @@ void r_vkCmdBindVertexBuffers(union r_command_buffer_h command_buffer, uint32_t 
 
 void r_vkCmdBindIndexBuffer(union r_command_buffer_h command_buffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType index_type);
 
-void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, VkRenderPassBeginInfo *begin_info, VkSubpassContents subpass_contents);
+void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, struct r_render_pass_begin_info_t *begin_info, VkSubpassContents subpass_contents);
 
 void r_vkCmdEndRenderPass(union r_command_buffer_h command_buffer);
 
@@ -294,8 +298,12 @@ void r_vkCmdPipelineBarrier(union r_command_buffer_h command_buffer, VkPipelineS
                             uint32_t memory_barrier_count, VkMemoryBarrier *memory_barriers,
                             uint32_t buffer_barrier_count, VkBufferMemoryBarrier *buffer_memory_barriers,
                             uint32_t image_barrier_count, VkImageMemoryBarrier *image_memory_barriers);
+                            
+void r_vkCmdPipelineImageBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags, uint32_t barrier_count, VkImageMemoryBarrier *barriers);
 
 void r_vkCmdSetImageLayout(union r_command_buffer_h command_buffer, struct r_image_handle_t handle, uint32_t new_layout);
+
+void r_vkCmdClearAttachments(union r_command_buffer_h command_buffer, uint32_t attachment_count, VkClearAttachment *attachments, uint32_t rect_count, VkClearRect *rects);
 
 void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffer_h buffer, uint32_t offset, uint32_t size, void *data);
 
@@ -318,6 +326,8 @@ VkResult r_vkGetEventStatus(VkEvent event);
 void r_vkSetEvent(VkEvent event);
 
 void r_vkResetEvent(VkEvent event);
+
+void r_vkMapMemory(VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void **data);
 
 
 #endif

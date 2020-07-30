@@ -17,12 +17,15 @@ layout (set = 0, binding = 0) uniform sampler2D r_Sampler0;
 
 void main()
 {
-    vec4 color = texture(r_Sampler0, tex_coords.xy);
+    vec4 frag_color = texture(r_Sampler0, tex_coords.xy);
 
 //    if(color.a < 0.2)
 //    {
 //        discard;
 //    }
-
-    gl_FragColor = color;
+    frag_color.r = pow(frag_color.r, 1.0/2.2);
+    frag_color.g = pow(frag_color.g, 1.0/2.2);
+    frag_color.b = pow(frag_color.b, 1.0/2.2);
+    frag_color.a = pow(frag_color.a, 1.0/2.2);
+    gl_FragColor = frag_color;
 }

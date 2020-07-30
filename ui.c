@@ -18,7 +18,7 @@ void ui_Init()
 {
     igCreateContext(NULL);
     ImGuiIO *io = igGetIO();
-
+    io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     unsigned char *pixels;
     int width;
     int height;
@@ -42,6 +42,8 @@ void ui_Init()
     struct r_texture_t *texture = r_GetTexturePointer(ui_font_texture);
     r_FillImageChunk(texture->image, pixels, NULL);
     r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    ImTextureID font_texture_id = (void *)ui_font_texture.index;
+    ImFontAtlas_SetTexID(io->Fonts, font_texture_id);
 }
 
 void ui_Shutdown()
@@ -80,6 +82,7 @@ void ui_EndFrame()
     igRender();
     ImDrawData *draw_data = igGetDrawData();
     struct r_view_t *view = r_GetViewPointer();
+    struct r_begin_submission_info_t begin_info;
 
     if(draw_data->TotalVtxCount > ui_vertice_count)
     {
@@ -92,9 +95,15 @@ void ui_EndFrame()
         ui_indices_count = draw_data->TotalIdxCount;
         ui_indices = realloc(ui_indices, sizeof(uint32_t ) * ui_indices_count);
     }
+    
+    begin_info.inv_view_matrix = ui_inv_view_matrix;
+    begin_info.projection_matrix = ui_projection_matrix;
+    begin_info.framebuffer = r_GetBackbufferHandle();
+    begin_info.viewport = view->viewport;
+    begin_info.scissor = view->scissor;
 
-    r_i_BeginSubmission(&ui_inv_view_matrix, &ui_projection_matrix);
-    r_i_SetTexture(ui_font_texture);
+    r_i_BeginSubmission(&begin_info);
+//    r_i_SetTexture(ui_font_texture);
     r_i_SetDepthTest(VK_FALSE);
     r_i_SetCullMode(VK_CULL_MODE_NONE);
     r_i_SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
@@ -140,6 +149,8 @@ void ui_EndFrame()
             ImDrawCmd *draw_cmd = cmd_list->CmdBuffer.Data + cmd_index;
             r_i_SetScissor(draw_cmd->ClipRect.x, draw_cmd->ClipRect.y, 
                            draw_cmd->ClipRect.z - draw_cmd->ClipRect.x, draw_cmd->ClipRect.w - draw_cmd->ClipRect.y);
+            struct r_texture_h handle = R_TEXTURE_HANDLE((uint32_t)draw_cmd->TextureId);
+            r_i_SetTexture(handle);
             r_i_Draw(vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1);
         }
     }

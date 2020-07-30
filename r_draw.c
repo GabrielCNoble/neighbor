@@ -31,14 +31,6 @@ SDL_Window *r_window;
 uint32_t r_window_width;
 uint32_t r_window_height;
 
-uint32_t r_i_pipeline_map[] = {
-    [R_I_DRAW_CMD_DRAW_LINE_LIST] = R_I_PIPELINE_LINE_LIST,
-    [R_I_DRAW_CMD_DRAW_LINE_STRIP] = R_I_PIPELINE_LINE_STRIP,
-    [R_I_DRAW_CMD_DRAW_TRI_LINE] = R_I_PIPELINE_TRI_LINE,
-    [R_I_DRAW_CMD_DRAW_TRI_FILL] = R_I_PIPELINE_TRI_FILL,
-    [R_I_DRAW_CMD_DRAW_TRI_TEX] = R_I_PIPELINE_TRI_TEX,
-};
-
 #define R_VERTEX_BUFFER_MEMORY 8388608
 #define R_INDEX_BUFFER_MEMORY 8388608
 #define R_UNIFORM_BUFFER_MEMORY 8388608
@@ -106,8 +98,6 @@ void r_DrawInit()
     fclose(file);
     struct r_shader_t *vertex_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
     mem_Free(shader_description.code);
-
-//    memset(&shader_description, 0, sizeof(struct r_shader_description_t));
     
     shader_description = (struct r_shader_description_t){
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -122,8 +112,8 @@ void r_DrawInit()
 
     render_pass_description = (struct r_render_pass_description_t){
         .attachments = (struct r_attachment_d []){
-            {.format = VK_FORMAT_B8G8R8A8_UNORM, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR, .store_op = VK_ATTACHMENT_STORE_OP_STORE},
-            {.format = VK_FORMAT_D32_SFLOAT, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR, .store_op = VK_ATTACHMENT_STORE_OP_STORE}
+            {.format = VK_FORMAT_R8G8B8A8_SRGB},
+            {.format = VK_FORMAT_D32_SFLOAT}
         },
         .attachment_count = 2,
         .subpass_count = 1,
@@ -148,24 +138,6 @@ void r_DrawInit()
     };
 
     r_render_pass = r_CreateRenderPass(&render_pass_description);
-    
-//    struct r_pipeline_state_t state = {
-//        .rasterizer_state = {
-//            .polygon_mode = VK_POLYGON_MODE_LINE,
-//            .cull_mode = VK_CULL_MODE_BACK_BIT,
-//            .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE
-//        },
-//        .depth_state = {
-//            .test_enable = 1,
-//            .compare_op = VK_COMPARE_OP_LESS,
-//            .write_enable = 1,
-//        },
-//        .input_assembly_state = {
-//            .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST
-//        }
-//    };
-//    
-//    r_GetPipelinePointerByState(r_render_pass, 0, &state);
 
     struct r_framebuffer_description_t framebuffer_description = (struct r_framebuffer_description_t){
         .frame_count = 2,
@@ -203,7 +175,6 @@ void r_DrawInit()
     r_i_submission_state.base.current_draw_cmd_list = 0xffffffff;
     r_i_submission_state.base.draw_cmd_size = sizeof(struct r_i_draw_cmd_t);
     r_i_submission_state.cmd_data = create_list(sizeof(struct r_i_draw_data_slot_t), 2048);
-    r_i_submission_state.current_pipeline = R_I_PIPELINE_LAST;
     r_i_submission_state.vertex_cursor = 0;
     r_i_submission_state.index_cursor = 0;
     r_i_submission_state.next_draw_state.pipeline_state.depth_state.write_enable = VK_TRUE;
@@ -255,7 +226,7 @@ void r_DrawInit()
     render_pass_description = (struct r_render_pass_description_t){
         .attachment_count = 2,
         .attachments = (struct r_attachment_d []){
-            {.format = VK_FORMAT_B8G8R8A8_UNORM, .initial_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,},
+            {.format = VK_FORMAT_R8G8B8A8_SRGB, .initial_layout = VK_IMAGE_LAYOUT_GENERAL},
             {.format = VK_FORMAT_D32_SFLOAT, .initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}
         },
         .subpass_count = 1,
@@ -263,47 +234,11 @@ void r_DrawInit()
             .color_attachment_count = 1,
             .color_attachments = (VkAttachmentReference[]){{.attachment = 0}},
             .depth_stencil_attachment = &(VkAttachmentReference){.attachment = 1},
-            .pipeline_description_count = 4,
+            .pipeline_description_count = 1,
             .pipeline_descriptions = (struct r_pipeline_description_t []){
                 {
                     .shader_count = 2,
                     .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                    .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
-                        .topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST
-                    },
-                    .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
-                        .polygonMode = VK_POLYGON_MODE_LINE
-                    }
-                },
-                {
-                    .shader_count = 2,
-                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                    .input_assembly_state = &(VkPipelineInputAssemblyStateCreateInfo){
-                        .topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
-                    },
-                    .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
-                        .polygonMode = VK_POLYGON_MODE_LINE
-                    }
-                },
-                {
-                    .shader_count = 2,
-                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                    .rasterization_state = &(VkPipelineRasterizationStateCreateInfo){
-                        .polygonMode = VK_POLYGON_MODE_LINE,
-                    }
-                },
-//                {
-//                    .shader_count = 2,
-//                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-//                },
-                {
-                    .shader_count = 2,
-                    .shaders = (struct r_shader_t *[]){vertex_shader, fragment_shader},
-                    .depth_stencil_state = &(VkPipelineDepthStencilStateCreateInfo){
-                        .depthTestEnable = VK_FALSE,
-                        .depthWriteEnable = VK_TRUE,
-                        .depthCompareOp = VK_COMPARE_OP_LESS
-                    }
                 },
             }
         }
@@ -329,7 +264,7 @@ void r_EndFrame()
     r_RecomputeInvViewMatrix();
     r_RecomputeProjectionMatrix();
     r_VisibleWorld();
-    r_VisibleEntities();
+//    r_VisibleEntities();
     r_DispatchPending();
     r_i_DispatchPending();
     r_PresentFramebuffer(r_framebuffer);
@@ -388,6 +323,28 @@ void r_Fullscreen(uint32_t enable)
 //        SDL_SetWindowSize(r_window, 800, 600);
     }
     r_SetWindowSize(width, height);
+}
+
+struct r_framebuffer_h r_CreateDrawableFramebuffer(uint32_t width, uint32_t height)
+{
+    struct r_framebuffer_h handle;
+    struct r_framebuffer_description_t *backbuffer_description;
+    struct r_framebuffer_description_t description;
+    
+    backbuffer_description = r_GetFramebufferDescriptionPointer(r_framebuffer);
+    
+    description = *backbuffer_description;
+    description.width = width;
+    description.height = height;
+    
+    handle = r_CreateFramebuffer(&description);
+    
+    return handle;
+}
+
+struct r_framebuffer_h r_GetBackbufferHandle()
+{
+    return r_framebuffer;
 }
 
 /*
@@ -471,7 +428,12 @@ struct r_material_h r_GetMaterialHandle(char *name)
 
 struct r_material_h r_GetDefaultMaterialHandle()
 {
-    return R_MATERIAL_HANDLE(R_DEFAULT_TEXTURE_INDEX);
+    return R_MATERIAL_HANDLE(R_DEFAULT_MATERIAL_INDEX);
+}
+
+struct r_material_t *r_GetDefaultMaterialPointer()
+{
+    return r_GetMaterialPointer(R_MATERIAL_HANDLE(R_DEFAULT_MATERIAL_INDEX));
 }
 
 /*
@@ -487,7 +449,7 @@ struct r_chunk_h r_AllocVerts(uint32_t count)
 
 void r_FillVertsChunk(struct r_chunk_h chunk, struct r_vertex_t *vertices, uint32_t count)
 {
-    
+    r_FillBufferChunk(chunk, vertices, sizeof(struct r_vertex_t) * count, 0);
 }
 
 struct r_chunk_h r_AllocIndexes(uint32_t count)
@@ -501,7 +463,7 @@ struct r_chunk_h r_AllocIndexes(uint32_t count)
 =================================================================
 */
 
-void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, mat4_t *inv_view_matrix, mat4_t *projection_matrix)
+void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, struct r_begin_submission_info_t *begin_info)
 {
     struct r_draw_cmd_list_t *cmd_list;
 
@@ -514,9 +476,9 @@ void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, mat
             cmd_list->draw_cmds = create_list(submission_state->draw_cmd_size, 1024);
         }
     }
-
-    memcpy(&cmd_list->inv_view_matrix, inv_view_matrix, sizeof(mat4_t));
-    mat4_t_mul(&cmd_list->view_projection_matrix, inv_view_matrix, projection_matrix);
+    
+    memcpy(&cmd_list->begin_info, begin_info, sizeof(struct r_begin_submission_info_t));
+    mat4_t_mul(&cmd_list->view_projection_matrix, &begin_info->inv_view_matrix, &begin_info->projection_matrix);
     cmd_list->draw_cmds.cursor = 0;
 }
 
@@ -533,9 +495,9 @@ uint32_t r_EndDrawCmdSubmission(struct r_submission_state_t *submission_state)
 }
 
 
-void r_BeginSubmission()
+void r_BeginSubmission(struct r_begin_submission_info_t *begin_info)
 {
-    r_BeginDrawCmdSubmission((struct r_submission_state_t *)&r_submission_state, &r_view.inv_view_matrix, &r_view.projection_matrix);
+    r_BeginDrawCmdSubmission((struct r_submission_state_t *)&r_submission_state, begin_info);
 }
 
 int32_t r_CmpDrawCmds(void *a, void *b)
@@ -575,12 +537,15 @@ void r_Draw(uint32_t start, uint32_t count, struct r_material_t *material, mat4_
 
 void r_DispatchPending()
 {
-//    struct r_buffer_t *vertex_buffer;
     struct r_render_pass_t *render_pass;
     struct r_framebuffer_t *framebuffer;
+    struct r_framebuffer_t *default_framebuffer;
+    struct r_framebuffer_description_t *default_framebuffer_description;
     struct r_buffer_heap_t *heap;
-//    struct r_material_t *current_material = NULL;
     VkWriteDescriptorSet descriptor_set_write = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+//    VkClearAttachment clear_attachments[2];
+//    VkClearRect clear_rects[2];
+    VkViewport viewport;
 
     struct r_submit_info_t submit_info = {};
     submit_info.s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -589,29 +554,51 @@ void r_DispatchPending()
     submit_info.command_buffer_count = 0;
     
     heap = r_GetHeapPointer(r_vertex_heap);
-//    vertex_buffer = r_GetBufferPointer(heap->);
     render_pass = r_GetRenderPassPointer(r_render_pass);
-    framebuffer = r_GetFramebufferPointer(r_framebuffer);
-
-    VkClearValue clear_values[2];
-    clear_values[0].color.float32[0] = 0.1;
-    clear_values[0].color.float32[1] = 0.1;
-    clear_values[0].color.float32[2] = 0.3;
-    clear_values[0].color.float32[3] = 1.0;
-    clear_values[1].depthStencil.depth = 1.0;
+    default_framebuffer = r_GetFramebufferPointer(r_framebuffer);
+    default_framebuffer_description = r_GetFramebufferDescriptionPointer(r_framebuffer);
     
-//    VkRect2D scissor = {};
-//    scissor.extent.width = 1366;
-//    scissor.extent.height = 768;
-    VkRenderPassBeginInfo render_pass_begin_info = {};
-    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_begin_info.renderPass = render_pass->render_pass;
-    render_pass_begin_info.framebuffer = framebuffer->buffers[0];
-    render_pass_begin_info.renderArea = r_view.scissor;
-    render_pass_begin_info.clearValueCount = 2;
-    render_pass_begin_info.pClearValues = clear_values;
+    VkClearAttachment clear_attachments[] = {
+        [0] = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .clearValue = (VkClearValue){
+                .color.float32[0] = 0.1,
+                .color.float32[1] = 0.1,
+                .color.float32[2] = 0.3,
+                .color.float32[3] = 1.0,
+            },
+            .colorAttachment = 0
+        },
+        [1] = {
+            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+            .clearValue = (VkClearValue){
+                .depthStencil.depth = 1.0
+            },
+        }
+    };
     
-
+    VkClearRect clear_rects[] = {
+        [0] = {
+            .rect = (VkRect2D){
+                .offset.x = 0,
+                .offset.y = 0,
+            },
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+        [1] = {
+            .rect = (VkRect2D){
+                .offset.x = 0,
+                .offset.y = 0,
+            },
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        }
+    };
+    
+    struct r_render_pass_begin_info_t render_pass_begin_info = {};
+    render_pass_begin_info.render_pass = r_render_pass;
+    
     uint32_t cmd_list_index;
 
     for(uint32_t pending_index = 0; pending_index < r_submission_state.base.pending_draw_cmd_lists.cursor; pending_index++)
@@ -623,10 +610,35 @@ void r_DispatchPending()
         
         r_vkBeginCommandBuffer(command_buffer);
         r_vkCmdBindVertexBuffers(command_buffer, 0, 1, &heap->buffer, &(VkDeviceSize){0});
-        r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         r_vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
-        r_vkCmdSetViewport(command_buffer, 0, 1, &r_view.viewport);
-        r_vkCmdSetScissor(command_buffer, 0, 1, &r_view.scissor);
+        
+        r_vkCmdSetViewport(command_buffer, 0, 1, &cmd_list->begin_info.viewport);
+        r_vkCmdSetScissor(command_buffer, 0, 1, &cmd_list->begin_info.scissor);
+        
+        if(cmd_list->begin_info.framebuffer.index == R_INVALID_FRAMEBUFFER_INDEX)
+        {
+            framebuffer = default_framebuffer;
+        }
+        else
+        {
+            framebuffer = r_GetFramebufferPointer(cmd_list->begin_info.framebuffer);
+        }
+        
+        render_pass_begin_info.framebuffer = cmd_list->begin_info.framebuffer;
+        render_pass_begin_info.render_area = cmd_list->begin_info.scissor;
+    
+        r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+        
+        if(cmd_list->begin_info.clear_framebuffer)
+        {
+            clear_rects[0].rect.extent.width = cmd_list->begin_info.viewport.width;
+            clear_rects[0].rect.extent.height = cmd_list->begin_info.viewport.height;
+            
+            clear_rects[1].rect.extent.width = cmd_list->begin_info.viewport.width;
+            clear_rects[1].rect.extent.height = cmd_list->begin_info.viewport.height;
+            
+            r_vkCmdClearAttachments(command_buffer, 2, clear_attachments, 2, clear_rects);
+        }
         
         struct r_material_t *current_material = NULL;
                 
@@ -734,9 +746,9 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
 =================================================================
 */
 
-void r_i_BeginSubmission(mat4_t *inv_view_matrix, mat4_t *projection_matrix)
+void r_i_BeginSubmission(struct r_begin_submission_info_t *begin_info)
 {
-    r_BeginDrawCmdSubmission((struct r_submission_state_t *)&r_i_submission_state, inv_view_matrix, projection_matrix);
+    r_BeginDrawCmdSubmission((struct r_submission_state_t *)&r_i_submission_state, begin_info);
     memset(&r_i_submission_state.current_draw_state, 0, sizeof(struct r_i_draw_state_t));
 }
 
@@ -747,7 +759,6 @@ void r_i_EndSubmission()
 
 void r_i_DispatchPending()
 {
-//    struct r_d_draw_cmd_t *draw_cmd;
     union r_command_buffer_h command_buffer;
     struct r_framebuffer_t *framebuffer;
     struct r_render_pass_t *render_pass;
@@ -759,33 +770,53 @@ void r_i_DispatchPending()
     uint32_t count;
     uint32_t indexed;
     VkRect2D scissor;
+    VkViewport viewport;
 
-    VkRenderPassBeginInfo render_pass_begin_info = {};
+    struct r_render_pass_begin_info_t render_pass_begin_info = {};
     struct r_submit_info_t submit_info = {};
-
+    
     framebuffer = r_GetFramebufferPointer(r_framebuffer);
     vertex_buffer = r_GetBufferPointer(r_i_vertex_buffer);
     index_buffer = r_GetBufferPointer(r_i_index_buffer);
-    render_pass = r_GetRenderPassPointer(r_i_render_pass);
+//    render_pass = r_GetRenderPassPointer(r_i_render_pass);
+    
+    viewport.minDepth = 0.0;
+    viewport.maxDepth = 1.0;
 
-    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_begin_info.framebuffer = framebuffer->buffers[0];
-    render_pass_begin_info.renderArea = r_view.scissor;
-    render_pass_begin_info.renderPass = render_pass->render_pass;
+    render_pass_begin_info.render_pass = r_i_render_pass;
+//    render_pass_begin_info.framebuffer = framebuffer->buffers[0];
+//    render_pass_begin_info.renderArea = r_view.scissor;
+    
 
     command_buffer = r_AllocateCommandBuffer();
     r_vkBeginCommandBuffer(command_buffer);
     r_vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->buffer, (VkDeviceSize[]){0});
     r_vkCmdBindIndexBuffer(command_buffer, index_buffer->buffer, (VkDeviceSize){0}, VK_INDEX_TYPE_UINT32);
-    r_vkCmdSetViewport(command_buffer, 0, 1, &r_view.viewport);
-    r_vkCmdSetScissor(command_buffer, 0, 1, &r_view.scissor);
-    r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+//    r_vkCmdSetViewport(command_buffer, 0, 1, &r_view.viewport);
+//    r_vkCmdSetScissor(command_buffer, 0, 1, &r_view.scissor);
+//    r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
     for(uint32_t pending_index = 0; pending_index < r_i_submission_state.base.pending_draw_cmd_lists.cursor; pending_index++)
     {
         uint32_t *cmd_list_index = get_list_element(&r_i_submission_state.base.pending_draw_cmd_lists, pending_index);
         struct r_draw_cmd_list_t *cmd_list = get_stack_list_element(&r_i_submission_state.base.draw_cmd_lists, *cmd_list_index);
         struct r_pipeline_t *current_pipeline = NULL;
         struct r_texture_h current_texture = R_INVALID_TEXTURE_HANDLE;
+        
+        if(cmd_list->begin_info.framebuffer.index == R_INVALID_FRAMEBUFFER_INDEX)
+        {
+            framebuffer = r_GetFramebufferPointer(r_framebuffer);
+        }
+        else
+        {
+            framebuffer = r_GetFramebufferPointer(cmd_list->begin_info.framebuffer);
+        }
+        
+        render_pass_begin_info.framebuffer = cmd_list->begin_info.framebuffer;
+        render_pass_begin_info.render_area = cmd_list->begin_info.scissor;
+        
+        r_vkCmdSetViewport(command_buffer, 0, 1, &cmd_list->begin_info.viewport);
+        r_vkCmdSetScissor(command_buffer, 0, 1, &cmd_list->begin_info.scissor);
+        r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         
         for(uint32_t draw_cmd_index = 0; draw_cmd_index < cmd_list->draw_cmds.cursor; draw_cmd_index++)
         {
@@ -852,7 +883,7 @@ void r_i_DispatchPending()
                         r_vkCmdPushConstants(command_buffer, current_pipeline->layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(mat4_t) + sizeof(float), sizeof(uint32_t), &texturing);
                         /* even if no texturing is being used a descriptor set has to be bound... */
                         VkDescriptorSet descriptor_set = r_AllocateDescriptorSet(command_buffer, current_pipeline, VK_SHADER_STAGE_FRAGMENT_BIT);
-                        
+                         
                         if(!texture)
                         {
                             texture = r_GetDefaultTexturePointer();
@@ -874,7 +905,7 @@ void r_i_DispatchPending()
                         descriptor_write.dstArrayElement = 0;
                         descriptor_write.descriptorCount = 1;
                         descriptor_write.pImageInfo = &image_info;
-                        
+//                        r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                         r_vkUpdateDescriptorSets(1, &descriptor_write);                        
                         r_vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->layout, 0, 1, &descriptor_set, 0, NULL);
                     }
@@ -893,11 +924,10 @@ void r_i_DispatchPending()
                 r_vkCmdDraw(command_buffer, count, 1, vertex_start, 0);
             }
         }
-
+        r_vkCmdEndRenderPass(command_buffer);
         remove_stack_list_element(&r_i_submission_state.base.draw_cmd_lists, *cmd_list_index);
     }
 
-    r_vkCmdEndRenderPass(command_buffer);
     r_vkEndCommandBuffer(command_buffer);
 
     submit_info.s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -909,7 +939,6 @@ void r_i_DispatchPending()
 
     r_i_submission_state.base.pending_draw_cmd_lists.cursor = 0;
     r_i_submission_state.cmd_data.cursor = 0;
-    r_i_submission_state.current_pipeline = R_I_PIPELINE_LAST;
     r_i_submission_state.vertex_cursor = 0;
     r_i_submission_state.index_cursor = 0;
 }

@@ -18,9 +18,9 @@ void ent_Shutdown()
 {
 }
 
-union ent_entity_h ent_CreateEntity(char* name, vec3_t* position, mat3_t* orientation, uint32_t type)
+struct ent_entity_h ent_CreateEntity(char* name, vec3_t* position, mat3_t* orientation, uint32_t type)
 {
-    union ent_entity_h handle;
+    struct ent_entity_h handle;
     struct ent_entity_t *entity;
     handle.index = add_stack_list_element(&ent_entities, NULL);
     entity = (struct entity_t*)get_stack_list_element(&ent_entities, handle.index);
@@ -33,7 +33,7 @@ union ent_entity_h ent_CreateEntity(char* name, vec3_t* position, mat3_t* orient
     return handle;
 }
 
-void ent_DestroyEntity(union ent_entity_h handle)
+void ent_DestroyEntity(struct ent_entity_h handle)
 {
     struct ent_entity_t *entity;
     entity = ent_GetEntityPointer(handle);
@@ -47,7 +47,7 @@ void ent_DestroyEntity(union ent_entity_h handle)
     }
 }
 
-struct ent_entity_t *ent_GetEntityPointer(union ent_entity_h handle)
+struct ent_entity_t *ent_GetEntityPointer(struct ent_entity_h handle)
 {
     struct ent_entity_t *entity;
     entity = (struct entity_t*)get_stack_list_element(&ent_entities, handle.index);
@@ -58,7 +58,7 @@ struct ent_entity_t *ent_GetEntityPointer(union ent_entity_h handle)
     return entity;
 }
 
- void ent_SetEntityModel(union ent_entity_h handle, struct mdl_model_h model)
+ void ent_SetEntityModel(struct ent_entity_h handle, struct mdl_model_h model)
  {
      struct ent_entity_t *entity;
      entity = ent_GetEntityPointer(handle);
@@ -73,7 +73,7 @@ struct ent_entity_t *ent_GetEntityPointer(union ent_entity_h handle)
      }
  }
 
-struct entity_prop_t *ent_AddProp(union ent_entity_h handle, char* name, uint32_t size)
+struct entity_prop_t *ent_AddProp(struct ent_entity_h handle, char* name, uint32_t size)
 {
     struct entity_prop_t* prop = NULL;
     struct ent_entity_t *entity;
@@ -90,7 +90,7 @@ struct entity_prop_t *ent_AddProp(union ent_entity_h handle, char* name, uint32_
     return prop;
 }
 
-void ent_RemoveProp(union ent_entity_h handle, char* name)
+void ent_RemoveProp(struct ent_entity_h handle, char* name)
 {
     struct entity_prop_t* prop = NULL;
     struct entity_prop_t* prev = NULL;
@@ -119,7 +119,7 @@ void ent_RemoveProp(union ent_entity_h handle, char* name)
     }
 }
 
-void ent_RemoveAllProps(union ent_entity_h handle)
+void ent_RemoveAllProps(struct ent_entity_h handle)
 {
     struct ent_entity_t *entity;
     struct entity_prop_t* prop;
@@ -138,7 +138,7 @@ void ent_RemoveAllProps(union ent_entity_h handle)
     }
 }
 
-struct entity_prop_t* ent_GetProp(union ent_entity_h handle, char* name)
+struct entity_prop_t* ent_GetProp(struct ent_entity_h handle, char* name)
 {
     struct entity_prop_t* prop = NULL;
     struct ent_entity_t *entity;
@@ -160,7 +160,7 @@ struct entity_prop_t* ent_GetProp(union ent_entity_h handle, char* name)
     return prop;
 }
 
-void *ent_GetPropData(union ent_entity_h handle, char* name)
+void *ent_GetPropData(struct ent_entity_h handle, char* name)
 {
     struct entity_prop_t* prop;
     prop = ent_GetProp(handle, name);

@@ -9,11 +9,19 @@ void r_VisibleEntities()
 {
     struct r_view_t *view;
     struct stack_list_t *entities;
+    struct r_begin_submission_info_t begin_info;
     
     view = r_GetViewPointer();
     entities = ent_GetEntityList();
     
-    r_BeginSubmission();
+    begin_info.inv_view_matrix = view->inv_view_matrix;
+    begin_info.projection_matrix = view->projection_matrix;
+    begin_info.framebuffer = R_INVALID_FRAMEBUFFER_HANDLE;
+    begin_info.viewport = view->viewport;
+    begin_info.scissor = view->scissor;
+    begin_info.clear_framebuffer = 0;
+    
+    r_BeginSubmission(&begin_info);
     for(uint32_t entity_index = 0; entity_index < entities->cursor; entity_index++)
     {
         struct ent_entity_t *entity = ent_GetEntityPointer(ENT_ENTITY_HANDLE(entity_index));

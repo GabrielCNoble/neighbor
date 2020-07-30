@@ -23,37 +23,36 @@ struct ent_entity_t
     struct entity_prop_t *props;
 };
 
-union ent_entity_h
+struct ent_entity_h
 {
     uint32_t index;
-    void *punned;
 };
 
 #define ENT_INVALID_ENTITY_INDEX 0xffffffff
-#define ENT_ENTITY_HANDLE(index) (union ent_entity_h ){index}
+#define ENT_ENTITY_HANDLE(index) (struct ent_entity_h ){index}
 #define ENT_INVALID_ENTITY_HANDLE ENT_ENTITY_HANDLE(ENT_INVALID_ENTITY_INDEX)
 
 void ent_Init();
 
 void ent_Shutdown();
 
-union ent_entity_h ent_CreateEntity(char* name, vec3_t* position, mat3_t* orientation, uint32_t type);
+struct ent_entity_h ent_CreateEntity(char* name, vec3_t* position, mat3_t* orientation, uint32_t type);
 
-void ent_DestroyEntity(union ent_entity_h handle);
+void ent_DestroyEntity(struct ent_entity_h handle);
 
-struct ent_entity_t *ent_GetEntityPointer(union ent_entity_h handle);
+struct ent_entity_t *ent_GetEntityPointer(struct ent_entity_h handle);
 
- void ent_SetEntityModel(union ent_entity_h handle, struct mdl_model_h model);
+void ent_SetEntityModel(struct ent_entity_h handle, struct mdl_model_h model);
 
-struct entity_prop_t* ent_AddProp(union ent_entity_h handle, char* name, uint32_t size);
+struct entity_prop_t* ent_AddProp(struct ent_entity_h handle, char* name, uint32_t size);
 
-void ent_RemoveProp(union ent_entity_h handle, char* name);
+void ent_RemoveProp(struct ent_entity_h handle, char* name);
 
-void ent_RemoveAllProps(union ent_entity_h handle);
+void ent_RemoveAllProps(struct ent_entity_h handle);
 
-struct entity_prop_t *ent_GetProp(union ent_entity_h handle, char* name);
+struct entity_prop_t *ent_GetProp(struct ent_entity_h handle, char* name);
 
-void *ent_GetPropData(union ent_entity_h handle, char* name);
+void *ent_GetPropData(struct ent_entity_h handle, char* name);
 
 struct stack_list_t *ent_GetEntityList();
 

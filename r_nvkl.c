@@ -1374,6 +1374,25 @@ void r_SetImageLayout(struct r_image_handle_t image, VkImageLayout new_layout)
     submit_info.command_buffers = &command_buffer;
     r_vkQueueSubmit(r_device.transfer_queue->queue, 1, &submit_info, r_device.transfer_fence);
     vkWaitForFences(r_device.device, 1, &r_device.transfer_fence, VK_TRUE, 0xffffffffffffffff);
+    vkDeviceWaitIdle(r_device.device);
+}
+
+void *r_MapImageMemory(struct r_image_handle_t handle)
+{
+    struct r_image_t *image;
+    struct r_image_heap_t *heap;
+    struct r_chunk_t *chunk;
+    void *memory = NULL;
+    image = r_GetImagePointer(handle);
+    
+    if(image)
+    {
+        heap = r_GetHeapPointer(image->memory.heap);
+        chunk = r_GetChunkPointer(image->memory);
+        vkMapMemory(r_device.device, heap->memory, chunk->start, chunk->size, 0, &memory);
+    }
+    
+    return memory;
 }
 
 void r_CreateDefaultTexture()
@@ -1462,6 +1481,8 @@ struct r_texture_h r_CreateTexture(struct r_texture_description_t *description)
                 }
             break;
         }
+        
+        r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_GENERAL);
 
         image_view_create_info.format = texture_description.format;
         image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
@@ -1476,7 +1497,7 @@ struct r_texture_h r_CreateTexture(struct r_texture_description_t *description)
         image_view_create_info.subresourceRange.layerCount = texture_description.array_layers;
         vkCreateImageView(r_device.device, &image_view_create_info, NULL, &texture->image_view);
         texture->sampler = r_TextureSampler(&texture_description.sampler_params);
-        r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        
     }
 
     return handle;
@@ -1716,6 +1737,7 @@ struct r_shader_handle_t r_CreateShader(struct r_shader_description_t *descripti
                 layout_binding->descriptorCount = resource_binding->count;
                 layout_binding->pImmutableSamplers = NULL;
                 layout_binding->stageFlags = description->stage;
+//                layout_binding->
             }
 
             VkDescriptorSetLayoutCreateInfo layout_create_info = {};
@@ -1884,7 +1906,7 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
                     {
                         /* since VK_IMAGE_LAYOUT_UNDEFINED is 0, this means this attachment
                         probably had this field zero initialized. So, fill in a sane value here */
-                        color_attachment_reference->layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                        color_attachment_reference->layout = VK_IMAGE_LAYOUT_GENERAL;
                     }
                 }
             }
@@ -1954,7 +1976,7 @@ struct r_render_pass_handle_t r_CreateRenderPass(struct r_render_pass_descriptio
                 }
                 else
                 {
-                    render_pass_attachment_description->finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                    render_pass_attachment_description->finalLayout = VK_IMAGE_LAYOUT_GENERAL;
                 }
             }
         }
@@ -2693,7 +2715,7 @@ void r_InitializeFramebuffer(struct r_framebuffer_t *framebuffer, struct r_frame
             }
             else
             {
-                r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_GENERAL);
             }
         }
 
@@ -2789,7 +2811,7 @@ void r_PresentFramebuffer(struct r_framebuffer_h handle)
     r_vkCmdSetImageLayout(command_buffer, texture->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     r_vkCmdSetImageLayout(command_buffer, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     r_vkCmdBlitImage(command_buffer, texture->image, swapchain_image, NULL);
-    r_vkCmdSetImageLayout(command_buffer, texture->image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    r_vkCmdSetImageLayout(command_buffer, texture->image, VK_IMAGE_LAYOUT_GENERAL);
     r_vkCmdSetImageLayout(command_buffer, swapchain_image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     r_vkEndCommandBuffer(command_buffer);
 
@@ -3045,11 +3067,66 @@ void r_vkCmdBindIndexBuffer(union r_command_buffer_h command_buffer, VkBuffer bu
     vkCmdBindIndexBuffer(command_buffer_ptr->command_buffer, buffer, offset, index_type);
 }
 
-void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, VkRenderPassBeginInfo *begin_info, VkSubpassContents subpass_contents)
+void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, struct r_render_pass_begin_info_t *begin_info, VkSubpassContents subpass_contents)
 {
     struct r_command_buffer_t *command_buffer_ptr;
+    struct r_framebuffer_t *framebuffer;
+    struct r_framebuffer_description_t *description;
+    struct r_render_pass_t *render_pass;
+    VkRenderPassBeginInfo render_pass_begin_info = {};
+    VkImageMemoryBarrier memory_barrier = {};
+    
     command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
-    vkCmdBeginRenderPass(command_buffer_ptr->command_buffer, begin_info, subpass_contents);
+    framebuffer = r_GetFramebufferPointer(begin_info->framebuffer);
+    description = r_GetFramebufferDescriptionPointer(begin_info->framebuffer);
+    render_pass = r_GetRenderPassPointer(begin_info->render_pass);
+    
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.renderPass = render_pass->render_pass;
+    render_pass_begin_info.clearValueCount = begin_info->clear_value_count;
+    render_pass_begin_info.pClearValues = begin_info->clear_values;
+    render_pass_begin_info.renderArea = begin_info->render_area;
+    render_pass_begin_info.framebuffer = framebuffer->buffers[0];
+    
+//    memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+//    memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+//    memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+//    memory_barrier.subresourceRange.levelCount = 1;
+//    memory_barrier.subresourceRange.layerCount = 1;
+//    memory_barrier.subresourceRange.baseMipLevel = 0;
+//    memory_barrier.subresourceRange.baseArrayLayer = 0;
+    
+//    for(uint32_t attachment_index = 0; attachment_index < description->attachment_count; attachment_index++)
+//    {
+//        struct r_texture_t *texture;
+//        struct r_image_t *image;
+//        
+//        texture = r_GetTexturePointer(framebuffer->textures[attachment_index]);
+//        image = r_GetImagePointer(texture->image);
+//        
+//        if(r_IsDepthStencilFormat(description->attachments[attachment_index].format))
+//        {
+//            
+//        }
+//        else
+//        {
+//            if(image->current_layout != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+//            {
+////                memory_barrier.image = image->image;
+////                memory_barrier.oldLayout = image->current_layout;
+////                memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+////                memory_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+////                vkCmdPipelineBarrier(command_buffer_ptr->command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+////                                                                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+////                                                                         0, 0, NULL, 0, NULL, 1, &memory_barrier);
+////                
+////                image->current_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+//                r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+//            }
+//        }
+//    }
+    
+    vkCmdBeginRenderPass(command_buffer_ptr->command_buffer, &render_pass_begin_info, subpass_contents);
 }
 
 void r_vkCmdEndRenderPass(union r_command_buffer_h command_buffer)
@@ -3188,6 +3265,14 @@ void r_vkCmdPipelineBarrier(union r_command_buffer_h command_buffer, VkPipelineS
                          buffer_barrier_count, buffer_memory_barriers, image_barrier_count, image_memory_barriers);
 }
 
+void r_vkCmdPipelineImageBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags, uint32_t barrier_count, VkImageMemoryBarrier *barriers)
+{
+    struct r_command_buffer_t *command_buffer_ptr;
+    
+    command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
+    vkCmdPipelineBarrier(command_buffer_ptr->command_buffer, src_stage_mask, dst_stage_mask, dependency_flags, 0, NULL, 0, NULL, barrier_count, barriers);
+}
+
 void r_vkCmdSetImageLayout(union r_command_buffer_h command_buffer, struct r_image_handle_t handle, uint32_t new_layout)
 {
     VkImageMemoryBarrier memory_barrier = {};
@@ -3212,21 +3297,29 @@ void r_vkCmdSetImageLayout(union r_command_buffer_h command_buffer, struct r_ima
     memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     memory_barrier.pNext = NULL;
     /* all writes to this texture must become visible before the layout can change */
-    memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     /* new layout in place, now the memory becomes accessible */
-    memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
     memory_barrier.oldLayout = image->current_layout;
     memory_barrier.newLayout = new_layout;
-    memory_barrier.srcQueueFamilyIndex = r_device.graphics_queue_family;
-    memory_barrier.dstQueueFamilyIndex = r_device.graphics_queue_family;
+    memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     memory_barrier.image = image->image;
     memory_barrier.subresourceRange.aspectMask = image->aspect_mask;
     memory_barrier.subresourceRange.baseArrayLayer = 0;
     memory_barrier.subresourceRange.baseMipLevel = 0;
     memory_barrier.subresourceRange.layerCount = 1;
     memory_barrier.subresourceRange.levelCount = 1;
-    r_vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,0, 0, NULL, 0, NULL, 1, &memory_barrier);
+    r_vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+                                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,0, 0, NULL, 0, NULL, 1, &memory_barrier);
     image->current_layout = new_layout;
+}
+
+void r_vkCmdClearAttachments(union r_command_buffer_h command_buffer, uint32_t attachment_count, VkClearAttachment *attachments, uint32_t rect_count, VkClearRect *rects)
+{
+    struct r_command_buffer_t *command_buffer_ptr;
+    command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
+    vkCmdClearAttachments(command_buffer_ptr->command_buffer, attachment_count, attachments, rect_count, rects);
 }
 
 void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffer_h buffer, uint32_t offset, uint32_t size, void *data)
@@ -3285,6 +3378,18 @@ void r_vkCmdUpdateBuffer(union r_command_buffer_h command_buffer, struct r_buffe
 
 void r_vkUpdateDescriptorSets(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes)
 {
+    vkUpdateDescriptorSets(r_device.device, descriptor_write_count, (const VkWriteDescriptorSet *)descriptor_writes, 0, NULL);
+}
+
+void r_vkUpdateDescriptorSets2(uint32_t descriptor_write_count, VkWriteDescriptorSet *descriptor_writes, struct r_image_handle_t image)
+{
+    struct r_image_t *image_ptr;
+    
+    image_ptr = r_GetImagePointer(image);
+    if(image_ptr->current_layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+    {
+        r_SetImageLayout(image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
     vkUpdateDescriptorSets(r_device.device, descriptor_write_count, (const VkWriteDescriptorSet *)descriptor_writes, 0, NULL);
 }
 
@@ -3347,7 +3452,7 @@ VkResult r_vkQueueSubmit(VkQueue queue, uint32_t submit_count, struct r_submit_i
 {
     struct r_command_buffer_t *command_buffer_ptr;
     struct r_submit_info_t *submit;
-    uint32_t command_buffer_index;
+//    uint32_t command_buffer_index;
 
     for(uint32_t submit_index = 0; submit_index < submit_count; submit_index++)
     {
@@ -3355,8 +3460,8 @@ VkResult r_vkQueueSubmit(VkQueue queue, uint32_t submit_count, struct r_submit_i
         for(uint32_t index = 0; index < submit_info[submit_index].command_buffer_count; index++)
         {
             command_buffer_ptr = r_GetCommandBufferPointer(submit->command_buffers[index]);
-            add_list_element(&r_device.draw_command_pool.pending_command_buffers, &command_buffer_index);
-            submit->command_buffers[command_buffer_index].command_buffer = command_buffer_ptr->command_buffer;
+            add_list_element(&r_device.draw_command_pool.pending_command_buffers, &submit->command_buffers[index].index);
+            submit->command_buffers[index].command_buffer = command_buffer_ptr->command_buffer;
         }
     }
 
@@ -3386,6 +3491,11 @@ void r_vkSetEvent(VkEvent event)
 void r_vkResetEvent(VkEvent event)
 {
     vkResetEvent(r_device.device, event);
+}
+
+void r_vkMapMemory(VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void **data)
+{
+    vkMapMemory(r_device.device, memory, offset, size, flags, data);
 }
 
 

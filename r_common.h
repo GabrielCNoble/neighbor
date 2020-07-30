@@ -20,48 +20,97 @@ enum R_SHADER_RESOURCE_TYPE
 //    R_SHADER_RESOURCE_TYPE_PUSH_CONSTANT,
 };
 
+
 /*
 =================================================================
 =================================================================
 =================================================================
 */
 
-struct r_command_buffer_t
+struct r_framebuffer_h
 {
-    VkCommandBuffer command_buffer;
-    VkFence submit_fence;
-    VkEvent complete_event;
-    struct list_t events;
-};
-
-union r_command_buffer_h
-{
-    VkCommandBuffer command_buffer;
     uint32_t index;
 };
 
-#define R_INVALID_COMMAND_BUFFER_INDEX 0xffffffff
-#define R_COMMAND_BUFFER_HANDLE(index) (union r_command_buffer_h){index}
-#define R_INVALID_COMMAND_BUFFER_HANDLE R_COMMAND_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
+#define R_INVALID_FRAMEBUFFER_INDEX 0xffffffff
+#define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_h){index}
+#define R_INVALID_FRAMEBUFFER_HANDLE R_FRAMEBUFFER_HANDLE(R_INVALID_FRAMEBUFFER_INDEX)
 
-struct r_submit_info_t
+
+struct r_heap_h
 {
-    VkStructureType s_type;
-    const void *next;
-    uint32_t wait_semaphore_count;
-    const VkSemaphore *wait_semaphores;
-    const VkPipelineStageFlags *wait_dst_stage_mask;
-    uint32_t command_buffer_count;
-    union r_command_buffer_h *command_buffers;
-    uint32_t signal_semaphore_count;
-    const VkSemaphore *signal_semaphores;
+    uint8_t index;
+    uint8_t type;
 };
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
+#define R_INVALID_HEAP_INDEX 0xff
+#define R_HEAP_HANDLE(index, type) (struct r_heap_h){index, type}
+#define R_INVALID_HEAP_HANDLE R_HEAP_HANDLE(R_INVALID_HEAP_INDEX, R_HEAP_TYPE_BASE)
+
+
+struct r_chunk_h
+{
+    uint32_t index;
+    struct r_heap_h heap;
+};
+
+#define R_INVALID_CHUNK_INDEX 0xffffffff
+#define R_CHUNK_HANDLE(index, heap) (struct r_chunk_h){index, heap}
+#define R_INVALID_CHUNK_HANDLE R_CHUNK_HANDLE(R_INVALID_CHUNK_INDEX, R_INVALID_HEAP_HANDLE)
+
+
+struct r_shader_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_SHADER_INDEX 0xffffffff
+#define R_SHADER_HANDLE(index) (struct r_shader_handle_t){index}
+#define R_INVALID_SHADER_HANDLE R_SHADER_HANDLE(R_INVALID_SHADER_INDEX)
+
+
+struct r_buffer_h
+{
+    uint32_t index;
+};
+
+#define R_INVALID_BUFFER_INDEX 0xffffffff
+#define R_BUFFER_HANDLE(index) (struct r_buffer_h){index}
+#define R_INVALID_BUFFER_HANDLE R_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
+
+
+struct r_texture_h
+{
+    uint32_t index;
+};
+
+#define R_DEFAULT_TEXTURE_INDEX 0x00000000
+#define R_MISSING_TEXTURE_INDEX 0x00000001
+#define R_INVALID_TEXTURE_INDEX 0xffffffff
+#define R_TEXTURE_HANDLE(index) (struct r_texture_h){index}
+#define R_INVALID_TEXTURE_HANDLE R_TEXTURE_HANDLE(R_INVALID_TEXTURE_INDEX)
+#define R_DIFFUSE_TEXTURE_BINDING 0
+#define R_NORMAL_TEXTURE_BINDING 1
+
+
+struct r_pipeline_h
+{
+    uint32_t index;
+};
+
+#define R_INVALID_PIPELINE_INDEX 0xffffffff
+#define R_PIPELINE_HANDLE(index) (struct r_pipeline_h){index}
+#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
+
+
+struct r_render_pass_handle_t
+{
+    uint32_t index;
+};
+
+#define R_INVALID_RENDER_PASS_INDEX 0xffffffff
+#define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
+#define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
 
 /*
 =================================================================
@@ -140,15 +189,7 @@ struct r_buffer_heap_t
     void *mapped_memory;
 };
 
-struct r_heap_h
-{
-    uint8_t index;
-    uint8_t type;
-};
 
-#define R_INVALID_HEAP_INDEX 0xff
-#define R_HEAP_HANDLE(index, type) (struct r_heap_h){index, type}
-#define R_INVALID_HEAP_HANDLE R_HEAP_HANDLE(R_INVALID_HEAP_INDEX, R_HEAP_TYPE_BASE)
 
 struct r_chunk_t
 {
@@ -156,16 +197,6 @@ struct r_chunk_t
     uint32_t start;
     uint32_t align;
 };
-
-struct r_chunk_h
-{
-    uint32_t index;
-    struct r_heap_h heap;
-};
-
-#define R_INVALID_CHUNK_INDEX 0xffffffff
-#define R_CHUNK_HANDLE(index, heap) (struct r_chunk_h){index, heap}
-#define R_INVALID_CHUNK_HANDLE R_CHUNK_HANDLE(R_INVALID_CHUNK_INDEX, R_INVALID_HEAP_HANDLE)
 
 struct r_chunk_move_t
 {
@@ -261,15 +292,6 @@ struct r_shader_t
     uint32_t stage;
 };
 
-struct r_shader_handle_t
-{
-    uint32_t index;
-};
-
-#define R_INVALID_SHADER_INDEX 0xffffffff
-#define R_SHADER_HANDLE(index) (struct r_shader_handle_t){index}
-#define R_INVALID_SHADER_HANDLE R_SHADER_HANDLE(R_INVALID_SHADER_INDEX)
-
 /*
 =================================================================
 =================================================================
@@ -281,22 +303,6 @@ struct r_buffer_t
     VkBuffer buffer;
     struct r_chunk_h memory;
 };
-
-struct r_buffer_h
-{
-    uint32_t index;
-};
-
-//struct r_staging_buffer_t
-//{
-//    VkBuffer buffer;
-//    VkDeviceMemory staging_memory;
-//    void *staging_pointer;
-//};
-
-#define R_INVALID_BUFFER_INDEX 0xffffffff
-#define R_BUFFER_HANDLE(index) (struct r_buffer_h){index}
-#define R_INVALID_BUFFER_HANDLE R_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
 
 /*
 =================================================================
@@ -379,20 +385,6 @@ struct r_texture_t
     struct r_image_handle_t image;
     char *name;
 };
-
-struct r_texture_h
-{
-    uint32_t index;
-};
-
-#define R_DEFAULT_TEXTURE_INDEX 0x00000000
-#define R_MISSING_TEXTURE_INDEX 0x00000001
-#define R_INVALID_TEXTURE_INDEX 0xffffffff
-#define R_TEXTURE_HANDLE(index) (struct r_texture_h){index}
-#define R_INVALID_TEXTURE_HANDLE R_TEXTURE_HANDLE(R_INVALID_TEXTURE_INDEX)
-#define R_DIFFUSE_TEXTURE_BINDING 0
-#define R_NORMAL_TEXTURE_BINDING 1
-
 
 /*
 =================================================================================
@@ -505,14 +497,6 @@ struct r_pipeline_t
     struct r_descriptor_pool_list_t pool_lists[2];
 };
 
-struct r_pipeline_h
-{
-    uint32_t index;
-};
-#define R_INVALID_PIPELINE_INDEX 0xffffffff
-#define R_PIPELINE_HANDLE(index) (struct r_pipeline_h){index}
-#define R_INVALID_PIPELINE_HANDLE R_PIPELINE_HANDLE(R_INVALID_PIPELINE_INDEX)
-
 /*
 =================================================================================
 =================================================================================
@@ -574,29 +558,14 @@ struct r_render_pass_t
     uint32_t attachment_count;
 };
 
-struct r_render_pass_handle_t
+struct r_render_pass_begin_info_t
 {
-    uint32_t index;
+    struct r_render_pass_handle_t render_pass;
+    struct r_framebuffer_h framebuffer;
+    VkRect2D render_area;
+    uint32_t clear_value_count;
+    VkClearValue *clear_values;
 };
-
-//struct r_render_pass_begin_info_t
-//{
-//    VkStructureType type;
-//    const void *next;
-//    VkRenderPass render_pass;
-//    VkFramebuffer framebuffer;
-//    VkRect2D render_area;
-//    uint32_t clear_value_count;
-//    VkClearValue *clear_values;
-//    /* ============================================ */
-//    struct r_render_pass_handle_t render_pass_handle;
-//    struct r_framebuffer_handle_t framebuffer_handle;
-//};
-
-#define R_INVALID_RENDER_PASS_INDEX 0xffffffff
-#define R_RENDER_PASS_HANDLE(index) (struct r_render_pass_handle_t){index}
-#define R_INVALID_RENDER_PASS_HANDLE R_RENDER_PASS_HANDLE(R_INVALID_RENDER_PASS_INDEX)
-
 
 /*
 =================================================================
@@ -624,15 +593,6 @@ struct r_framebuffer_t
     uint8_t texture_count;
     uint8_t current_buffer;
 };
-
-struct r_framebuffer_h
-{
-    uint32_t index;
-};
-
-#define R_INVALID_FRAMEBUFFER_INDEX 0xffffffff
-#define R_FRAMEBUFFER_HANDLE(index) (struct r_framebuffer_h){index}
-#define R_INVALID_FRAMEBUFFER_HANDLE R_FRAMEBUFFER_HANDLE(R_INVALID_FRAMEBUFFER_INDEX)
 
 /*
 =================================================================
@@ -663,7 +623,45 @@ struct r_swapchain_handle_t
 =================================================================
 */
 
-#define R_DEFAULT_WIDTH 800
-#define R_DEFAULT_HEIGHT 600
+struct r_command_buffer_t
+{
+    VkCommandBuffer command_buffer;
+    VkFence submit_fence;
+    VkEvent complete_event;
+    struct r_render_pass_handle_t render_pass;
+    struct list_t events;
+};
+
+union r_command_buffer_h
+{
+    VkCommandBuffer command_buffer;
+    uint32_t index;
+};
+
+#define R_INVALID_COMMAND_BUFFER_INDEX 0xffffffff
+#define R_COMMAND_BUFFER_HANDLE(index) (union r_command_buffer_h){index}
+#define R_INVALID_COMMAND_BUFFER_HANDLE R_COMMAND_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
+
+struct r_submit_info_t
+{
+    VkStructureType s_type;
+    const void *next;
+    uint32_t wait_semaphore_count;
+    const VkSemaphore *wait_semaphores;
+    const VkPipelineStageFlags *wait_dst_stage_mask;
+    uint32_t command_buffer_count;
+    union r_command_buffer_h *command_buffers;
+    uint32_t signal_semaphore_count;
+    const VkSemaphore *signal_semaphores;
+};
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+#define R_DEFAULT_WIDTH 1300
+#define R_DEFAULT_HEIGHT 760
 
 #endif
