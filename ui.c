@@ -83,6 +83,7 @@ void ui_EndFrame()
     ImDrawData *draw_data = igGetDrawData();
     struct r_view_t *view = r_GetViewPointer();
     struct r_begin_submission_info_t begin_info;
+    struct r_i_draw_state_t draw_state = {};
 
     if(draw_data->TotalVtxCount > ui_vertice_count)
     {
@@ -101,13 +102,22 @@ void ui_EndFrame()
     begin_info.framebuffer = r_GetBackbufferHandle();
     begin_info.viewport = view->viewport;
     begin_info.scissor = view->scissor;
+    
+    draw_state.scissor = view->scissor;
+    draw_state.line_width = 1.0;
+    draw_state.point_size = 1.0;
+    draw_state.texture = R_INVALID_TEXTURE_HANDLE;
+    draw_state.pipeline_state.input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    draw_state.pipeline_state.rasterizer_state.cull_mode = VK_CULL_MODE_NONE;
+    draw_state.pipeline_state.rasterizer_state.polygon_mode = VK_POLYGON_MODE_FILL;
+    draw_state.pipeline_state.rasterizer_state.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    draw_state.pipeline_state.depth_state.compare_op = VK_COMPARE_OP_LESS;
+    draw_state.pipeline_state.depth_state.test_enable = VK_FALSE;
+    draw_state.pipeline_state.depth_state.write_enable = VK_TRUE;
 
     r_i_BeginSubmission(&begin_info);
-//    r_i_SetTexture(ui_font_texture);
-    r_i_SetDepthTest(VK_FALSE);
-    r_i_SetCullMode(VK_CULL_MODE_NONE);
-    r_i_SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    r_i_SetPolygonMode(VK_POLYGON_MODE_FILL);
+    r_i_SetDrawState(&draw_state);
+    
     for(uint32_t cmd_list_index = 0; cmd_list_index < draw_data->CmdListsCount; cmd_list_index++)
     {
         ImDrawList *cmd_list = draw_data->CmdLists[cmd_list_index];
@@ -147,14 +157,18 @@ void ui_EndFrame()
         for(uint32_t cmd_index = 0; cmd_index < cmd_list->CmdBuffer.Size; cmd_index++)
         {
             ImDrawCmd *draw_cmd = cmd_list->CmdBuffer.Data + cmd_index;
-            r_i_SetScissor(draw_cmd->ClipRect.x, draw_cmd->ClipRect.y, 
-                           draw_cmd->ClipRect.z - draw_cmd->ClipRect.x, draw_cmd->ClipRect.w - draw_cmd->ClipRect.y);
             struct r_texture_h handle = R_TEXTURE_HANDLE((uint32_t)draw_cmd->TextureId);
-            r_i_SetTexture(handle);
-            r_i_Draw(vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1);
+            
+            draw_state.scissor.offset.x = draw_cmd->ClipRect.x;
+            draw_state.scissor.offset.y = draw_cmd->ClipRect.y;
+            draw_state.scissor.extent.width = draw_cmd->ClipRect.z - draw_cmd->ClipRect.x;
+            draw_state.scissor.extent.height = draw_cmd->ClipRect.w - draw_cmd->ClipRect.y;
+            draw_state.texture = handle;
+            r_i_SetDrawState(&draw_state);
+
+            r_i_Draw(vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1, NULL);
         }
     }
-    r_i_SetDepthTest(VK_TRUE);
     r_i_EndSubmission();
 }
 

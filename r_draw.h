@@ -47,6 +47,7 @@ struct r_i_draw_state_t
     struct r_pipeline_state_t pipeline_state;
     struct r_texture_h texture;
     VkRect2D scissor;
+//    mat4_t model_matrix;
 };
 
 struct r_i_submission_state_t
@@ -56,8 +57,8 @@ struct r_i_submission_state_t
     uint32_t current_pipeline;
     uint32_t vertex_cursor;
     uint32_t index_cursor;
-    struct r_i_draw_state_t current_draw_state;
-    struct r_i_draw_state_t next_draw_state;
+//    struct r_i_draw_state_t current_draw_state;
+//    struct r_i_draw_state_t next_draw_state;
 };
 
 struct r_view_t
@@ -124,6 +125,7 @@ struct r_i_draw_cmd_t
 
 struct r_i_draw_cmd_data_t
 {
+    mat4_t model_matrix;
     uint32_t index_start;
     uint32_t vertex_start;
     uint32_t count;
@@ -271,27 +273,6 @@ void r_i_DispatchPending();
 
 void r_i_SetDrawState(struct r_i_draw_state_t *draw_state);
 
-void r_i_SetDepthWrite(uint32_t enable);
-
-void r_i_SetDepthTest(uint32_t enable);
-
-void r_i_SetDepthCompareOp(VkCompareOp op);
-
-void r_i_SetPrimitiveTopology(VkPrimitiveTopology topology);
-
-void r_i_SetPolygonMode(VkPolygonMode polygon_mode);
-
-void r_i_SetCullMode(VkCullModeFlags cull_mode);
-
-void r_i_SetTexture(struct r_texture_h texture);
-
-void r_i_SetScissor(uint32_t offset_x, uint32_t offset_y, uint32_t width, uint32_t height);
-
-void r_i_SetLineWidth(float width);
-
-void r_i_SetPointSize(float size);
-
-
 void *r_i_AllocateDrawCmdData(uint32_t size);
 
 void r_i_SubmitCmd(uint32_t type, void *data);
@@ -302,27 +283,10 @@ uint32_t r_i_UploadIndices(uint32_t *indices, uint32_t count);
 
 uint32_t r_i_UploadBufferData(void *data, uint32_t size, uint32_t count, uint32_t index_data);
 
-void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed);
+void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform);
 
-void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count);
+void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform);
 
-void r_i_DrawLines(uint32_t first_vertex, uint32_t first_index, uint32_t count, uint32_t indexed, uint32_t line_strip);
-
-void r_i_DrawLinesImmediate(struct r_i_vertex_t *verts, uint32_t vert_count, float size, uint32_t line_strip);
-
-void r_i_DrawLineStrip(struct r_i_vertex_t *verts, uint32_t vert_count, float size);
-
-void r_i_DrawTris(uint32_t first_vertex, uint32_t first_index, uint32_t count, uint32_t indexed, uint32_t fill);
-
-void r_i_DrawTrisImmediate(struct r_i_vertex_t *verts, uint32_t vert_count, uint32_t *indices, uint32_t indice_count, uint32_t fill);
-
-void r_i_DrawTriLine(struct r_i_vertex_t *verts);
-
-void r_i_DrawTriFill(struct r_i_vertex_t *verts);
-
-void r_i_DrawPoints(uint32_t first_vertex, uint32_t count, float size);
-
-void r_i_DrawPoint(vec3_t *point, vec3_t *color, float size);
 
 
 

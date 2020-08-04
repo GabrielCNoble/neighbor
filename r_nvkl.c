@@ -1510,10 +1510,13 @@ void r_DestroyTexture(struct r_texture_h handle)
     if(texture && handle.index != R_DEFAULT_TEXTURE_INDEX /*&& handle.index != R_MISSING_TEXTURE_INDEX*/ )
     {
         vkDestroyImageView(r_device.device, texture->image_view, NULL);
+        if(texture->event != VK_NULL_HANDLE)
+        {
+            vkDestroyEvent(r_device.device, texture->event, NULL);
+        }
+        texture->event = VK_NULL_HANDLE;
         r_DestroyImage(texture->image);
-//        SDL_AtomicLock(&r_resource_spinlock);
         remove_stack_list_element(&r_device.textures, handle.index);
-//        SDL_AtomicUnlock(&r_resource_spinlock);
     }
 }
 
@@ -2717,8 +2720,9 @@ void r_InitializeFramebuffer(struct r_framebuffer_t *framebuffer, struct r_frame
             {
                 r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_GENERAL);
             }
+            
+            texture->event = r_CreateEvent();
         }
-
         vkCreateFramebuffer(r_device.device, &framebuffer_create_info, NULL, framebuffer->buffers + frame_index);
     }
 
@@ -3088,6 +3092,9 @@ void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, struct r_re
     render_pass_begin_info.renderArea = begin_info->render_area;
     render_pass_begin_info.framebuffer = framebuffer->buffers[0];
     
+    command_buffer_ptr->render_pass = begin_info->render_pass;
+    command_buffer_ptr->framebuffer = begin_info->framebuffer;
+    
 //    memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 //    memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
 //    memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
@@ -3132,8 +3139,23 @@ void r_vkCmdBeginRenderPass(union r_command_buffer_h command_buffer, struct r_re
 void r_vkCmdEndRenderPass(union r_command_buffer_h command_buffer)
 {
     struct r_command_buffer_t *command_buffer_ptr;
+    struct r_framebuffer_t *framebuffer;
+    struct r_texture_t *texture;
+    
     command_buffer_ptr = r_GetCommandBufferPointer(command_buffer);
+    framebuffer = r_GetFramebufferPointer(command_buffer_ptr->framebuffer);
+    
     vkCmdEndRenderPass(command_buffer_ptr->command_buffer);
+    command_buffer_ptr->render_pass = R_INVALID_RENDER_PASS_HANDLE;
+    command_buffer_ptr->framebuffer = R_INVALID_FRAMEBUFFER_HANDLE;
+    
+    for(uint32_t texture_index = 0; texture_index < framebuffer->texture_count; texture_index++)
+    {
+        texture = r_GetTexturePointer(framebuffer->textures[texture_index]);
+        vkResetEvent(r_device.device, texture->event);
+        vkCmdSetEvent(command_buffer_ptr->command_buffer, texture->event, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | 
+                                                                          VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT);
+    }
 }
 
 void r_vkCmdSetViewport(union r_command_buffer_h command_buffer, uint32_t first_viewport, uint32_t viewport_count, VkViewport *viewports)

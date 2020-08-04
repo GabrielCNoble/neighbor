@@ -264,6 +264,9 @@ void r_vkBeginCommandBuffer(union r_command_buffer_h command_buffer);
 
 void r_AppendEvent(union r_command_buffer_h command_buffer, VkEvent event);
 
+//vkCmdWaitEvents()
+//void r_vkCmdWaitEvent(union r_command_buffer_h command_buffer, uint32_t event_count, VkEvent *events, )
+
 void r_vkCmdBindPipeline(union r_command_buffer_h command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
 
 void r_vkCmdBindVertexBuffers(union r_command_buffer_h command_buffer, uint32_t first_binding, uint32_t binding_count, VkBuffer *buffers, VkDeviceSize *offsets);

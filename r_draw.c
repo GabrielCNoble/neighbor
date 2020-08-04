@@ -112,7 +112,7 @@ void r_DrawInit()
 
     render_pass_description = (struct r_render_pass_description_t){
         .attachments = (struct r_attachment_d []){
-            {.format = VK_FORMAT_R8G8B8A8_SRGB},
+            {.format = VK_FORMAT_R8G8B8A8_UNORM},
             {.format = VK_FORMAT_D32_SFLOAT}
         },
         .attachment_count = 2,
@@ -177,11 +177,11 @@ void r_DrawInit()
     r_i_submission_state.cmd_data = create_list(sizeof(struct r_i_draw_data_slot_t), 2048);
     r_i_submission_state.vertex_cursor = 0;
     r_i_submission_state.index_cursor = 0;
-    r_i_submission_state.next_draw_state.pipeline_state.depth_state.write_enable = VK_TRUE;
-    r_i_submission_state.next_draw_state.pipeline_state.depth_state.test_enable = VK_TRUE;
-    r_i_submission_state.next_draw_state.pipeline_state.depth_state.compare_op = VK_COMPARE_OP_LESS;
-    r_i_submission_state.next_draw_state.texture = R_INVALID_TEXTURE_HANDLE;
-    r_i_submission_state.next_draw_state.scissor = r_view.scissor;
+//    r_i_submission_state.next_draw_state.pipeline_state.depth_state.write_enable = VK_TRUE;
+//    r_i_submission_state.next_draw_state.pipeline_state.depth_state.test_enable = VK_TRUE;
+//    r_i_submission_state.next_draw_state.pipeline_state.depth_state.compare_op = VK_COMPARE_OP_LESS;
+//    r_i_submission_state.next_draw_state.texture = R_INVALID_TEXTURE_HANDLE;
+//    r_i_submission_state.next_draw_state.scissor = r_view.scissor;
 
     r_uniform_buffers = create_list(sizeof(struct r_uniform_buffer_t), 64);
     r_free_uniform_buffers = create_list(sizeof(uint32_t), 64);
@@ -226,7 +226,7 @@ void r_DrawInit()
     render_pass_description = (struct r_render_pass_description_t){
         .attachment_count = 2,
         .attachments = (struct r_attachment_d []){
-            {.format = VK_FORMAT_R8G8B8A8_SRGB, .initial_layout = VK_IMAGE_LAYOUT_GENERAL},
+            {.format = VK_FORMAT_R8G8B8A8_UNORM, .initial_layout = VK_IMAGE_LAYOUT_GENERAL, .final_layout = VK_IMAGE_LAYOUT_GENERAL},
             {.format = VK_FORMAT_D32_SFLOAT, .initial_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}
         },
         .subpass_count = 1,
@@ -562,9 +562,9 @@ void r_DispatchPending()
         [0] = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .clearValue = (VkClearValue){
-                .color.float32[0] = 0.1,
-                .color.float32[1] = 0.1,
-                .color.float32[2] = 0.3,
+                .color.float32[0] = 0.01,
+                .color.float32[1] = 0.01,
+                .color.float32[2] = 0.03,
                 .color.float32[3] = 1.0,
             },
             .colorAttachment = 0
@@ -749,7 +749,7 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
 void r_i_BeginSubmission(struct r_begin_submission_info_t *begin_info)
 {
     r_BeginDrawCmdSubmission((struct r_submission_state_t *)&r_i_submission_state, begin_info);
-    memset(&r_i_submission_state.current_draw_state, 0, sizeof(struct r_i_draw_state_t));
+//    memset(&r_i_submission_state.current_draw_state, 0, sizeof(struct r_i_draw_state_t));
 }
 
 void r_i_EndSubmission()
@@ -764,6 +764,7 @@ void r_i_DispatchPending()
     struct r_render_pass_t *render_pass;
     struct r_buffer_t *vertex_buffer;
     struct r_buffer_t *index_buffer;
+    mat4_t *model_matrix;
 
     uint32_t vertex_start;
     uint32_t index_start;
@@ -771,6 +772,7 @@ void r_i_DispatchPending()
     uint32_t indexed;
     VkRect2D scissor;
     VkViewport viewport;
+    
 
     struct r_render_pass_begin_info_t render_pass_begin_info = {};
     struct r_submit_info_t submit_info = {};
@@ -800,7 +802,9 @@ void r_i_DispatchPending()
         uint32_t *cmd_list_index = get_list_element(&r_i_submission_state.base.pending_draw_cmd_lists, pending_index);
         struct r_draw_cmd_list_t *cmd_list = get_stack_list_element(&r_i_submission_state.base.draw_cmd_lists, *cmd_list_index);
         struct r_pipeline_t *current_pipeline = NULL;
+        struct r_i_draw_cmd_data_t *draw_data;
         struct r_texture_h current_texture = R_INVALID_TEXTURE_HANDLE;
+//        mat4_t current_model_matrix;
         
         if(cmd_list->begin_info.framebuffer.index == R_INVALID_FRAMEBUFFER_INDEX)
         {
@@ -815,7 +819,7 @@ void r_i_DispatchPending()
         render_pass_begin_info.render_area = cmd_list->begin_info.scissor;
         
         r_vkCmdSetViewport(command_buffer, 0, 1, &cmd_list->begin_info.viewport);
-        r_vkCmdSetScissor(command_buffer, 0, 1, &cmd_list->begin_info.scissor);
+//        r_vkCmdSetScissor(command_buffer, 0, 1, &cmd_list->begin_info.scissor);
         r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         
         for(uint32_t draw_cmd_index = 0; draw_cmd_index < cmd_list->draw_cmds.cursor; draw_cmd_index++)
@@ -824,13 +828,7 @@ void r_i_DispatchPending()
             switch(draw_cmd->type)
             {
                 case R_I_DRAW_CMD_DRAW:
-                {
-                    struct r_i_draw_cmd_data_t *data = (struct r_i_draw_cmd_data_t *)draw_cmd->data;
-                    vertex_start = data->vertex_start;
-                    index_start = data->index_start;
-                    count = data->count;
-                    indexed = data->indexed;
-                }
+                    draw_data = (struct r_i_draw_cmd_data_t *)draw_cmd->data;
                 break;
                 
                 case R_I_DRAW_CMD_UPLOAD_DATA:
@@ -858,7 +856,6 @@ void r_i_DispatchPending()
                     uint32_t udpate_texture_state = 0;
                     
                     r_vkCmdSetScissor(command_buffer, 0, 1, &draw_state->draw_state.scissor);
-                    r_vkCmdSetLineWidth(command_buffer, draw_state->draw_state.line_width); 
 
                     next_pipeline = r_GetPipelinePointerByState(r_i_render_pass, 0, &draw_state->draw_state.pipeline_state);
                     
@@ -866,10 +863,9 @@ void r_i_DispatchPending()
                     {
                         current_pipeline = next_pipeline;
                         r_vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->pipeline);
-                        r_vkCmdPushConstants(command_buffer, current_pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &cmd_list->view_projection_matrix);
                         udpate_texture_state = 1;
                     }
-                    
+                    r_vkCmdSetLineWidth(command_buffer, draw_state->draw_state.line_width); 
                     r_vkCmdPushConstants(command_buffer, current_pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(mat4_t), sizeof(float), &draw_state->draw_state.point_size);
                     
                     udpate_texture_state |= draw_state->draw_state.texture.index != current_texture.index;
@@ -905,7 +901,6 @@ void r_i_DispatchPending()
                         descriptor_write.dstArrayElement = 0;
                         descriptor_write.descriptorCount = 1;
                         descriptor_write.pImageInfo = &image_info;
-//                        r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                         r_vkUpdateDescriptorSets(1, &descriptor_write);                        
                         r_vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->layout, 0, 1, &descriptor_set, 0, NULL);
                     }
@@ -915,13 +910,19 @@ void r_i_DispatchPending()
                 break;
             }
             
-            if(indexed)
+            
+            mat4_t model_view_projection_matrix;
+            mat4_t_identity(&model_view_projection_matrix);
+            mat4_t_mul(&model_view_projection_matrix, &draw_data->model_matrix, &cmd_list->view_projection_matrix);
+            r_vkCmdPushConstants(command_buffer, current_pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
+            
+            if(draw_data->indexed)
             {
-                r_vkCmdDrawIndexed(command_buffer, count, 1, index_start, vertex_start, 0);
+                r_vkCmdDrawIndexed(command_buffer, draw_data->count, 1, draw_data->index_start, draw_data->vertex_start, 0);
             }
             else
             {
-                r_vkCmdDraw(command_buffer, count, 1, vertex_start, 0);
+                r_vkCmdDraw(command_buffer, draw_data->count, 1, draw_data->vertex_start, 0);
             }
         }
         r_vkCmdEndRenderPass(command_buffer);
@@ -949,63 +950,7 @@ void r_i_SetDrawState(struct r_i_draw_state_t *draw_state)
     draw_state_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_set_draw_state_data_t));
     draw_state_data->draw_state = *draw_state;
     r_i_SubmitCmd(R_I_DRAW_CMD_SET_DRAW_STATE, draw_state_data);
-    r_i_submission_state.current_draw_state = *draw_state;
 }
-
-void r_i_SetDepthWrite(uint32_t enable)
-{
-    r_i_submission_state.next_draw_state.pipeline_state.depth_state.write_enable = enable && 1;
-}
-
-void r_i_SetDepthTest(uint32_t enable)
-{
-    r_i_submission_state.next_draw_state.pipeline_state.depth_state.test_enable = enable && 1;
-}
-
-void r_i_SetDepthCompareOp(VkCompareOp op)
-{
-    r_i_submission_state.next_draw_state.pipeline_state.depth_state.compare_op = op;
-}
-
-void r_i_SetPrimitiveTopology(VkPrimitiveTopology topology)
-{
-    r_i_submission_state.next_draw_state.pipeline_state.input_assembly_state.topology = topology;
-}
-
-void r_i_SetPolygonMode(VkPolygonMode polygon_mode)
-{
-    r_i_submission_state.next_draw_state.pipeline_state.rasterizer_state.polygon_mode = polygon_mode;
-}
-
-void r_i_SetCullMode(VkCullModeFlags cull_mode)
-{
-    r_i_submission_state.next_draw_state.pipeline_state.rasterizer_state.cull_mode = cull_mode;
-}
-
-void r_i_SetTexture(struct r_texture_h texture)
-{
-    r_i_submission_state.next_draw_state.texture = texture;
-}
-
-void r_i_SetScissor(uint32_t offset_x, uint32_t offset_y, uint32_t width, uint32_t height)
-{
-    r_i_submission_state.next_draw_state.scissor.extent.width = width;
-    r_i_submission_state.next_draw_state.scissor.extent.height = height;
-    r_i_submission_state.next_draw_state.scissor.offset.x = offset_x;
-    r_i_submission_state.next_draw_state.scissor.offset.y = offset_y;
-}
-
-void r_i_SetLineWidth(float width)
-{
-    r_i_submission_state.next_draw_state.line_width = width;
-}
-
-void r_i_SetPointSize(float size)
-{
-    r_i_submission_state.next_draw_state.point_size = size;
-}
-
-
 
 void *r_i_AllocateDrawCmdData(uint32_t size)
 {
@@ -1059,15 +1004,6 @@ void r_i_SubmitCmd(uint32_t type, void *data)
 {
     struct r_i_draw_cmd_t *draw_cmd;
     struct r_draw_cmd_list_t *cmd_list;
-//    uint32_t next_pipeline = R_I_PIPELINE_LAST;
-    
-    if(type < R_I_DRAW_CMD_DRAW_LAST)
-    {
-        if(memcmp(&r_i_submission_state.current_draw_state, &r_i_submission_state.next_draw_state, sizeof(struct r_i_draw_state_t)))
-        {
-            r_i_SetDrawState(&r_i_submission_state.next_draw_state);
-        }
-    }
 
     cmd_list = get_stack_list_element(&r_i_submission_state.base.draw_cmd_lists, r_i_submission_state.base.current_draw_cmd_list);
     draw_cmd = get_list_element(&cmd_list->draw_cmds, add_list_element(&cmd_list->draw_cmds, NULL));
@@ -1118,7 +1054,7 @@ uint32_t r_i_UploadBufferData(void *data, uint32_t size, uint32_t count, uint32_
     return upload_data->start;
 }
 
-void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed)
+void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform)
 {
     struct r_i_draw_cmd_data_t *data;
     
@@ -1128,10 +1064,19 @@ void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint3
     data->count = count;
     data->indexed = indexed;
     
+    if(transform)
+    {
+        memcpy(&data->model_matrix, transform, sizeof(mat4_t));
+    }
+    else
+    {
+        mat4_t_identity(&data->model_matrix);
+    }
+    
     r_i_SubmitCmd(R_I_DRAW_CMD_DRAW, data);
 }
 
-void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count)
+void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform)
 {
     uint32_t vertex_start;
     uint32_t index_start;
@@ -1144,116 +1089,9 @@ void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uin
         count = index_count;
     }
     
-    r_i_Draw(vertex_start, index_start, count, indices);
+    r_i_Draw(vertex_start, index_start, count, indices, transform);
 }
 
-void r_i_DrawLines(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, uint32_t line_strip)
-{
-//    r_i_SetPolygonMode(VK_POLYGON_MODE_LINE);
-//    if(line_strip)
-//    {
-//        r_i_SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_LINE_STRIP);
-//    }
-//    else
-//    {
-//        r_i_SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-//    }
-//    r_i_Draw(0, vertex_start, index_start, count, indexed);
-}
-
-void r_i_DrawLinesImmediate(struct r_i_vertex_t *verts, uint32_t vert_count, float size, uint32_t line_strip)
-{
-//    uint32_t first_vertex;
-//    
-//    if(!vert_count)
-//    {
-//        return;
-//    }
-//    
-//    first_vertex = r_i_UploadVertices(verts, vert_count, 1);
-//    
-//    r_i_DrawLines(first_vertex, 0, vert_count, 0, line_strip);
-}
-
-void r_i_DrawLine(struct r_i_vertex_t *from, struct r_i_vertex_t *to, float size)
-{
-//    r_i_DrawLines((struct r_i_vertex_t []){*from, *to}, 2, size, 0);
-}
-
-void r_i_DrawLineStrip(struct r_i_vertex_t *verts, uint32_t vert_count, float size)
-{
-//    r_i_DrawLines(verts, vert_count, size, 1);
-}
-
-void r_i_DrawTris(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, uint32_t fill)
-{    
-    if(!count)
-    {
-        return;
-    }
-    
-    r_i_SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    
-    if(fill)
-    {
-        r_i_SetPolygonMode(VK_POLYGON_MODE_FILL);
-    }
-    else
-    {
-        r_i_SetPolygonMode(VK_POLYGON_MODE_LINE);
-    }
-    r_i_Draw(vertex_start, index_start, count, indexed);
-}
-
-void r_i_DrawTrisImmediate(struct r_i_vertex_t *verts, uint32_t vert_count, uint32_t *indices, uint32_t indice_count, uint32_t fill)
-{
-    uint32_t first_vertex;
-    uint32_t first_index;
-    uint32_t indexed;
-    uint32_t count;
-    
-    if(!vert_count && !indice_count)
-    {
-        return;
-    }
-    
-    first_vertex = r_i_UploadVertices(verts, vert_count);
-      
-    if(indices)
-    {
-        indexed = 1;
-        first_index = r_i_UploadIndices(indices, indice_count);
-        count = indice_count;
-    }
-    else
-    {
-        indexed = 0;
-        count = vert_count;
-    }
-    
-    r_i_DrawTris(first_vertex, first_index, count, indexed, fill);
-}
-
-void r_i_DrawTriLine(struct r_i_vertex_t *verts)
-{
-//    r_i_DrawTrisImmediate(verts, 3, NULL, 0, 0);
-}
-
-void r_i_DrawTriFill(struct r_i_vertex_t *verts)
-{
-//    r_i_DrawTrisImmediate(verts, 3, NULL, 0, 1);
-}
-
-void r_i_DrawPoints(uint32_t first_vertex, uint32_t count, float size)
-{
-//    r_i_SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
-    
-}
-
-void r_i_DrawPoint(vec3_t *point, vec3_t *color, float size)
-{
-    
-}
 
 
 

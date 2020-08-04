@@ -383,6 +383,7 @@ struct r_texture_t
     VkSampler sampler;
     VkImageView image_view;
     struct r_image_handle_t image;
+    VkEvent event;
     char *name;
 };
 
@@ -629,6 +630,7 @@ struct r_command_buffer_t
     VkFence submit_fence;
     VkEvent complete_event;
     struct r_render_pass_handle_t render_pass;
+    struct r_framebuffer_h framebuffer;
     struct list_t events;
 };
 
