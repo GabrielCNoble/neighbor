@@ -16,8 +16,8 @@ float normalized_x = 0.0;
 float normalized_y = 0.0;
 float normalized_dx = 0.0;
 float normalized_dy = 0.0;
-int32_t in_mouse_x;
-int32_t in_mouse_y;
+int32_t in_mouse_x = 0;
+int32_t in_mouse_y = 0;
 
 uint32_t in_relative_mode;
 
@@ -36,7 +36,6 @@ void in_ReadInput()
     int32_t mouse_y;
     
     SDL_GetWindowSize(r_window, &window_width, &window_height);
-    SDL_GetMouseState(&in_mouse_x, &in_mouse_y);
     
     SDL_PollEvent(&event);
     keyboard_state = SDL_GetKeyboardState(NULL);
@@ -45,8 +44,11 @@ void in_ReadInput()
     normalized_dx = ((float)mouse_x / (float)window_width);
     normalized_dy = -((float)mouse_y / (float)window_height);
     
+    if(!in_relative_mode)
+    {
+        SDL_GetMouseState(&in_mouse_x, &in_mouse_y);
+    }
     
-
     for(uint32_t mouse_button = IN_MOUSE_BUTTON_LEFT; mouse_button < IN_MOUSE_BUTTON_LAST; mouse_button++)
     {
         mouse_state[mouse_button] &= ~(IN_INPUT_STATE_JUST_PRESSED | IN_INPUT_STATE_JUST_RELEASED);
@@ -169,5 +171,6 @@ void in_GetMousePos(int32_t *x, int32_t *y)
 
 void in_RelativeMode(uint32_t enable)
 {
+    in_relative_mode = enable;
     SDL_SetRelativeMouseMode(enable);
 }

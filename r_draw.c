@@ -20,22 +20,26 @@ VkPhysicalDeviceLimits *r_limits;
 struct r_render_pass_handle_t r_render_pass;
 struct r_render_pass_handle_t r_i_render_pass;
 struct r_framebuffer_h r_framebuffer;
-struct r_buffer_h r_i_vertex_buffer;
-struct r_buffer_h r_i_index_buffer;
+//struct r_buffer_h r_i_vertex_buffer;
+//struct r_buffer_h r_i_index_buffer;
 VkQueue r_draw_queue;
 VkFence r_draw_fence;
 
 struct r_heap_h r_vertex_heap;
 struct r_heap_h r_index_heap;
+struct r_chunk_h r_i_vertex_chunk;
+struct r_chunk_h r_i_index_chunk;
 SDL_Window *r_window;
 uint32_t r_window_width;
 uint32_t r_window_height;
 
-#define R_VERTEX_BUFFER_MEMORY 8388608
-#define R_INDEX_BUFFER_MEMORY 8388608
+#define R_VERTEX_BUFFER_MEMORY 67108864
+#define R_INDEX_BUFFER_MEMORY 67108864
 #define R_UNIFORM_BUFFER_MEMORY 8388608
-#define R_I_VERTEX_BUFFER_MEMORY 8388608
-#define R_I_INDEX_BUFFER_MEMORY 8388608
+#define R_I_MAX_VERTEX_COUNT 1000000
+#define R_I_MAX_INDEX_COUNT 1000000
+//#define R_I_VERTEX_BUFFER_MEMORY 8388608
+//#define R_I_INDEX_BUFFER_MEMORY 8388608
 
 struct r_view_t r_view;
 VkInstance r_instance;
@@ -54,7 +58,7 @@ void r_DrawInit()
     long code_size;
     
     r_view.z_near = 0.1;
-    r_view.z_far = 20.0;
+    r_view.z_far = 200.0;
     r_view.zoom = 1.0;
 //    r_view.position = vec2_t_c(0.0, 0.0);
     r_view.viewport.width = R_DEFAULT_WIDTH;
@@ -151,18 +155,21 @@ void r_DrawInit()
     r_draw_fence = r_CreateFence();
     r_limits = r_GetDeviceLimits();
 
-    VkBufferCreateInfo buffer_create_info = {};
-    buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+//    VkBufferCreateInfo buffer_create_info = {};
+//    buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+//    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     
-    buffer_create_info.size = R_I_VERTEX_BUFFER_MEMORY;
-    r_i_vertex_buffer = r_CreateBuffer(&buffer_create_info);
-    buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    buffer_create_info.size = R_I_INDEX_BUFFER_MEMORY;
-    r_i_index_buffer = r_CreateBuffer(&buffer_create_info);
+//    buffer_create_info.size = R_I_VERTEX_BUFFER_MEMORY;
+//    r_i_vertex_buffer = r_CreateBuffer(&buffer_create_info);
+//    buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+//    buffer_create_info.size = R_I_INDEX_BUFFER_MEMORY;
+//    r_i_index_buffer = r_CreateBuffer(&buffer_create_info);
     
     r_vertex_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, R_VERTEX_BUFFER_MEMORY);
     r_index_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, R_INDEX_BUFFER_MEMORY);
+    
+    r_i_vertex_chunk = r_AllocChunk(r_vertex_heap, sizeof(struct r_i_vertex_t) * R_I_MAX_VERTEX_COUNT, sizeof(struct r_i_vertex_t));
+    r_i_index_chunk = r_AllocChunk(r_index_heap, sizeof(uint32_t) * R_I_MAX_INDEX_COUNT, sizeof(uint32_t));
 
     r_submission_state.base.draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 32);
     r_submission_state.base.pending_draw_cmd_lists = create_list(sizeof(uint32_t), 32);
@@ -762,6 +769,8 @@ void r_i_DispatchPending()
     union r_command_buffer_h command_buffer;
     struct r_framebuffer_t *framebuffer;
     struct r_render_pass_t *render_pass;
+    struct r_buffer_heap_t *vertex_heap;
+    struct r_buffer_heap_t *index_heap;
     struct r_buffer_t *vertex_buffer;
     struct r_buffer_t *index_buffer;
     mat4_t *model_matrix;
@@ -778,22 +787,18 @@ void r_i_DispatchPending()
     struct r_submit_info_t submit_info = {};
     
     framebuffer = r_GetFramebufferPointer(r_framebuffer);
-    vertex_buffer = r_GetBufferPointer(r_i_vertex_buffer);
-    index_buffer = r_GetBufferPointer(r_i_index_buffer);
-//    render_pass = r_GetRenderPassPointer(r_i_render_pass);
+    vertex_heap = (struct r_buffer_heap_t *)r_GetHeapPointer(r_vertex_heap);
+    index_heap = (struct r_buffer_heap_t *)r_GetHeapPointer(r_index_heap);
     
     viewport.minDepth = 0.0;
     viewport.maxDepth = 1.0;
 
     render_pass_begin_info.render_pass = r_i_render_pass;
-//    render_pass_begin_info.framebuffer = framebuffer->buffers[0];
-//    render_pass_begin_info.renderArea = r_view.scissor;
     
-
     command_buffer = r_AllocateCommandBuffer();
     r_vkBeginCommandBuffer(command_buffer);
-    r_vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer->buffer, (VkDeviceSize[]){0});
-    r_vkCmdBindIndexBuffer(command_buffer, index_buffer->buffer, (VkDeviceSize){0}, VK_INDEX_TYPE_UINT32);
+    r_vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_heap->buffer, (VkDeviceSize[]){0});
+    r_vkCmdBindIndexBuffer(command_buffer, index_heap->buffer, (VkDeviceSize){0}, VK_INDEX_TYPE_UINT32);
 //    r_vkCmdSetViewport(command_buffer, 0, 1, &r_view.viewport);
 //    r_vkCmdSetScissor(command_buffer, 0, 1, &r_view.scissor);
 //    r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -804,7 +809,6 @@ void r_i_DispatchPending()
         struct r_pipeline_t *current_pipeline = NULL;
         struct r_i_draw_cmd_data_t *draw_data;
         struct r_texture_h current_texture = R_INVALID_TEXTURE_HANDLE;
-//        mat4_t current_model_matrix;
         
         if(cmd_list->begin_info.framebuffer.index == R_INVALID_FRAMEBUFFER_INDEX)
         {
@@ -839,11 +843,11 @@ void r_i_DispatchPending()
                     
                     if(data->index_data)
                     {
-                        r_vkCmdUpdateBuffer(command_buffer, r_i_index_buffer, offset, size, data->data);
+                        r_FillBufferChunk(r_i_index_chunk, data->data, size, offset);
                     }
                     else
                     {
-                        r_vkCmdUpdateBuffer(command_buffer, r_i_vertex_buffer, offset, size, data->data);
+                        r_FillBufferChunk(r_i_vertex_chunk, data->data, size, offset);
                     }
                     continue;
                 }
@@ -1089,7 +1093,7 @@ void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uin
         count = index_count;
     }
     
-    r_i_Draw(vertex_start, index_start, count, indices, transform);
+    r_i_Draw(vertex_start, index_start, count, indices != NULL, transform);
 }
 
 

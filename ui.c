@@ -62,6 +62,8 @@ void ui_BeginFrame()
     io->DisplaySize.y = view->viewport.height;
     io->DeltaTime = 1.0 / 60.0;
     io->MouseDown[0] = in_GetMouseState(IN_MOUSE_BUTTON_LEFT) & IN_INPUT_STATE_PRESSED;
+    io->MouseDown[1] = in_GetMouseState(IN_MOUSE_BUTTON_RIGHT) & IN_INPUT_STATE_PRESSED;
+    io->MouseDown[2] = in_GetMouseState(IN_MOUSE_BUTTON_MIDDLE) & IN_INPUT_STATE_PRESSED;
     in_GetMousePos(&mouse_x, &mouse_y);
     
     io->MousePos.x = mouse_x;
