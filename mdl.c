@@ -146,7 +146,7 @@ struct mdl_model_h mdl_LoadModel(char *file_name, char *model_name)
 
                     if(texture_handle.index == R_INVALID_TEXTURE_INDEX)
                     {
-                        texture_name = strip_ext_from_path(strip_path_from_file_name(batch->diffuse_texture));
+                        texture_name = ds_path_GetFileName(batch->diffuse_texture);
                         texture_handle = r_LoadTexture(batch->diffuse_texture, texture_name);
                     }
 
@@ -164,7 +164,7 @@ struct mdl_model_h mdl_LoadModel(char *file_name, char *model_name)
 
                     if(texture_handle.index == R_INVALID_TEXTURE_INDEX)
                     {
-                        texture_name = strip_ext_from_path(strip_path_from_file_name(batch->normal_texture));
+                        texture_name = ds_path_GetFileName(batch->normal_texture);
                         texture_handle = r_LoadTexture(batch->normal_texture, texture_name);
                     }
 

@@ -19,10 +19,59 @@ void ui_Init()
     igCreateContext(NULL);
     ImGuiIO *io = igGetIO();
     io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io->ConfigWindowsResizeFromEdges = 1;
     unsigned char *pixels;
     int width;
     int height;
     ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &pixels, &width, &height, NULL);
+    
+    io->KeyMap[ImGuiKey_Tab] = SDL_SCANCODE_TAB;
+    io->KeyMap[ImGuiKey_LeftArrow] = SDL_SCANCODE_LEFT;
+    io->KeyMap[ImGuiKey_RightArrow] = SDL_SCANCODE_RIGHT;
+    io->KeyMap[ImGuiKey_UpArrow] = SDL_SCANCODE_UP;
+    io->KeyMap[ImGuiKey_DownArrow] = SDL_SCANCODE_DOWN;
+    io->KeyMap[ImGuiKey_PageUp] = SDL_SCANCODE_PAGEUP;
+    io->KeyMap[ImGuiKey_PageDown] = SDL_SCANCODE_PAGEDOWN;
+    io->KeyMap[ImGuiKey_Home] = SDL_SCANCODE_HOME;
+    io->KeyMap[ImGuiKey_End] = SDL_SCANCODE_END;
+    io->KeyMap[ImGuiKey_Insert] = SDL_SCANCODE_INSERT;
+    io->KeyMap[ImGuiKey_Delete] = SDL_SCANCODE_DELETE;
+    io->KeyMap[ImGuiKey_Backspace] = SDL_SCANCODE_BACKSPACE;
+    io->KeyMap[ImGuiKey_Space] = SDL_SCANCODE_SPACE;
+    io->KeyMap[ImGuiKey_Enter] = SDL_SCANCODE_RETURN;
+    io->KeyMap[ImGuiKey_Escape] = SDL_SCANCODE_ESCAPE;
+    io->KeyMap[ImGuiKey_KeyPadEnter] = SDL_SCANCODE_RETURN2;
+    io->KeyMap[ImGuiKey_A] = SDL_SCANCODE_A;
+    io->KeyMap[ImGuiKey_C] = SDL_SCANCODE_C;
+    io->KeyMap[ImGuiKey_V] = SDL_SCANCODE_V;
+    io->KeyMap[ImGuiKey_X] = SDL_SCANCODE_X;
+    io->KeyMap[ImGuiKey_Y] = SDL_SCANCODE_Y;
+    io->KeyMap[ImGuiKey_Z] = SDL_SCANCODE_Z;
+    
+    /*
+    ImGuiKey_Tab,
+    ImGuiKey_LeftArrow,
+    ImGuiKey_RightArrow,
+    ImGuiKey_UpArrow,
+    ImGuiKey_DownArrow,
+    ImGuiKey_PageUp,
+    ImGuiKey_PageDown,
+    ImGuiKey_Home,
+    ImGuiKey_End,
+    ImGuiKey_Insert,
+    ImGuiKey_Delete,
+    ImGuiKey_Backspace,
+    ImGuiKey_Space,
+    ImGuiKey_Enter,
+    ImGuiKey_Escape,
+    ImGuiKey_KeyPadEnter,
+    ImGuiKey_A,
+    ImGuiKey_C,
+    ImGuiKey_V,
+    ImGuiKey_X,
+    ImGuiKey_Y,
+    ImGuiKey_Z,
+    */
     
     struct r_texture_description_t texture_description = {};
     texture_description.extent.width = width;
@@ -57,7 +106,22 @@ void ui_BeginFrame()
     struct r_view_t *view = r_GetViewPointer();
     int32_t mouse_x;
     int32_t mouse_y;
+    char *text_input;
     
+    uint8_t *keyboard_state = in_GetKeyboardState();
+    
+    for(uint32_t scancode_index = SDL_SCANCODE_UNKNOWN; scancode_index < SDL_NUM_SCANCODES; scancode_index++)
+    {
+        io->KeysDown[scancode_index] = keyboard_state[scancode_index];
+    }
+        
+    in_TextInput(io->WantTextInput);
+    if(io->WantTextInput)
+    {
+        text_input = in_GetInputText();
+        ImGuiIO_AddInputCharactersUTF8(io, text_input);
+    }
+
     io->DisplaySize.x = view->viewport.width;
     io->DisplaySize.y = view->viewport.height;
     io->DeltaTime = 1.0 / 60.0;

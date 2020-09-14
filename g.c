@@ -7,6 +7,7 @@
 #include "ui.h"
 #include "scr.h"
 #include "ent.h"
+#include "lib/dstuff/ds_mem.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -68,12 +69,12 @@ void g_MainLoop()
         in_ReadInput();
         r_BeginFrame();
         ui_BeginFrame();
-        spr_UpdateAnimPlayers(g_delta_time);
         phy_Step(g_delta_time);
         g_MainLoopCallback(g_delta_time);
         scr_UpdateScripts(g_delta_time);
         ui_EndFrame();
         r_EndFrame();
+        mem_CheckGuards();
         
         while(g_GetCurrentDeltaTime(NULL) < 16.666);
     }

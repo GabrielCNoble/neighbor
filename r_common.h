@@ -476,6 +476,19 @@ struct r_pipeline_state_t
     {
         uint32_t topology: 4;
     }input_assembly_state;
+    
+    struct
+    {
+        uint32_t test_enable: 1;
+        uint32_t src_color_blend_factor: 5;
+        uint32_t dst_color_blend_factor: 5;
+        uint32_t color_blend_op: 3;
+        uint32_t src_alpha_blend_factor: 5;
+        uint32_t dst_alpha_blend_factor: 5;
+        uint32_t alpha_blend_op: 3;
+        uint32_t color_write_mask: 4;
+        float blend_constants[4];
+    }color_blend_state;
 };
 
 /* each pipeline will have a list of command pools,

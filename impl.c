@@ -25,8 +25,11 @@
 #define DS_FILE_IMPLEMENTATION
 #include "lib/dstuff/ds_file.h"
 
-#define DS_SPRPK_IMPLEMENTATION
-#include "lib/dstuff/ds_sprpk.h"
+#define DS_DIR_IMPLEMENTATION
+#include "lib/dstuff/ds_dir.h"
+
+//#define DS_SPRPK_IMPLEMENTATION
+//#include "lib/dstuff/ds_sprpk.h"
 
 #define DS_WAVEFRONT_IMPLEMENTATION
 #include "lib/dstuff/ds_obj.h"

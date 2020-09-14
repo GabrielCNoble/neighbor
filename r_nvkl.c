@@ -1131,6 +1131,7 @@ union r_command_buffer_h r_AllocateCommandBuffer()
     }
 
     SDL_AtomicUnlock(&r_device.draw_command_pool.spinlock);
+    
     return command_buffer_handle;
 }
 
@@ -1581,7 +1582,7 @@ struct r_texture_h r_LoadTexture(char *file_name, char *texture_name)
     struct r_texture_t *texture;
     struct r_texture_description_t description = {};
 
-    file_name = format_path(file_name);
+    file_name = ds_path_FormatPath(file_name);
 
     pixels = stbi_load(file_name, &width, &height, &channels, STBI_rgb_alpha);
 
@@ -2189,14 +2190,42 @@ struct r_pipeline_t *r_GetPipelinePointerByState(struct r_render_pass_handle_t r
     };
     
     attachments = alloca(sizeof(VkPipelineColorBlendAttachmentState) * render_pass->attachment_count);
-    for(uint32_t attachment_index = 0; attachment_index < render_pass->attachment_count; attachment_index++)
+    if(pipeline_state->color_blend_state.test_enable)
     {
-        VkPipelineColorBlendAttachmentState *attachment = attachments + attachment_index;
-        memcpy(attachment, &default_color_blend_attachment, sizeof(VkPipelineColorBlendAttachmentState));
-        
-        if(!r_IsDepthStencilFormat(render_pass->attachments[attachment_index].format))
+        for(uint32_t attachment_index = 0; attachment_index < render_pass->attachment_count; attachment_index++)
         {
-            color_attachment_count++;
+            VkPipelineColorBlendAttachmentState *attachment = attachments + attachment_index;
+            
+            if(!r_IsDepthStencilFormat(render_pass->attachments[attachment_index].format))
+            {
+                attachment->srcColorBlendFactor = pipeline_state->color_blend_state.src_color_blend_factor;
+                attachment->dstColorBlendFactor = pipeline_state->color_blend_state.dst_color_blend_factor;
+                attachment->srcAlphaBlendFactor = pipeline_state->color_blend_state.src_alpha_blend_factor;
+                attachment->dstAlphaBlendFactor = pipeline_state->color_blend_state.dst_alpha_blend_factor;
+                attachment->blendEnable = VK_TRUE;
+                attachment->colorBlendOp = pipeline_state->color_blend_state.color_blend_op;
+                attachment->alphaBlendOp = pipeline_state->color_blend_state.alpha_blend_op;
+                attachment->colorWriteMask = pipeline_state->color_blend_state.color_write_mask;
+                color_attachment_count++;
+            }
+            else
+            {
+                /* apply default blending state (no blending) to depth/stencil attachments */
+                memcpy(attachment, &default_color_blend_attachment, sizeof(VkPipelineColorBlendAttachmentState));
+            }
+        }
+    }
+    else
+    {
+        for(uint32_t attachment_index = 0; attachment_index < render_pass->attachment_count; attachment_index++)
+        {
+            VkPipelineColorBlendAttachmentState *attachment = attachments + attachment_index;
+            memcpy(attachment, &default_color_blend_attachment, sizeof(VkPipelineColorBlendAttachmentState));
+            
+            if(!r_IsDepthStencilFormat(render_pass->attachments[attachment_index].format))
+            {
+                color_attachment_count++;
+            }
         }
     }
     
@@ -2220,11 +2249,18 @@ struct r_pipeline_t *r_GetPipelinePointerByState(struct r_render_pass_handle_t r
         .subpass_index = subpass_index,
     };
     
+    
     subpass->pipeline_count++;
     render_pass->pipeline_count++;
+    
+    
     pipeline_handle = r_CreatePipeline(&description);
+    
     render_pass->pipelines = mem_Realloc(render_pass->pipelines, sizeof(struct r_pipeline_h) * (render_pass->pipeline_count + 1));
     offset = render_pass->pipeline_count;
+    
+    pipeline = r_GetPipelinePointer(pipeline_handle);
+    pipeline->state = *pipeline_state;
     
     uint32_t index = render_pass->subpass_count - 1;
     uint32_t stop_index = subpass_index;
@@ -2258,6 +2294,8 @@ struct r_pipeline_t *r_GetPipelinePointerByState(struct r_render_pass_handle_t r
         
         stop_index = 0;
     }
+    
+    
     
     return r_GetPipelinePointer(pipeline_handle);
 }

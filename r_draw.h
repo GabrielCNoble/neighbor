@@ -76,8 +76,8 @@ struct r_view_t
 struct r_i_vertex_t
 {
     vec4_t position;
-    vec4_t tex_coords;
     vec4_t color;
+    vec4_t tex_coords;
 };
 
 struct r_vertex_t
@@ -148,6 +148,7 @@ struct r_draw_cmd_t
 {
     uint32_t start;
     uint32_t count;
+    uint32_t vertex_offset;
     mat4_t transform;
     struct r_material_t *material;
 };
@@ -194,6 +195,8 @@ void r_BeginFrame();
 
 void r_EndFrame();
 
+void r_GetWindowSize(vec2_t *size);
+
 void r_RecomputeInvViewMatrix();
 
 void r_RecomputeProjectionMatrix();
@@ -236,7 +239,11 @@ struct r_material_t *r_GetDefaultMaterialPointer();
 
 struct r_chunk_h r_AllocVerts(uint32_t count);
 
+void r_FillVertsChunk(struct r_chunk_h chunk, struct r_vertex_t *vertices, uint32_t count);
+
 struct r_chunk_h r_AllocIndexes(uint32_t count);
+
+void r_FillIndexChunk(struct r_chunk_h chunk, uint32_t *indices, uint32_t count);
 
 /*
 =================================================================
@@ -253,6 +260,8 @@ void r_BeginSubmission(struct r_begin_submission_info_t *begin_info);
 void r_EndSubmission();
 
 void r_Draw(uint32_t start, uint32_t count, struct r_material_t *material, mat4_t *transform);
+
+void r_DrawIndexed(uint32_t start, uint32_t count, uint32_t vertex_offset, struct r_material_t *material, mat4_t *transform);
 
 void r_DispatchPending();
 
