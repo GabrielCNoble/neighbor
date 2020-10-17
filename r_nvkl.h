@@ -1,7 +1,7 @@
-#ifndef R_H
-#define R_H
+#ifndef R_NVKL_H
+#define R_NVKL_H
 
-#include "r_common.h"
+#include "r_defs.h"
 
 VkInstance r_CreateInstance();
 
@@ -57,6 +57,10 @@ void r_DefragHeap(struct r_heap_h handle);
 
 struct r_chunk_h r_AllocChunk(struct r_heap_h handle, uint32_t size, uint32_t align);
 
+struct r_chunk_h r_AllocVertexChunk(uint32_t size, uint32_t count, uint32_t align);
+
+struct r_chunk_h r_AllocIndexChunk(uint32_t size, uint32_t count, uint32_t align);
+
 void r_FreeChunk(struct r_chunk_h handle);
 
 struct r_chunk_t *r_GetChunkPointer(struct r_chunk_h handle);
@@ -67,7 +71,9 @@ void r_FillImageChunk(struct r_image_handle_t handle, void *data, VkBufferImageC
 
 void r_FillBufferChunk(struct r_chunk_h handle, void *data, uint32_t size, uint32_t offset);
 
-struct r_staging_buffer_t *r_AllocateStagingBuffer(union r_command_buffer_h command_buffer);
+
+
+struct r_staging_buffer_t *r_AllocateStagingBuffer(union r_command_buffer_h command_buffer, uint32_t size, uint32_t min_size);
 
 void r_FreeStagingBuffer(struct r_staging_buffer_t *buffer);
 
@@ -83,7 +89,7 @@ struct r_command_buffer_t *r_GetCommandBufferPointer(union r_command_buffer_h co
 
 void r_MarkCommandBufferAsPending(VkCommandBuffer command_buffer);
 
-
+void r_AppendEvent(union r_command_buffer_h command_buffer, VkEvent event);
 
 /*
 =================================================================
@@ -127,7 +133,7 @@ void *r_MapImageMemory(struct r_image_handle_t handle);
 
 
 
-void r_CreateDefaultTexture();
+//void r_CreateDefaultTexture();
 
 struct r_texture_h r_CreateTexture(struct r_texture_description_t *description);
 
@@ -135,13 +141,13 @@ void r_DestroyTexture(struct r_texture_h handle);
 
 VkSampler r_TextureSampler(struct r_sampler_params_t *params);
 
-struct r_texture_h r_LoadTexture(char *file_name, char *texture_name);
+//struct r_texture_h r_LoadTexture(char *file_name, char *texture_name);
 
 struct r_texture_t *r_GetTexturePointer(struct r_texture_h handle);
 
-struct r_texture_t *r_GetDefaultTexturePointer();
+//struct r_texture_t *r_GetDefaultTexturePointer();
 
-struct r_texture_h r_GetDefaultTextureHandle();
+//struct r_texture_h r_GetDefaultTextureHandle();
 
 struct r_texture_h r_GetTextureHandle(char *name);
 
@@ -224,11 +230,11 @@ uint32_t r_NextSwapchainImage();
 =================================================================
 */
 
-void r_LockQueue(struct r_queue_t *queue);
+//void r_LockQueue(struct r_queue_t *queue);
 
-void r_UnlockQueue(struct r_queue_t *queue);
+//void r_UnlockQueue(struct r_queue_t *queue);
 
-VkQueue r_GetDrawQueue();
+struct r_queue_h r_GetDrawQueue();
 
 VkPhysicalDeviceLimits *r_GetDeviceLimits();
 
@@ -238,21 +244,18 @@ VkPhysicalDeviceLimits *r_GetDeviceLimits();
 =================================================================
 */
 
-VkFence r_CreateFence();
+//VkFence r_CreateFence();
 
-VkEvent r_CreateEvent();
+struct r_fence_h r_AllocFence();
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
+void r_FreeFence(struct r_fence_h handle);
 
-struct r_light_handle_t r_CreateLight(vec3_t *position, float radius, vec3_t *color);
+struct r_fence_t *r_GetFencePointer(struct r_fence_h handle);
 
-struct r_light_t *r_GetLightPointer(struct r_light_handle_t handle);
+VkEvent r_AllocEvent();
 
-void r_DestroyLight(struct r_light_handle_t handle);
+void r_FreeEvent(VkEvent event);
+
 
 /*
 =================================================================================
@@ -261,11 +264,6 @@ void r_DestroyLight(struct r_light_handle_t handle);
 */
 
 void r_vkBeginCommandBuffer(union r_command_buffer_h command_buffer);
-
-void r_AppendEvent(union r_command_buffer_h command_buffer, VkEvent event);
-
-//vkCmdWaitEvents()
-//void r_vkCmdWaitEvent(union r_command_buffer_h command_buffer, uint32_t event_count, VkEvent *events, )
 
 void r_vkCmdBindPipeline(union r_command_buffer_h command_buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline);
 
@@ -297,10 +295,7 @@ void r_vkCmdBindDescriptorSets(union r_command_buffer_h command_buffer, VkPipeli
 
 void r_vkCmdBlitImage(union r_command_buffer_h command_buffer, struct r_image_handle_t src_handle, struct r_image_handle_t dst_handle, VkImageBlit *blit);
 
-void r_vkCmdPipelineBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags,
-                            uint32_t memory_barrier_count, VkMemoryBarrier *memory_barriers,
-                            uint32_t buffer_barrier_count, VkBufferMemoryBarrier *buffer_memory_barriers,
-                            uint32_t image_barrier_count, VkImageMemoryBarrier *image_memory_barriers);
+void r_vkCmdPipelineBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags, uint32_t memory_barrier_count, VkMemoryBarrier *memory_barriers, uint32_t buffer_barrier_count, VkBufferMemoryBarrier *buffer_memory_barriers, uint32_t image_barrier_count, VkImageMemoryBarrier *image_memory_barriers);
                             
 void r_vkCmdPipelineImageBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask, VkDependencyFlags dependency_flags, uint32_t barrier_count, VkImageMemoryBarrier *barriers);
 
@@ -318,11 +313,11 @@ void r_UpdateCombinedImageSamplerDescriptorSet(VkDescriptorSet descriptor_set, u
 
 void r_vkEndCommandBuffer(union r_command_buffer_h command_buffer);
 
-VkResult r_vkQueueSubmit(VkQueue queue, uint32_t submit_count, struct r_submit_info_t *submit_info, VkFence fence);
+VkResult r_vkQueueSubmit(struct r_queue_h queue, uint32_t submit_count, struct r_submit_info_t *submit_info, struct r_fence_h fence);
 
-void r_vkResetFences(uint32_t fence_count, VkFence *fences);
+void r_vkResetFences(uint32_t fence_count, struct r_fence_h *fences);
 
-void r_vkWaitForFences(uint32_t fence_count, VkFence *fences, VkBool32 wait_all, uint64_t time_out);
+void r_vkWaitForFences(uint32_t fence_count, struct r_fence_h *fences, VkBool32 wait_all, uint64_t time_out);
 
 VkResult r_vkGetEventStatus(VkEvent event);
 

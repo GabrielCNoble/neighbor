@@ -48,6 +48,7 @@ void g_MainLoop()
     g_timer_frequency = SDL_GetPerformanceFrequency();
     
     float delta_time;
+    r_Init();
     r_DrawInit();
     scr_Init();
     phy_Init();
@@ -68,14 +69,12 @@ void g_MainLoop()
         g_UpdateDeltaTime();
         in_ReadInput();
         r_BeginFrame();
-        ui_BeginFrame();
+        ui_BeginFrame();        
         phy_Step(g_delta_time);
         g_MainLoopCallback(g_delta_time);
         scr_UpdateScripts(g_delta_time);
         ui_EndFrame();
         r_EndFrame();
-        mem_CheckGuards();
-        
         while(g_GetCurrentDeltaTime(NULL) < 16.666);
     }
 

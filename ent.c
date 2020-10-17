@@ -29,7 +29,6 @@ struct ent_entity_h ent_CreateEntity(char* name, vec3_t* position, mat3_t* orien
     entity->props = NULL;
     entity->type = type;
     entity->model = MDL_INVALID_MODEL_HANDLE;
-    // entity->node = INVALID_DBVH_NODE_INDEX;
     return handle;
 }
 
@@ -51,10 +50,10 @@ struct ent_entity_t *ent_GetEntityPointer(struct ent_entity_h handle)
 {
     struct ent_entity_t *entity;
     entity = (struct entity_t*)get_stack_list_element(&ent_entities, handle.index);
-//    if(entity && !entity->type)
-//    {
-//        entity = NULL;
-//    }
+    if(entity && entity->type == ENT_ENTITY_TYPE_NONE)
+    {
+        entity = NULL;
+    }
     return entity;
 }
 

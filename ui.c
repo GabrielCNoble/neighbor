@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "in.h"
+#include "lib/dstuff/ds_mem.h"
 #include "r_draw.h"
 #include <stdio.h>
 #include <stdint.h>
@@ -141,6 +142,8 @@ void ui_BeginFrame()
     ui_inv_view_matrix.rows[3].y = view->viewport.height / 2.0;
     
     igNewFrame();
+    
+//    igShowDemoWindow(NULL);
 }
 
 void ui_EndFrame()
@@ -154,13 +157,13 @@ void ui_EndFrame()
     if(draw_data->TotalVtxCount > ui_vertice_count)
     {
         ui_vertice_count = draw_data->TotalVtxCount;
-        ui_vertices = realloc(ui_vertices, sizeof(struct r_i_vertex_t) * ui_vertice_count);
+        ui_vertices = mem_Realloc(ui_vertices, sizeof(struct r_i_vertex_t) * ui_vertice_count);
     }
 
     if(draw_data->TotalIdxCount > ui_indices_count)
     {
         ui_indices_count = draw_data->TotalIdxCount;
-        ui_indices = realloc(ui_indices, sizeof(uint32_t ) * ui_indices_count);
+        ui_indices = mem_Realloc(ui_indices, sizeof(uint32_t ) * ui_indices_count);
     }
     
     begin_info.inv_view_matrix = ui_inv_view_matrix;
@@ -181,8 +184,8 @@ void ui_EndFrame()
     draw_state.pipeline_state.depth_state.test_enable = VK_FALSE;
     draw_state.pipeline_state.depth_state.write_enable = VK_TRUE;
 
-    r_i_BeginSubmission(&begin_info);
-    r_i_SetDrawState(&draw_state);
+    struct r_draw_cmd_list_h draw_cmd_list = r_BeginDrawCmdList(&begin_info);
+    r_i_SetDrawState(draw_cmd_list, &draw_state);
     
     for(uint32_t cmd_list_index = 0; cmd_list_index < draw_data->CmdListsCount; cmd_list_index++)
     {
@@ -211,14 +214,14 @@ void ui_EndFrame()
             ui_vertices[vertex_offset].color.w = (float)((verts[vert_index].col >> 24) & 0xff) / 255.0;
         }
         
-        vertex_offset = r_i_UploadVertices(ui_vertices, vertex_offset);
+        vertex_offset = r_i_UploadVertices(draw_cmd_list, ui_vertices, vertex_offset);
         
         for(uint32_t index = 0; index < cmd_list->IdxBuffer.Size; index++, index_offset++)
         {
             ui_indices[index_offset] = indices[index];
         }
         
-        index_offset = r_i_UploadIndices(ui_indices, index_offset);
+        index_offset = r_i_UploadIndices(draw_cmd_list, ui_indices, index_offset);
         
         for(uint32_t cmd_index = 0; cmd_index < cmd_list->CmdBuffer.Size; cmd_index++)
         {
@@ -230,12 +233,12 @@ void ui_EndFrame()
             draw_state.scissor.extent.width = draw_cmd->ClipRect.z - draw_cmd->ClipRect.x;
             draw_state.scissor.extent.height = draw_cmd->ClipRect.w - draw_cmd->ClipRect.y;
             draw_state.texture = handle;
-            r_i_SetDrawState(&draw_state);
+            r_i_SetDrawState(draw_cmd_list, &draw_state);
 
-            r_i_Draw(vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1, NULL);
+            r_i_Draw(draw_cmd_list, vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1, NULL);
         }
     }
-    r_i_EndSubmission();
+    r_EndDrawCmdList(draw_cmd_list);
 }
 
 uint32_t ui_MouseOverUi()

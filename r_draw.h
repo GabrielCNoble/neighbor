@@ -1,90 +1,76 @@
 #ifndef R_DRAW_H
 #define R_DRAW_H
 
-#include "r_nvkl.h"
 #include "lib/dstuff/ds_matrix.h"
 #include "lib/dstuff/ds_list.h"
 #include "lib/dstuff/ds_stack_list.h"
 #include "lib/dstuff/ds_ringbuffer.h"
-#include "spr.h"
-#include "mdl.h"
+#include "lib/dstuff/ds_alloc.h"
 
-struct r_material_t
+#include "r_defs.h"
+#include "r_nvkl.h"
+#include "r.h"
+
+
+
+struct r_begin_submission_info_t
 {
-    char *name;
-    struct r_texture_h diffuse_texture;
-    struct r_texture_h normal_texture;
+    mat4_t inv_view_matrix;
+    mat4_t projection_matrix;
+    struct r_framebuffer_h framebuffer;
+    uint32_t clear_framebuffer;
+    VkViewport viewport;
+    VkRect2D scissor;
 };
-
-struct r_material_h
-{
-    uint32_t index;
-};
-
-#define R_DEFAULT_MATERIAL_INDEX 0x00000000
-#define R_INVALID_MATERIAL_INDEX 0xffffffff
-#define R_MATERIAL_HANDLE(index) (struct r_material_h){index}
-#define R_INVALID_MATERIAL_HANDLE R_MATERIAL_HANDLE(R_INVALID_MATERIAL_INDEX)
 
 struct r_submission_state_t
 {
     struct stack_list_t draw_cmd_lists;
-    struct list_t pending_draw_cmd_lists;
-    uint32_t current_draw_cmd_list;
-    uint32_t draw_cmd_size;
-};
-
-struct r_d_submission_state_t
-{
-    struct r_submission_state_t base;
-    struct list_t draw_calls;
-};
-
-struct r_i_draw_state_t
-{
-    float point_size;
-    float line_width;
-    struct r_pipeline_state_t pipeline_state;
-    struct r_texture_h texture;
-    VkRect2D scissor;
-//    mat4_t model_matrix;
-};
-
-struct r_i_submission_state_t
-{
-    struct r_submission_state_t base;
-    struct list_t cmd_data;
-    uint32_t current_pipeline;
-    uint32_t vertex_cursor;
+    struct ringbuffer_t ready_draw_cmd_lists;
+    struct ds_heap_t immediate_draw_data_heap;
+    uint8_t *immediate_draw_data_buffer;
     uint32_t index_cursor;
-//    struct r_i_draw_state_t current_draw_state;
-//    struct r_i_draw_state_t next_draw_state;
+    uint32_t vertex_cursor;
 };
 
-struct r_view_t
+enum R_DRAW_CMD_LIST_STATE
 {
-    mat4_t view_transform;
-    mat4_t projection_matrix;
-    mat4_t inv_view_matrix;
-    VkViewport viewport;
-    VkRect2D scissor;
-    float z_near;
-    float z_far;
-    float zoom;
+    R_DRAW_CMD_LIST_STATE_READY = 0,
+    R_DRAW_CMD_LIST_STATE_PENDING,
+    R_DRAW_CMD_LIST_STATE_FREE
 };
 
-struct r_i_vertex_t
+struct r_draw_cmd_list_t
 {
-    vec4_t position;
-    vec4_t color;
-    vec4_t tex_coords;
+    struct r_begin_submission_info_t begin_info;
+    mat4_t view_projection_matrix;
+    struct list_t draw_cmds;
+    
+    struct list_t immediate_draw_cmds;
+    
+    /* portals that are "seen" by the view configuration specified in this list. */
+    struct list_t portal_handles;
+    uint32_t state;
 };
 
-struct r_vertex_t
+struct r_draw_cmd_list_h
 {
-    vec4_t position;
-    vec4_t normal;
-    vec4_t tex_coords;
+    uint32_t index;
+};
+
+struct r_draw_cmd_t
+{
+    uint32_t start;
+    uint32_t count;
+    uint32_t vertex_offset;
+    mat4_t transform;
+    struct r_material_t *material;
+};
+
+struct r_i_draw_cmd_t
+{
+    uint32_t type;
+    struct ds_chunk_h data;
 };
 
 #define R_I_DRAW_DATA_SLOT_SIZE 64
@@ -103,9 +89,26 @@ struct r_i_upload_buffer_data_t
     void *data;
 };
 
+struct r_i_draw_state_t
+{
+    float point_size;
+    float line_width;
+    struct r_pipeline_state_t pipeline_state;
+    struct r_texture_h texture;
+    VkRect2D scissor;
+};
+
 struct r_i_set_draw_state_data_t
 {
     struct r_i_draw_state_t draw_state;
+};
+
+struct r_i_submission_state_t
+{
+    struct list_t cmd_data;
+    uint32_t current_pipeline;
+    uint32_t vertex_cursor;
+    uint32_t index_cursor;
 };
 
 enum R_I_DRAW_CMDS
@@ -114,14 +117,15 @@ enum R_I_DRAW_CMDS
     R_I_DRAW_CMD_DRAW_LAST,
     R_I_DRAW_CMD_SET_DRAW_STATE,
     R_I_DRAW_CMD_UPLOAD_DATA,
+    R_I_DRAW_CMD_FLUSH,
     R_I_DRAW_CMD_LAST,
 };
 
-struct r_i_draw_cmd_t
-{
-    uint32_t type;
-    void *data;
-};
+//struct r_i_draw_cmd_t
+//{
+//    uint32_t type;
+//    void *data;
+//};
 
 struct r_i_draw_cmd_data_t
 {
@@ -133,32 +137,6 @@ struct r_i_draw_cmd_data_t
 };
 
 #define R_MAX_SPRITE_LAYER 4
-
-struct r_begin_submission_info_t
-{
-    mat4_t inv_view_matrix;
-    mat4_t projection_matrix;
-    struct r_framebuffer_h framebuffer;
-    uint32_t clear_framebuffer;
-    VkViewport viewport;
-    VkRect2D scissor;
-};
-
-struct r_draw_cmd_t
-{
-    uint32_t start;
-    uint32_t count;
-    uint32_t vertex_offset;
-    mat4_t transform;
-    struct r_material_t *material;
-};
-
-struct r_draw_cmd_list_t
-{
-    struct r_begin_submission_info_t begin_info;
-    mat4_t view_projection_matrix;
-    struct list_t draw_cmds;
-};
 
 struct r_draw_uniform_data_t
 {
@@ -185,6 +163,15 @@ struct r_draw_call_data_t
 };
 
 
+
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+
 void r_DrawInit();
 
 void r_DrawInitImmediate();
@@ -197,9 +184,9 @@ void r_EndFrame();
 
 void r_GetWindowSize(vec2_t *size);
 
-void r_RecomputeInvViewMatrix();
+void r_RecomputeInvViewMatrix(struct r_view_t *view);
 
-void r_RecomputeProjectionMatrix();
+void r_RecomputeProjectionMatrix(struct r_view_t *view);
 
 struct r_view_t *r_GetViewPointer();
 
@@ -211,25 +198,7 @@ struct r_framebuffer_h r_CreateDrawableFramebuffer(uint32_t width, uint32_t heig
 
 struct r_framebuffer_h r_GetBackbufferHandle();
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
 
-void r_CreateDefaultMaterial();
-
-struct r_material_h r_CreateMaterial();
-
-void r_DestroyMaterial(struct r_material_h material);
-
-struct r_material_t *r_GetMaterialPointer(struct r_material_h handle);
-
-struct r_material_h r_GetMaterialHandle(char *name);
-
-struct r_material_h r_GetDefaultMaterialHandle();
-
-struct r_material_t *r_GetDefaultMaterialPointer();
 
 /*
 =================================================================
@@ -237,31 +206,28 @@ struct r_material_t *r_GetDefaultMaterialPointer();
 =================================================================
 */
 
-struct r_chunk_h r_AllocVerts(uint32_t count);
+//void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, struct r_begin_submission_info_t *begin_info);
+//
+//uint32_t r_EndDrawCmdSubmission(struct r_submission_state_t *submission_state);
 
-void r_FillVertsChunk(struct r_chunk_h chunk, struct r_vertex_t *vertices, uint32_t count);
 
-struct r_chunk_h r_AllocIndexes(uint32_t count);
 
-void r_FillIndexChunk(struct r_chunk_h chunk, uint32_t *indices, uint32_t count);
 
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
+struct r_draw_cmd_list_t *r_GetDrawCmdListPointer(struct r_draw_cmd_list_h handle);
 
-void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, struct r_begin_submission_info_t *begin_info);
+struct r_draw_cmd_list_h r_BeginDrawCmdList(struct r_begin_submission_info_t *begin_info);
 
-uint32_t r_EndDrawCmdSubmission(struct r_submission_state_t *submission_state);
+void r_EndDrawCmdList(struct r_draw_cmd_list_h handle);
 
-void r_BeginSubmission(struct r_begin_submission_info_t *begin_info);
+void r_ResetDrawCmdList(struct r_draw_cmd_list_h handle);
 
-void r_EndSubmission();
+void r_Draw(struct r_draw_cmd_list_h handle, uint32_t start, uint32_t count, struct r_material_t *material, mat4_t *transform);
 
-void r_Draw(uint32_t start, uint32_t count, struct r_material_t *material, mat4_t *transform);
+void r_DrawIndexed(struct r_draw_cmd_list_h handle, uint32_t start, uint32_t count, uint32_t vertex_offset, struct r_material_t *material, mat4_t *transform);
 
-void r_DrawIndexed(uint32_t start, uint32_t count, uint32_t vertex_offset, struct r_material_t *material, mat4_t *transform);
+//void r_DrawCmdSetDrawState(struct r_i_draw_state_t *draw_state, union r_command_buffer_h command_buffer);
+
+//void r_DrawCmdFlush(struct r_render_pass_begin_info_t *begin_info, struct r_submit_info_t *submit_info, union r_command_buffer_h command_buffer);
 
 void r_DispatchPending();
 
@@ -274,27 +240,27 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
 */
 
 
-void r_i_BeginSubmission(struct r_begin_submission_info_t *begin_info);
+//void r_i_BeginSubmission(struct r_begin_submission_info_t *begin_info);
+//
+//void r_i_EndSubmission();
+//
+//void r_i_DispatchPending();
 
-void r_i_EndSubmission();
+void r_i_SetDrawState(struct r_draw_cmd_list_h handle, struct r_i_draw_state_t *draw_state);
 
-void r_i_DispatchPending();
+struct ds_chunk_h r_i_AllocateDrawCmdData(uint32_t size);
 
-void r_i_SetDrawState(struct r_i_draw_state_t *draw_state);
+void r_i_SubmitCmd(struct r_draw_cmd_list_h handle, uint32_t type, struct ds_chunk_h data);
 
-void *r_i_AllocateDrawCmdData(uint32_t size);
+uint32_t r_i_UploadVertices(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t vert_count);
 
-void r_i_SubmitCmd(uint32_t type, void *data);
+uint32_t r_i_UploadIndices(struct r_draw_cmd_list_h handle, uint32_t *indices, uint32_t count);
 
-uint32_t r_i_UploadVertices(struct r_i_vertex_t *vertices, uint32_t vert_count);
+uint32_t r_i_UploadBufferData(struct r_draw_cmd_list_h handle, void *data, uint32_t size, uint32_t count, uint32_t index_data);
 
-uint32_t r_i_UploadIndices(uint32_t *indices, uint32_t count);
+void r_i_Draw(struct r_draw_cmd_list_h handle, uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform);
 
-uint32_t r_i_UploadBufferData(void *data, uint32_t size, uint32_t count, uint32_t index_data);
-
-void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform);
-
-void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform);
+void r_i_DrawImmediate(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform);
 
 
 

@@ -5,6 +5,13 @@
 #include "lib/dstuff/ds_vector.h"
 #include "lib/dstuff/ds_matrix.h"
 #include "mdl.h"
+
+enum ENT_ENTITY_TYPE
+{
+    ENT_ENTITY_TYPE_PLAYER,
+    ENT_ENTITY_TYPE_NONE
+};
+
 struct entity_prop_t
 {
     struct entity_prop_t *next;

@@ -1,7 +1,7 @@
 #ifndef SPR_H
 #define SPR_H
 
-#include "r_common.h"
+#include "r_defs.h"
 
 struct spr_sprite_entry_t
 {

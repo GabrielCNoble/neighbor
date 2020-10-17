@@ -16,6 +16,9 @@
 #define DS_RINGBUFFER_IMPLEMENTATION
 #include "lib/dstuff/ds_ringbuffer.h"
 
+#define DS_STACK_IMPLEMENTATION
+#include "lib/dstuff/ds_stack.h"
+
 #define DS_DBVH_IMPLEMENTATION
 #include "lib/dstuff/ds_dbvh.h"
 
@@ -28,8 +31,8 @@
 #define DS_DIR_IMPLEMENTATION
 #include "lib/dstuff/ds_dir.h"
 
-//#define DS_SPRPK_IMPLEMENTATION
-//#include "lib/dstuff/ds_sprpk.h"
+#define DS_ALLOC_IMPLEMENTATION
+#include "lib/dstuff/ds_alloc.h"
 
 #define DS_WAVEFRONT_IMPLEMENTATION
 #include "lib/dstuff/ds_obj.h"

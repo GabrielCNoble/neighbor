@@ -1,5 +1,6 @@
 #include "r_draw.h"
-#include "spr.h"
+//#include "spr.h"
+#include "lib/SDL/include/SDL.h"
 #include "lib/dstuff/ds_file.h"
 #include "lib/dstuff/ds_path.h"
 #include "lib/dstuff/ds_mem.h"
@@ -7,10 +8,22 @@
 #include <stdio.h>
 #include <stddef.h>
 
-struct r_d_submission_state_t r_submission_state = {};
-struct r_i_submission_state_t r_i_submission_state = {};
+/*
+    NOTE: so, the consensus so far is to group normal draw commands with immediate
+    draw commands, and have two lists of indices to pending draw command lists, one
+    for draw commands submitted externally, not visible to the renderer, and the other,
+    visible to the renderer, which is filled by the renderer after visibility computation.
+    For the immediate draw command data, there's going to be a heap, that's going to be
+    reset at the end of every frame.
+    
+    TODO:
+        -   decide what to do if there's multiple draw command lists that refer to the same
+        view and framebuffer. Should them be merged? Should them go to hell?
+*/
 
-struct stack_list_t r_materials;
+struct r_submission_state_t r_submission_state = {};
+//struct r_i_submission_state_t r_i_submission_state = {};
+
 
 struct list_t r_uniform_buffers;
 struct list_t r_free_uniform_buffers;
@@ -22,11 +35,11 @@ struct r_render_pass_handle_t r_i_render_pass;
 struct r_framebuffer_h r_framebuffer;
 //struct r_buffer_h r_i_vertex_buffer;
 //struct r_buffer_h r_i_index_buffer;
-VkQueue r_draw_queue;
-VkFence r_draw_fence;
+struct r_queue_h r_draw_queue;
+//VkFence r_draw_fence;
 
-struct r_heap_h r_vertex_heap;
-struct r_heap_h r_index_heap;
+//struct r_heap_h r_vertex_heap;
+//struct r_heap_h r_index_heap;
 struct r_chunk_h r_i_vertex_chunk;
 struct r_chunk_h r_i_index_chunk;
 SDL_Window *r_window;
@@ -54,6 +67,9 @@ void r_DrawInit()
     SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
     r_CreateDevice(surface);
     
+    r_CreateDefaultTexture();
+    r_CreateDefaultMaterial();
+    
     FILE *file;
     struct r_shader_description_t shader_description = {};
     struct r_render_pass_description_t render_pass_description = {};
@@ -61,6 +77,7 @@ void r_DrawInit()
     
     r_view.z_near = 0.1;
     r_view.z_far = 200.0;
+    r_view.fov_y = 0.68;
     r_view.zoom = 1.0;
 //    r_view.position = vec2_t_c(0.0, 0.0);
     r_view.viewport.width = R_DEFAULT_WIDTH;
@@ -75,8 +92,8 @@ void r_DrawInit()
     r_view.scissor.extent.height = (int)r_view.viewport.height;
     
     mat4_t_identity(&r_view.view_transform);
-    r_RecomputeInvViewMatrix();
-    r_RecomputeProjectionMatrix();
+    r_RecomputeInvViewMatrix(&r_view);
+    r_RecomputeProjectionMatrix(&r_view);
 
     
     shader_description = (struct r_shader_description_t){
@@ -99,7 +116,7 @@ void r_DrawInit()
             .offset = 0
         }
     };
-    file = fopen("./neighbor/shaders/shader.vert.spv", "rb");
+    file = fopen("./neighbor/shaders/d_lit.vert.spv", "rb");
     read_file(file, &shader_description.code, &shader_description.code_size);
     fclose(file);
     struct r_shader_t *vertex_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
@@ -110,7 +127,7 @@ void r_DrawInit()
         .resource_count = 1,
         .resources = (struct r_resource_binding_t []){{.descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .count = 1}}
     };
-    fopen("neighbor/shaders/shader.frag.spv", "rb");
+    fopen("neighbor/shaders/d_lit.frag.spv", "rb");
     read_file(file, &shader_description.code, &shader_description.code_size);
     fclose(file);
     struct r_shader_t *fragment_shader = r_GetShaderPointer(r_CreateShader(&shader_description));
@@ -153,8 +170,8 @@ void r_DrawInit()
     };
 
     r_framebuffer = r_CreateFramebuffer(&framebuffer_description);
-    r_draw_queue = r_GetDrawQueue();
-    r_draw_fence = r_CreateFence();
+//    r_draw_queue = r_GetDrawQueue();
+//    r_draw_fence = r_CreateFence();
     r_limits = r_GetDeviceLimits();
 
 //    VkBufferCreateInfo buffer_create_info = {};
@@ -167,25 +184,32 @@ void r_DrawInit()
 //    buffer_create_info.size = R_I_INDEX_BUFFER_MEMORY;
 //    r_i_index_buffer = r_CreateBuffer(&buffer_create_info);
     
-    r_vertex_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, R_VERTEX_BUFFER_MEMORY);
-    r_index_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, R_INDEX_BUFFER_MEMORY);
+//    r_vertex_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, R_VERTEX_BUFFER_MEMORY);
+//    r_index_heap = r_CreateBufferHeap(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, R_INDEX_BUFFER_MEMORY);
     
-    r_i_vertex_chunk = r_AllocChunk(r_vertex_heap, sizeof(struct r_i_vertex_t) * R_I_MAX_VERTEX_COUNT, sizeof(struct r_i_vertex_t));
-    r_i_index_chunk = r_AllocChunk(r_index_heap, sizeof(uint32_t) * R_I_MAX_INDEX_COUNT, sizeof(uint32_t));
+    r_i_vertex_chunk = r_AllocVertexChunk(sizeof(struct r_i_vertex_t), R_I_MAX_VERTEX_COUNT, sizeof(struct r_i_vertex_t));
+    r_i_index_chunk = r_AllocIndexChunk(sizeof(uint32_t), R_I_MAX_INDEX_COUNT, sizeof(uint32_t));
+    
+    r_submission_state.draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 512);
+    r_submission_state.immediate_draw_data_heap = ds_create_heap(33554432);
+    r_submission_state.immediate_draw_data_buffer = mem_Calloc(1, 33554432);
+    r_submission_state.ready_draw_cmd_lists = create_ringbuffer(sizeof(uint32_t), 512);
+    r_submission_state.index_cursor = 0;
+    r_submission_state.vertex_cursor = 0;
+    
+//    r_submission_state.base.draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 32);
+//    r_submission_state.base.pending_draw_cmd_lists = create_list(sizeof(uint32_t), 32);
+//    r_submission_state.base.current_draw_cmd_list = 0xffffffff;
+//    r_submission_state.base.draw_cmd_size = sizeof(struct r_draw_cmd_t);
+//    r_submission_state.draw_calls = create_list(sizeof(struct r_draw_call_data_t), 1024);
 
-    r_submission_state.base.draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 32);
-    r_submission_state.base.pending_draw_cmd_lists = create_list(sizeof(uint32_t), 32);
-    r_submission_state.base.current_draw_cmd_list = 0xffffffff;
-    r_submission_state.base.draw_cmd_size = sizeof(struct r_draw_cmd_t);
-    r_submission_state.draw_calls = create_list(sizeof(struct r_draw_call_data_t), 1024);
-
-    r_i_submission_state.base.draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 32);
-    r_i_submission_state.base.pending_draw_cmd_lists = create_list(sizeof(uint32_t), 32);
-    r_i_submission_state.base.current_draw_cmd_list = 0xffffffff;
-    r_i_submission_state.base.draw_cmd_size = sizeof(struct r_i_draw_cmd_t);
-    r_i_submission_state.cmd_data = create_list(sizeof(struct r_i_draw_data_slot_t), 2048);
-    r_i_submission_state.vertex_cursor = 0;
-    r_i_submission_state.index_cursor = 0;
+//    r_i_submission_state.base.draw_cmd_lists = create_stack_list(sizeof(struct r_draw_cmd_list_t), 32);
+//    r_i_submission_state.base.pending_draw_cmd_lists = create_list(sizeof(uint32_t), 32);
+//    r_i_submission_state.base.current_draw_cmd_list = 0xffffffff;
+//    r_i_submission_state.base.draw_cmd_size = sizeof(struct r_i_draw_cmd_t);
+//    r_i_submission_state.cmd_data = create_list(sizeof(struct r_i_draw_data_slot_t), 8192);
+//    r_i_submission_state.vertex_cursor = 0;
+//    r_i_submission_state.index_cursor = 0;
 //    r_i_submission_state.next_draw_state.pipeline_state.depth_state.write_enable = VK_TRUE;
 //    r_i_submission_state.next_draw_state.pipeline_state.depth_state.test_enable = VK_TRUE;
 //    r_i_submission_state.next_draw_state.pipeline_state.depth_state.compare_op = VK_COMPARE_OP_LESS;
@@ -254,8 +278,6 @@ void r_DrawInit()
     };
  
     r_i_render_pass = r_CreateRenderPass(&render_pass_description);
-    r_materials = create_stack_list(sizeof(struct r_material_t), 128);
-    r_CreateDefaultMaterial();
 }
 
 void r_DrawShutdown()
@@ -265,24 +287,28 @@ void r_DrawShutdown()
 
 void r_BeginFrame()
 {
-    r_i_submission_state.base.pending_draw_cmd_lists.cursor = 0;
-    r_i_submission_state.base.draw_cmd_lists.cursor = 0;
-    r_i_submission_state.cmd_data.cursor = 0;
-    r_i_submission_state.vertex_cursor = 0;
-    r_i_submission_state.index_cursor = 0;
+//    r_i_submission_state.base.pending_draw_cmd_lists.cursor = 0;
+//    r_i_submission_state.base.draw_cmd_lists.cursor = 0;
+//    r_i_submission_state.cmd_data.cursor = 0;
+//    r_i_submission_state.vertex_cursor = 0;
+//    r_i_submission_state.index_cursor = 0;
     
-    r_submission_state.draw_calls.cursor = 0;
-    r_submission_state.base.draw_cmd_lists.cursor = 0;
-    r_submission_state.base.pending_draw_cmd_lists.cursor = 0;
+//    r_submission_state.draw_calls.cursor = 0;
+//    r_submission_state.base.draw_cmd_lists.cursor = 0;
+//    r_submission_state.base.pending_draw_cmd_lists.cursor = 0;
+
+    r_submission_state.draw_cmd_lists.cursor = 0;
+    r_submission_state.index_cursor = 0;
+    r_submission_state.vertex_cursor = 0;
+    reset_ringbuffer(&r_submission_state.ready_draw_cmd_lists);
+    ds_reset_heap(&r_submission_state.immediate_draw_data_heap);
 }
 
 void r_EndFrame()
 {
-    r_RecomputeInvViewMatrix();
-    r_RecomputeProjectionMatrix();
-    r_VisibleWorld();
+    r_RecomputeInvViewMatrix(&r_view);
+    r_RecomputeProjectionMatrix(&r_view);
     r_DispatchPending();
-    r_i_DispatchPending();
     r_PresentFramebuffer(r_framebuffer);
 }
 
@@ -292,14 +318,14 @@ void r_GetWindowSize(vec2_t *size)
     size->y = r_window_height;
 }
 
-void r_RecomputeInvViewMatrix()
+void r_RecomputeInvViewMatrix(struct r_view_t *view)
 {
-    mat4_t_invvm(&r_view.inv_view_matrix, &r_view.view_transform);
+    mat4_t_invvm(&view->inv_view_matrix, &view->view_transform);
 }
 
-void r_RecomputeProjectionMatrix()
+void r_RecomputeProjectionMatrix(struct r_view_t *view)
 {
-    mat4_t_persp(&r_view.projection_matrix, 0.68, (float)r_view.viewport.width / (float)r_view.viewport.height, 0.1, 500.0);
+    mat4_t_persp(&view->projection_matrix, view->fov_y, (float)view->viewport.width / (float)view->viewport.height, 0.1, 500.0);
 }
 
 struct r_view_t *r_GetViewPointer()
@@ -322,7 +348,7 @@ void r_SetWindowSize(uint32_t width, uint32_t height)
     r_ResizeFramebuffer(r_framebuffer, width, height);
     SDL_Vulkan_CreateSurface(r_window, r_instance, &surface);
     r_SetSwapchainSurface(surface);
-    r_RecomputeProjectionMatrix();
+    r_RecomputeProjectionMatrix(&r_view);
 }
 
 void r_Fullscreen(uint32_t enable)
@@ -375,156 +401,74 @@ struct r_framebuffer_h r_GetBackbufferHandle()
 =================================================================
 */
 
-void r_CreateDefaultMaterial()
-{
-    struct r_material_t *default_material = r_GetMaterialPointer(r_CreateMaterial());
-    default_material->name = strdup("_default_material_");
-}
-
-struct r_material_h r_CreateMaterial()
-{
-    struct r_material_h handle;
-    struct r_material_t *material;
-    
-    handle.index = add_stack_list_element(&r_materials, NULL);
-    material = get_stack_list_element(&r_materials, handle.index);
-    
-    material->diffuse_texture = r_GetDefaultTextureHandle();
-    material->normal_texture = R_INVALID_TEXTURE_HANDLE;
-    
-    return handle;
-}
-
-void r_DestroyMaterial(struct r_material_h handle)
-{
-    struct r_material_t *material;
-    
-    /* the default material can't be destroyed */
-    if(handle.index != R_DEFAULT_MATERIAL_INDEX)
-    {
-        material = r_GetMaterialPointer(handle);
-        if(material)
-        {
-            material->diffuse_texture = R_INVALID_TEXTURE_HANDLE;
-            material->normal_texture = R_INVALID_TEXTURE_HANDLE;
-            remove_stack_list_element(&r_materials, handle.index);
-        }        
-    }
-}
-
-struct r_material_t *r_GetMaterialPointer(struct r_material_h handle)
-{
-    struct r_material_t *material;
-//    static struct r_material_t default_material;
-    
-    material = get_stack_list_element(&r_materials, handle.index);
-    if(material && material->diffuse_texture.index == R_INVALID_TEXTURE_INDEX)
-    {
-        material = NULL;
-    }
-    
-//    if(handle.index == R_DEFAULT_MATERIAL_INDEX)
+//void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, struct r_begin_submission_info_t *begin_info)
+//{
+//    struct r_draw_cmd_list_t *cmd_list;
+//
+//    if(submission_state->current_draw_cmd_list == 0xffffffff)
 //    {
-//        /* this is to avoid having the default material mutated somehow */
-//        memcpy(&default_material, material, sizeof(struct r_material_t));
-//        material = &default_material;
+//        submission_state->current_draw_cmd_list = add_stack_list_element(&submission_state->draw_cmd_lists, NULL);
+//        cmd_list = get_stack_list_element(&submission_state->draw_cmd_lists, submission_state->current_draw_cmd_list);
+//        if(!cmd_list->draw_cmds.size)
+//        {
+//            cmd_list->draw_cmds = create_list(submission_state->draw_cmd_size, 1024);
+//        }
 //    }
-    
-    return material;
-}
+//    
+//    memcpy(&cmd_list->begin_info, begin_info, sizeof(struct r_begin_submission_info_t));
+//    mat4_t_mul(&cmd_list->view_projection_matrix, &begin_info->inv_view_matrix, &begin_info->projection_matrix);
+//    cmd_list->draw_cmds.cursor = 0;
+//}
+//
+//uint32_t r_EndDrawCmdSubmission(struct r_submission_state_t *submission_state)
+//{
+//    uint32_t draw_cmd_list = submission_state->current_draw_cmd_list;
+//    if(submission_state->current_draw_cmd_list != 0xffffffff)
+//    {
+//        draw_cmd_list = submission_state->current_draw_cmd_list;
+//        add_list_element(&submission_state->pending_draw_cmd_lists, &draw_cmd_list);
+//        submission_state->current_draw_cmd_list = 0xffffffff;
+//    }
+//    return draw_cmd_list;
+//}
 
-struct r_material_h r_GetMaterialHandle(char *name)
+struct r_draw_cmd_list_t *r_GetDrawCmdListPointer(struct r_draw_cmd_list_h handle)
 {
-    struct r_material_t *material;
-    for(uint32_t index = 0; index < r_materials.cursor; index++)
+    struct r_draw_cmd_list_t *cmd_list = NULL;
+    cmd_list = get_stack_list_element(&r_submission_state.draw_cmd_lists, handle.index);
+    
+    if(cmd_list && cmd_list->state == R_DRAW_CMD_LIST_STATE_FREE)
     {
-        material = r_GetMaterialPointer(R_MATERIAL_HANDLE(index));
-        if(material && !strcmp(material->name, name))
-        {
-            return R_MATERIAL_HANDLE(index);
-        }
+        cmd_list = NULL;
     }
     
-    return R_INVALID_MATERIAL_HANDLE;
+    return cmd_list;
 }
 
-struct r_material_h r_GetDefaultMaterialHandle()
-{
-    return R_MATERIAL_HANDLE(R_DEFAULT_MATERIAL_INDEX);
-}
-
-struct r_material_t *r_GetDefaultMaterialPointer()
-{
-    return r_GetMaterialPointer(R_MATERIAL_HANDLE(R_DEFAULT_MATERIAL_INDEX));
-}
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-struct r_chunk_h r_AllocVerts(uint32_t count)
-{
-    return r_AllocChunk(r_vertex_heap, sizeof(struct r_vertex_t) * count, sizeof(struct r_vertex_t));
-}
-
-void r_FillVertsChunk(struct r_chunk_h chunk, struct r_vertex_t *vertices, uint32_t count)
-{
-    r_FillBufferChunk(chunk, vertices, sizeof(struct r_vertex_t) * count, 0);
-}
-
-struct r_chunk_h r_AllocIndexes(uint32_t count)
-{
-    return r_AllocChunk(r_index_heap, sizeof(uint32_t) * count, sizeof(uint32_t));
-}
-
-void r_FillIndexChunk(struct r_chunk_h chunk, uint32_t *indices, uint32_t count)
-{
-    r_FillBufferChunk(chunk, indices, sizeof(uint32_t) * count, 0);
-}
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-void r_BeginDrawCmdSubmission(struct r_submission_state_t *submission_state, struct r_begin_submission_info_t *begin_info)
+struct r_draw_cmd_list_h r_BeginDrawCmdList(struct r_begin_submission_info_t *begin_info)
 {
     struct r_draw_cmd_list_t *cmd_list;
-
-    if(submission_state->current_draw_cmd_list == 0xffffffff)
+    struct r_draw_cmd_list_h handle;
+    
+    handle.index = add_stack_list_element(&r_submission_state.draw_cmd_lists, NULL);
+    cmd_list = get_stack_list_element(&r_submission_state.draw_cmd_lists, handle.index);
+    
+    if(!cmd_list->draw_cmds.size)
     {
-        submission_state->current_draw_cmd_list = add_stack_list_element(&submission_state->draw_cmd_lists, NULL);
-        cmd_list = get_stack_list_element(&submission_state->draw_cmd_lists, submission_state->current_draw_cmd_list);
-        if(!cmd_list->draw_cmds.size)
-        {
-            cmd_list->draw_cmds = create_list(submission_state->draw_cmd_size, 1024);
-        }
+        cmd_list->draw_cmds = create_list(sizeof(struct r_draw_cmd_t), 1024);
+        cmd_list->immediate_draw_cmds = create_list(sizeof(struct r_i_draw_cmd_t), 1024);
+        cmd_list->portal_handles = create_list(sizeof(struct r_portal_h), 64);
     }
     
     memcpy(&cmd_list->begin_info, begin_info, sizeof(struct r_begin_submission_info_t));
     mat4_t_mul(&cmd_list->view_projection_matrix, &begin_info->inv_view_matrix, &begin_info->projection_matrix);
+    
     cmd_list->draw_cmds.cursor = 0;
-}
-
-uint32_t r_EndDrawCmdSubmission(struct r_submission_state_t *submission_state)
-{
-    uint32_t draw_cmd_list = submission_state->current_draw_cmd_list;
-    if(submission_state->current_draw_cmd_list != 0xffffffff)
-    {
-        draw_cmd_list = submission_state->current_draw_cmd_list;
-        add_list_element(&submission_state->pending_draw_cmd_lists, &draw_cmd_list);
-        submission_state->current_draw_cmd_list = 0xffffffff;
-    }
-    return draw_cmd_list;
-}
-
-
-void r_BeginSubmission(struct r_begin_submission_info_t *begin_info)
-{
-    r_BeginDrawCmdSubmission((struct r_submission_state_t *)&r_submission_state, begin_info);
+    cmd_list->immediate_draw_cmds.cursor = 0;
+    cmd_list->portal_handles.cursor = 0;
+    cmd_list->state = R_DRAW_CMD_LIST_STATE_PENDING;
+    
+    return handle;
 }
 
 int32_t r_CmpDrawCmds(void *a, void *b)
@@ -535,24 +479,46 @@ int32_t r_CmpDrawCmds(void *a, void *b)
     return (int32_t)diff;
 }
 
-void r_EndSubmission()
+void r_EndDrawCmdList(struct r_draw_cmd_list_h handle)
 {
-    uint32_t draw_cmd_list_index;
     struct r_draw_cmd_list_t *cmd_list;
-
-    draw_cmd_list_index = r_EndDrawCmdSubmission((struct r_submission_state_t *)&r_submission_state);
-    cmd_list = get_stack_list_element(&r_submission_state.base.draw_cmd_lists, draw_cmd_list_index);
-    qsort_list(&cmd_list->draw_cmds, r_CmpDrawCmds);
+    cmd_list = r_GetDrawCmdListPointer(handle);
+    if(cmd_list && cmd_list->state == R_DRAW_CMD_LIST_STATE_PENDING)
+    {
+        if(cmd_list->draw_cmds.cursor || cmd_list->immediate_draw_cmds.cursor || cmd_list->portal_handles.cursor)
+        {
+            qsort_list(&cmd_list->draw_cmds, r_CmpDrawCmds);
+            while(!r_submission_state.ready_draw_cmd_lists.free_slots);
+            add_ringbuffer_element(&r_submission_state.ready_draw_cmd_lists, &handle.index);
+            cmd_list->state = R_DRAW_CMD_LIST_STATE_READY;
+        }
+        else
+        {
+            r_ResetDrawCmdList(handle);
+        }
+    }    
 }
 
-void r_Draw(uint32_t start, uint32_t count, struct r_material_t *material, mat4_t *transform)
+void r_ResetDrawCmdList(struct r_draw_cmd_list_h handle)
+{
+    struct r_draw_cmd_list_t *cmd_list;
+    cmd_list = r_GetDrawCmdListPointer(handle);
+    
+    if(cmd_list)
+    {
+        cmd_list->state = R_DRAW_CMD_LIST_STATE_FREE;
+        remove_stack_list_element(&r_submission_state.draw_cmd_lists, handle.index);
+    }
+}
+
+void r_Draw(struct r_draw_cmd_list_h handle, uint32_t start, uint32_t count, struct r_material_t *material, mat4_t *transform)
 {
     struct r_draw_cmd_list_t *cmd_list;
     struct r_draw_cmd_t *draw_cmd;
     
     if(count)
     {
-        cmd_list = get_stack_list_element(&r_submission_state.base.draw_cmd_lists, r_submission_state.base.current_draw_cmd_list);
+        cmd_list = r_GetDrawCmdListPointer(handle);
         draw_cmd = get_list_element(&cmd_list->draw_cmds, add_list_element(&cmd_list->draw_cmds, NULL));
         
         draw_cmd->material = material;
@@ -563,14 +529,14 @@ void r_Draw(uint32_t start, uint32_t count, struct r_material_t *material, mat4_
     }
 }
 
-void r_DrawIndexed(uint32_t start, uint32_t count, uint32_t vertex_offset, struct r_material_t *material, mat4_t *transform)
+void r_DrawIndexed(struct r_draw_cmd_list_h handle, uint32_t start, uint32_t count, uint32_t vertex_offset, struct r_material_t *material, mat4_t *transform)
 {
     struct r_draw_cmd_list_t *cmd_list;
     struct r_draw_cmd_t *draw_cmd;
     
     if(count)
     {
-        cmd_list = get_stack_list_element(&r_submission_state.base.draw_cmd_lists, r_submission_state.base.current_draw_cmd_list);
+        cmd_list = r_GetDrawCmdListPointer(handle);
         draw_cmd = get_list_element(&cmd_list->draw_cmds, add_list_element(&cmd_list->draw_cmds, NULL));
         
         draw_cmd->material = material;
@@ -583,12 +549,12 @@ void r_DrawIndexed(uint32_t start, uint32_t count, uint32_t vertex_offset, struc
 
 void r_DispatchPending()
 {
-    struct r_render_pass_t *render_pass;
-    struct r_framebuffer_t *framebuffer;
-    struct r_framebuffer_t *default_framebuffer;
-    struct r_framebuffer_description_t *default_framebuffer_description;
-    struct r_buffer_heap_t *vertex_heap;
-    struct r_buffer_heap_t *index_heap;
+//    struct r_render_pass_t *render_pass;
+//    struct r_framebuffer_t *framebuffer;
+//    struct r_framebuffer_t *default_framebuffer;
+//    struct r_framebuffer_description_t *default_framebuffer_description;
+//    struct r_buffer_heap_t *vertex_heap;
+//    struct r_buffer_heap_t *index_heap;
     VkWriteDescriptorSet descriptor_set_write = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
 //    VkClearAttachment clear_attachments[2];
 //    VkClearRect clear_rects[2];
@@ -596,15 +562,16 @@ void r_DispatchPending()
 
     struct r_submit_info_t submit_info = {};
     submit_info.s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.command_buffer_count = r_submission_state.base.pending_draw_cmd_lists.cursor;
-    submit_info.command_buffers = alloca(sizeof(union r_command_buffer_h) * submit_info.command_buffer_count);
+//    submit_info.command_buffer_count = r_submission_state.base.pending_draw_cmd_lists.cursor;
+//    submit_info.command_buffers = alloca(sizeof(union r_command_buffer_h) * submit_info.command_buffer_count);
     submit_info.command_buffer_count = 0;
     
-    vertex_heap = r_GetHeapPointer(r_vertex_heap);
-    index_heap = r_GetHeapPointer(r_index_heap);
-    render_pass = r_GetRenderPassPointer(r_render_pass);
-    default_framebuffer = r_GetFramebufferPointer(r_framebuffer);
-    default_framebuffer_description = r_GetFramebufferDescriptionPointer(r_framebuffer);
+    struct r_buffer_heap_t *vertex_heap = r_GetHeapPointer(R_DEFAULT_VERTEX_HEAP);
+    struct r_buffer_heap_t *index_heap = r_GetHeapPointer(R_DEFAULT_INDEX_HEAP);
+    struct r_render_pass_t *render_pass = r_GetRenderPassPointer(r_render_pass);
+    struct r_framebuffer_t *default_framebuffer = r_GetFramebufferPointer(r_framebuffer);
+    struct r_framebuffer_description_t *default_framebuffer_description = r_GetFramebufferDescriptionPointer(r_framebuffer);
+    struct r_pipeline_t *pipeline = r_GetPipelinePointer(render_pass->pipelines[0]);
     
     VkClearAttachment clear_attachments[] = {
         [0] = {
@@ -648,30 +615,24 @@ void r_DispatchPending()
     render_pass_begin_info.render_pass = r_render_pass;
     
     uint32_t cmd_list_index;
-
-    for(uint32_t pending_index = 0; pending_index < r_submission_state.base.pending_draw_cmd_lists.cursor; pending_index++)
+    
+//    for(uint32_t pending_index = 0; pending_index < r_submission_state.ready_draw_cmd_lists.free_slots; pending_index++)
+    uint32_t ready_cmd_list_index = 0;
+    union r_command_buffer_h command_buffer = r_AllocateCommandBuffer();
+    r_vkBeginCommandBuffer(command_buffer);
+    r_vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_heap->buffer, &(VkDeviceSize){0});
+    r_vkCmdBindIndexBuffer(command_buffer, index_heap->buffer, (VkDeviceSize){0}, VK_INDEX_TYPE_UINT32);
+    r_vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
+    
+    while(r_submission_state.ready_draw_cmd_lists.next_in != r_submission_state.ready_draw_cmd_lists.next_out)
     {
-        cmd_list_index = *(uint32_t *)get_list_element(&r_submission_state.base.pending_draw_cmd_lists, pending_index);
-        struct r_draw_cmd_list_t *cmd_list = get_stack_list_element(&r_submission_state.base.draw_cmd_lists, cmd_list_index);
-        union r_command_buffer_h command_buffer = r_AllocateCommandBuffer();
-        struct r_pipeline_t *pipeline = r_GetPipelinePointer(render_pass->pipelines[0]);
-        
-        r_vkBeginCommandBuffer(command_buffer);
-        r_vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_heap->buffer, &(VkDeviceSize){0});
-        r_vkCmdBindIndexBuffer(command_buffer, index_heap->buffer, (VkDeviceSize){0}, VK_INDEX_TYPE_UINT32);
-        r_vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
+        struct r_draw_cmd_list_h handle = *(struct r_draw_cmd_list_h *)get_ringbuffer_element(&r_submission_state.ready_draw_cmd_lists);
+        struct r_draw_cmd_list_t *cmd_list = r_GetDrawCmdListPointer(handle);
         
         r_vkCmdSetViewport(command_buffer, 0, 1, &cmd_list->begin_info.viewport);
         r_vkCmdSetScissor(command_buffer, 0, 1, &cmd_list->begin_info.scissor);
         
-        if(cmd_list->begin_info.framebuffer.index == R_INVALID_FRAMEBUFFER_INDEX)
-        {
-            framebuffer = default_framebuffer;
-        }
-        else
-        {
-            framebuffer = r_GetFramebufferPointer(cmd_list->begin_info.framebuffer);
-        }
+        struct r_framebuffer_t *framebuffer = r_GetFramebufferPointer(cmd_list->begin_info.framebuffer);
         
         render_pass_begin_info.framebuffer = cmd_list->begin_info.framebuffer;
         render_pass_begin_info.render_area = cmd_list->begin_info.scissor;
@@ -729,164 +690,43 @@ void r_DispatchPending()
                 r_vkCmdDrawIndexed(command_buffer, draw_cmd->count, 1, draw_cmd->start, draw_cmd->vertex_offset, 0);
             }
         }
-
-        r_vkCmdEndRenderPass(command_buffer);
-        r_vkEndCommandBuffer(command_buffer);
-
-        submit_info.command_buffers[submit_info.command_buffer_count] = command_buffer;
-        submit_info.command_buffer_count++;
-//        remove_stack_list_element(&r_submission_state.base.draw_cmd_lists, cmd_list_index);
-    }
-    r_submission_state.base.pending_draw_cmd_lists.cursor = 0;
-    r_vkResetFences(1, &r_draw_fence);
-    r_vkQueueSubmit(r_draw_queue, 1, &submit_info, r_draw_fence);
-    r_vkWaitForFences(1, &r_draw_fence, 1, 0xffffffffffffffff);
-
-//    r_submission_state.base.pending_draw_cmd_lists.cursor = 0;
-}
-
-struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer)
-{
-    struct r_uniform_buffer_t *uniform_buffer = NULL;
-    struct r_buffer_t *buffer;
-    VkBufferCreateInfo buffer_create_info = {};
-    uint32_t *buffer_index;
-    uint32_t new_buffer_index;
-    VkResult result;
-    uint32_t recycled_buffers = 0;
-
-    for(uint32_t index = 0; index < r_used_uniform_buffers.cursor; index++)
-    {
-        buffer_index = get_list_element(&r_used_uniform_buffers, index);
-        uniform_buffer = get_list_element(&r_uniform_buffers, *buffer_index);
-        result = r_vkGetEventStatus(uniform_buffer->event);
-
-        if(result == VK_EVENT_SET)
-        {
-            r_vkResetEvent(uniform_buffer->event);
-            remove_list_element(&r_used_uniform_buffers, index);
-            add_list_element(&r_free_uniform_buffers, buffer_index);
-            recycled_buffers++;
-        }
-    }
-
-    buffer_index = get_list_element(&r_free_uniform_buffers, 0);
-
-    if(!buffer_index)
-    {
-        new_buffer_index = add_list_element(&r_uniform_buffers, NULL);
-        uniform_buffer = get_list_element(&r_uniform_buffers, new_buffer_index);
-        buffer_create_info.size = r_limits->maxUniformBufferRange;
-        buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        uniform_buffer->buffer = r_CreateBuffer(&buffer_create_info);
-        uniform_buffer->event = r_CreateEvent();
-        buffer = r_GetBufferPointer(uniform_buffer->buffer);
-        uniform_buffer->memory = r_GetBufferChunkMappedMemory(buffer->memory);
-        uniform_buffer->vk_buffer = buffer->buffer;
-        add_list_element(&r_used_uniform_buffers, &new_buffer_index);
-    }
-    else
-    {
-        buffer = get_list_element(&r_uniform_buffers, *buffer_index);
-        add_list_element(&r_used_uniform_buffers, buffer_index);
-        remove_list_element(&r_free_uniform_buffers, 0);
-    }
-
-    r_AppendEvent(command_buffer, uniform_buffer->event);
-
-    return uniform_buffer;
-}
-
-/*
-=================================================================
-=================================================================
-=================================================================
-*/
-
-void r_i_BeginSubmission(struct r_begin_submission_info_t *begin_info)
-{
-    r_BeginDrawCmdSubmission((struct r_submission_state_t *)&r_i_submission_state, begin_info);
-//    memset(&r_i_submission_state.current_draw_state, 0, sizeof(struct r_i_draw_state_t));
-}
-
-void r_i_EndSubmission()
-{
-    r_EndDrawCmdSubmission((struct r_submission_state_t *)&r_i_submission_state);
-}
-
-void r_i_DispatchPending()
-{
-    union r_command_buffer_h command_buffer;
-    struct r_framebuffer_t *framebuffer;
-    struct r_render_pass_t *render_pass;
-    struct r_buffer_heap_t *vertex_heap;
-    struct r_buffer_heap_t *index_heap;
-    struct r_buffer_t *vertex_buffer;
-    struct r_buffer_t *index_buffer;
-    mat4_t *model_matrix;
-
-    uint32_t vertex_start;
-    uint32_t index_start;
-    uint32_t count;
-    uint32_t indexed;
-    VkRect2D scissor;
-    VkViewport viewport;
-    
-
-    struct r_render_pass_begin_info_t render_pass_begin_info = {};
-    struct r_submit_info_t submit_info = {};
-    
-    framebuffer = r_GetFramebufferPointer(r_framebuffer);
-    vertex_heap = (struct r_buffer_heap_t *)r_GetHeapPointer(r_vertex_heap);
-    index_heap = (struct r_buffer_heap_t *)r_GetHeapPointer(r_index_heap);
-    
-    viewport.minDepth = 0.0;
-    viewport.maxDepth = 1.0;
-
-    render_pass_begin_info.render_pass = r_i_render_pass;
-    
-    command_buffer = r_AllocateCommandBuffer();
-    r_vkBeginCommandBuffer(command_buffer);
-    r_vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_heap->buffer, (VkDeviceSize[]){0});
-    r_vkCmdBindIndexBuffer(command_buffer, index_heap->buffer, (VkDeviceSize){0}, VK_INDEX_TYPE_UINT32);
-    
-    
-    for(uint32_t pending_index = 0; pending_index < r_i_submission_state.base.pending_draw_cmd_lists.cursor; pending_index++)
-    {
-        uint32_t *cmd_list_index = get_list_element(&r_i_submission_state.base.pending_draw_cmd_lists, pending_index);
-        struct r_draw_cmd_list_t *cmd_list = get_stack_list_element(&r_i_submission_state.base.draw_cmd_lists, *cmd_list_index);
+        
+        
+        
+        struct r_i_draw_state_t current_draw_state;
         struct r_pipeline_t *current_pipeline = NULL;
-        struct r_i_draw_cmd_data_t *draw_data;
         struct r_texture_h current_texture = R_INVALID_TEXTURE_HANDLE;
-        
-        if(cmd_list->begin_info.framebuffer.index == R_INVALID_FRAMEBUFFER_INDEX)
+        for(uint32_t draw_cmd_index = 0; draw_cmd_index < cmd_list->immediate_draw_cmds.cursor; draw_cmd_index++)
         {
-            framebuffer = r_GetFramebufferPointer(r_framebuffer);
-        }
-        else
-        {
-            framebuffer = r_GetFramebufferPointer(cmd_list->begin_info.framebuffer);
-        }
-        
-        
-        render_pass_begin_info.framebuffer = cmd_list->begin_info.framebuffer;
-        render_pass_begin_info.render_area = cmd_list->begin_info.scissor;
-        
-        r_vkCmdSetViewport(command_buffer, 0, 1, &cmd_list->begin_info.viewport);
-        r_vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-        
-        for(uint32_t draw_cmd_index = 0; draw_cmd_index < cmd_list->draw_cmds.cursor; draw_cmd_index++)
-        {
-            struct r_i_draw_cmd_t *draw_cmd = get_list_element(&cmd_list->draw_cmds, draw_cmd_index);
+            struct r_i_draw_cmd_t *draw_cmd = get_list_element(&cmd_list->immediate_draw_cmds, draw_cmd_index);
+            struct r_i_draw_cmd_data_t *draw_data;
+            
             switch(draw_cmd->type)
             {
                 case R_I_DRAW_CMD_DRAW:
-                    draw_data = (struct r_i_draw_cmd_data_t *)draw_cmd->data;
+                {
+                    struct ds_chunk_t *chunk = ds_get_chunk_pointer(&r_submission_state.immediate_draw_data_heap, draw_cmd->data);
+                    struct r_i_draw_cmd_data_t *draw_data = r_submission_state.immediate_draw_data_buffer + chunk->start;
+                    mat4_t model_view_projection_matrix;
+                    mat4_t_identity(&model_view_projection_matrix);
+                    mat4_t_mul(&model_view_projection_matrix, &draw_data->model_matrix, &cmd_list->view_projection_matrix);
+                    r_vkCmdPushConstants(command_buffer, current_pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
+                    
+                    if(draw_data->indexed)
+                    {
+                        r_vkCmdDrawIndexed(command_buffer, draw_data->count, 1, draw_data->index_start, draw_data->vertex_start, 0);
+                    }
+                    else
+                    {
+                        r_vkCmdDraw(command_buffer, draw_data->count, 1, draw_data->vertex_start, 0);
+                    }
+                }
                 break;
                 
                 case R_I_DRAW_CMD_UPLOAD_DATA:
                 {
-                    struct r_i_upload_buffer_data_t *data = (struct r_i_upload_buffer_data_t *)draw_cmd->data;
+                    struct ds_chunk_t *chunk = ds_get_chunk_pointer(&r_submission_state.immediate_draw_data_heap, draw_cmd->data);
+                    struct r_i_upload_buffer_data_t *data = r_submission_state.immediate_draw_data_buffer + chunk->start;
                     uint32_t offset = data->start * data->size;
                     uint32_t size = data->count * data->size;
                     
@@ -898,13 +738,13 @@ void r_i_DispatchPending()
                     {
                         r_FillBufferChunk(r_i_vertex_chunk, data->data, size, offset);
                     }
-                    continue;
                 }
                 break;
 
                 case R_I_DRAW_CMD_SET_DRAW_STATE:
                 {
-                    struct r_i_set_draw_state_data_t *draw_state = (struct r_i_set_draw_state_data_t*)draw_cmd->data;
+                    struct ds_chunk_t *chunk = ds_get_chunk_pointer(&r_submission_state.immediate_draw_data_heap, draw_cmd->data);
+                    struct r_i_set_draw_state_data_t *draw_state = r_submission_state.immediate_draw_data_buffer + chunk->start;
                     struct r_pipeline_t *next_pipeline;
                     uint32_t udpate_texture_state = 0;
                     
@@ -956,93 +796,155 @@ void r_i_DispatchPending()
                         r_vkUpdateDescriptorSets(1, &descriptor_write);                        
                         r_vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->layout, 0, 1, &descriptor_set, 0, NULL);
                     }
-                    
-                    continue;
                 }
                 break;
             }
-            
-            
-            mat4_t model_view_projection_matrix;
-            mat4_t_identity(&model_view_projection_matrix);
-            mat4_t_mul(&model_view_projection_matrix, &draw_data->model_matrix, &cmd_list->view_projection_matrix);
-            r_vkCmdPushConstants(command_buffer, current_pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4_t), &model_view_projection_matrix);
-            
-            if(draw_data->indexed)
+            if(ds_get_chunk_pointer(&r_submission_state.immediate_draw_data_heap, draw_cmd->data))
             {
-                r_vkCmdDrawIndexed(command_buffer, draw_data->count, 1, draw_data->index_start, draw_data->vertex_start, 0);
-            }
-            else
-            {
-                r_vkCmdDraw(command_buffer, draw_data->count, 1, draw_data->vertex_start, 0);
+                ds_free_chunk(&r_submission_state.immediate_draw_data_heap, draw_cmd->data);
             }
         }
+            
         r_vkCmdEndRenderPass(command_buffer);
+        r_ResetDrawCmdList(handle);
     }
     
     r_vkEndCommandBuffer(command_buffer);
-    submit_info.s_type = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.command_buffer_count = 1;
+    
     submit_info.command_buffers = &command_buffer;
-    r_vkResetFences(1, &r_draw_fence);
-    r_vkQueueSubmit(r_draw_queue, 1, &submit_info, r_draw_fence);
-    r_vkWaitForFences(1, &r_draw_fence, VK_TRUE, 0xffffffffffffffff);
+    submit_info.command_buffer_count = 1;
+    
+    struct r_fence_h fence = r_AllocFence();
+    
+//    r_vkResetFences(1, &r_draw_fence);
+    r_vkQueueSubmit(r_draw_queue, 1, &submit_info, fence);
+    r_vkWaitForFences(1, &fence, 1, 0xffffffffffffffff);
 }
 
-void r_i_SetDrawState(struct r_i_draw_state_t *draw_state)
+struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer)
 {
-    struct r_i_set_draw_state_data_t *draw_state_data;
-    draw_state_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_set_draw_state_data_t));
-    draw_state_data->draw_state = *draw_state;
-    r_i_SubmitCmd(R_I_DRAW_CMD_SET_DRAW_STATE, draw_state_data);
-}
+    struct r_uniform_buffer_t *uniform_buffer = NULL;
+    struct r_buffer_t *buffer;
+    VkBufferCreateInfo buffer_create_info = {};
+    uint32_t *buffer_index;
+    uint32_t new_buffer_index;
+    VkResult result;
+    uint32_t recycled_buffers = 0;
 
-void *r_i_AllocateDrawCmdData(uint32_t size)
-{
-    uint32_t data_slots = 1;
-    uint32_t available_slots;
-    uint32_t data_index;
-    if(size > R_I_DRAW_DATA_SLOT_SIZE)
+    for(uint32_t index = 0; index < r_used_uniform_buffers.cursor; index++)
     {
-        /* the data passed in is bigger than R_D_DRAW_DATA_SIZE, so we'll
-        need to accomodate it. */
+        buffer_index = get_list_element(&r_used_uniform_buffers, index);
+        uniform_buffer = get_list_element(&r_uniform_buffers, *buffer_index);
+        result = r_vkGetEventStatus(uniform_buffer->event);
 
-        size -= R_I_DRAW_DATA_SLOT_SIZE;
-        /* how many slots in the list this data takes */
-        data_slots += 1 + size / R_I_DRAW_DATA_SLOT_SIZE;
-        /* how many slots the current buffer of the list has available */
-        available_slots = (r_i_submission_state.cmd_data.buffer_size - r_i_submission_state.cmd_data.cursor % r_i_submission_state.cmd_data.buffer_size);
-        if(data_slots > available_slots)
+        if(result == VK_EVENT_SET)
         {
-            while(available_slots)
-            {
-                /* the current buffer in the list doesn't have enough space to hold this data
-                contiguously, so we'll "pad" it until it gets to the start of the next buffer,
-                in which case it'll probably be enough. */
-                add_list_element(&r_i_submission_state.cmd_data, NULL);
-                available_slots--;
-            }
+            r_vkResetEvent(uniform_buffer->event);
+            remove_list_element(&r_used_uniform_buffers, index);
+            add_list_element(&r_free_uniform_buffers, buffer_index);
+            recycled_buffers++;
         }
+    }
 
-        /* capture the index of the first slot. This is where the allocation for this draw
-        cmd begins */
-        data_index = add_list_element(&r_i_submission_state.cmd_data, NULL);
-        data_slots--;
-        while(data_slots)
-        {
-            /* data_size is bigger than the slot size, so we'll need to allocate some more
-            slots to accommodate it */
-            add_list_element(&r_i_submission_state.cmd_data, NULL);
-            data_slots--;
-        }
+    buffer_index = get_list_element(&r_free_uniform_buffers, 0);
 
+    if(!buffer_index)
+    {
+        new_buffer_index = add_list_element(&r_uniform_buffers, NULL);
+        uniform_buffer = get_list_element(&r_uniform_buffers, new_buffer_index);
+        buffer_create_info.size = r_limits->maxUniformBufferRange;
+        buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        uniform_buffer->buffer = r_CreateBuffer(&buffer_create_info);
+        uniform_buffer->event = r_AllocEvent();
+        buffer = r_GetBufferPointer(uniform_buffer->buffer);
+        uniform_buffer->memory = r_GetBufferChunkMappedMemory(buffer->memory);
+        uniform_buffer->vk_buffer = buffer->buffer;
+        add_list_element(&r_used_uniform_buffers, &new_buffer_index);
     }
     else
     {
-        data_index = add_list_element(&r_i_submission_state.cmd_data, NULL);
+        buffer = get_list_element(&r_uniform_buffers, *buffer_index);
+        add_list_element(&r_used_uniform_buffers, buffer_index);
+        remove_list_element(&r_free_uniform_buffers, 0);
     }
 
-    return get_list_element(&r_i_submission_state.cmd_data, data_index);
+    r_AppendEvent(command_buffer, uniform_buffer->event);
+
+    return uniform_buffer;
+}
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_i_SetDrawState(struct r_draw_cmd_list_h handle, struct r_i_draw_state_t *draw_state)
+{
+    struct r_i_set_draw_state_data_t *draw_state_data;
+    struct ds_chunk_h draw_cmd_data;
+    struct ds_chunk_t *chunk;
+    draw_cmd_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_set_draw_state_data_t));
+    chunk = ds_get_chunk_pointer(&r_submission_state.immediate_draw_data_heap, draw_cmd_data);
+    draw_state_data = r_submission_state.immediate_draw_data_buffer + chunk->start;
+    draw_state_data->draw_state = *draw_state;
+    r_i_SubmitCmd(handle, R_I_DRAW_CMD_SET_DRAW_STATE, draw_cmd_data);
+}
+
+struct ds_chunk_h r_i_AllocateDrawCmdData(uint32_t size)
+{    
+    struct ds_chunk_h chunk;
+    uint32_t data_size = 1;
+    
+    if(size > R_I_DRAW_DATA_SLOT_SIZE)
+    {
+        data_size += size / R_I_DRAW_DATA_SLOT_SIZE;
+    }
+    
+    chunk = ds_alloc_chunk(&r_submission_state.immediate_draw_data_heap, data_size * R_I_DRAW_DATA_SLOT_SIZE, R_I_DRAW_DATA_SLOT_SIZE);
+    return chunk;
+    
+//    if(size > R_I_DRAW_DATA_SLOT_SIZE)
+//    {
+//        /* the data passed in is bigger than R_D_DRAW_DATA_SIZE, so we'll
+//        need to accomodate it. */
+//
+//        size -= R_I_DRAW_DATA_SLOT_SIZE;
+//        /* how many slots in the list this data takes */
+//        data_slots += 1 + size / R_I_DRAW_DATA_SLOT_SIZE;
+//        /* how many slots the current buffer of the list has available */
+//        available_slots = (r_i_submission_state.cmd_data.buffer_size - r_i_submission_state.cmd_data.cursor % r_i_submission_state.cmd_data.buffer_size);
+//        if(data_slots > available_slots)
+//        {
+//            while(available_slots)
+//            {
+//                /* the current buffer in the list doesn't have enough space to hold this data
+//                contiguously, so we'll "pad" it until it gets to the start of the next buffer,
+//                in which case it'll probably be enough. */
+//                add_list_element(&r_i_submission_state.cmd_data, NULL);
+//                available_slots--;
+//            }
+//        }
+//
+//        /* capture the index of the first slot. This is where the allocation for this draw
+//        cmd begins */
+//        data_index = add_list_element(&r_i_submission_state.cmd_data, NULL);
+//        data_slots--;
+//        while(data_slots)
+//        {
+//            /* data_size is bigger than the slot size, so we'll need to allocate some more
+//            slots to accommodate it */
+//            add_list_element(&r_i_submission_state.cmd_data, NULL);
+//            data_slots--;
+//        }
+//        mem_CheckGuards();
+//    }
+//    else
+//    {
+//        data_index = add_list_element(&r_i_submission_state.cmd_data, NULL);
+//    }
+
+//    return get_list_element(&r_i_submission_state.cmd_data, data_index);
 }
 
 void r_i_FreeDrawCmdData(void *data)
@@ -1050,39 +952,43 @@ void r_i_FreeDrawCmdData(void *data)
     
 }
 
-void r_i_SubmitCmd(uint32_t type, void *data)
+void r_i_SubmitCmd(struct r_draw_cmd_list_h handle, uint32_t type, struct ds_chunk_h data)
 {
     struct r_i_draw_cmd_t *draw_cmd;
     struct r_draw_cmd_list_t *cmd_list;
 
-    cmd_list = get_stack_list_element(&r_i_submission_state.base.draw_cmd_lists, r_i_submission_state.base.current_draw_cmd_list);
-    draw_cmd = get_list_element(&cmd_list->draw_cmds, add_list_element(&cmd_list->draw_cmds, NULL));
+    cmd_list = r_GetDrawCmdListPointer(handle);
+    draw_cmd = get_list_element(&cmd_list->immediate_draw_cmds, add_list_element(&cmd_list->immediate_draw_cmds, NULL));
     draw_cmd->type = type;
     draw_cmd->data = data;
 }
 
-uint32_t r_i_UploadVertices(struct r_i_vertex_t *vertices, uint32_t count)
+uint32_t r_i_UploadVertices(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t count)
 {
-    return r_i_UploadBufferData(vertices, sizeof(struct r_i_vertex_t), count, 0);
+    return r_i_UploadBufferData(handle, vertices, sizeof(struct r_i_vertex_t), count, 0);
 }
 
-uint32_t r_i_UploadIndices(uint32_t *indices, uint32_t count)
+uint32_t r_i_UploadIndices(struct r_draw_cmd_list_h handle, uint32_t *indices, uint32_t count)
 {
-    return r_i_UploadBufferData(indices, sizeof(uint32_t), count, 1);
+    return r_i_UploadBufferData(handle, indices, sizeof(uint32_t), count, 1);
 }
 
-uint32_t r_i_UploadBufferData(void *data, uint32_t size, uint32_t count, uint32_t index_data)
+uint32_t r_i_UploadBufferData(struct r_draw_cmd_list_h handle, void *data, uint32_t size, uint32_t count, uint32_t index_data)
 {
     struct r_i_upload_buffer_data_t *upload_data;
     uint32_t data_size;
     struct r_chunk_t *chunk;
+    struct ds_chunk_h draw_cmd_data;
     
     if(!count || !size || !data)
     {
         return;
     }
     
-    upload_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_upload_buffer_data_t) + size * count);
+    draw_cmd_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_upload_buffer_data_t) + size * count);
+    chunk = ds_get_chunk_pointer(&r_submission_state.immediate_draw_data_heap, draw_cmd_data);
+    
+    upload_data = r_submission_state.immediate_draw_data_buffer + chunk->start;
     upload_data->size = size;
     upload_data->count = count;
     upload_data->index_data = index_data;
@@ -1093,36 +999,29 @@ uint32_t r_i_UploadBufferData(void *data, uint32_t size, uint32_t count, uint32_
     if(index_data)
     {
         chunk = r_GetChunkPointer(r_i_index_chunk);
-        upload_data->start = chunk->start / sizeof(uint32_t);
+        upload_data->start = chunk->start / sizeof(uint32_t) + r_submission_state.index_cursor;
+        r_submission_state.index_cursor += count;
     }
     else
     {
         chunk = r_GetChunkPointer(r_i_vertex_chunk);
-        upload_data->start = chunk->start / sizeof(struct r_i_vertex_t);
+        upload_data->start = chunk->start / sizeof(struct r_i_vertex_t) + r_submission_state.vertex_cursor;
+        r_submission_state.vertex_cursor += count;
     }
     
-    
-    
-    if(index_data)
-    {
-        upload_data->start += r_i_submission_state.index_cursor;
-        r_i_submission_state.index_cursor += count;
-    }
-    else
-    {
-        upload_data->start += r_i_submission_state.vertex_cursor;
-        r_i_submission_state.vertex_cursor += count;
-    }
-    
-    r_i_SubmitCmd(R_I_DRAW_CMD_UPLOAD_DATA, upload_data);
+    r_i_SubmitCmd(handle, R_I_DRAW_CMD_UPLOAD_DATA, draw_cmd_data);
     return upload_data->start;
 }
 
-void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform)
+void r_i_Draw(struct r_draw_cmd_list_h handle, uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform)
 {
     struct r_i_draw_cmd_data_t *data;
+    struct ds_chunk_h draw_cmd_data;
+    struct ds_chunk_t *chunk;
     
-    data = r_i_AllocateDrawCmdData(sizeof(struct r_i_draw_cmd_data_t));
+    draw_cmd_data = r_i_AllocateDrawCmdData(sizeof(struct r_i_draw_cmd_data_t));
+    chunk = ds_get_chunk_pointer(&r_submission_state.immediate_draw_data_heap, draw_cmd_data);
+    data = r_submission_state.immediate_draw_data_buffer + chunk->start;
     data->vertex_start = vertex_start;
     data->index_start = index_start;
     data->count = count;
@@ -1137,23 +1036,23 @@ void r_i_Draw(uint32_t vertex_start, uint32_t index_start, uint32_t count, uint3
         mat4_t_identity(&data->model_matrix);
     }
     
-    r_i_SubmitCmd(R_I_DRAW_CMD_DRAW, data);
+    r_i_SubmitCmd(handle, R_I_DRAW_CMD_DRAW, draw_cmd_data);
 }
 
-void r_i_DrawImmediate(struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform)
+void r_i_DrawImmediate(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform)
 {
     uint32_t vertex_start;
     uint32_t index_start;
     uint32_t count = vertex_count;
     
-    vertex_start = r_i_UploadVertices(vertices, vertex_count);
+    vertex_start = r_i_UploadVertices(handle, vertices, vertex_count);
     if(indices)
     {
-        index_start = r_i_UploadIndices(indices, index_count);
+        index_start = r_i_UploadIndices(handle, indices, index_count);
         count = index_count;
     }
     
-    r_i_Draw(vertex_start, index_start, count, indices != NULL, transform);
+    r_i_Draw(handle, vertex_start, index_start, count, indices != NULL, transform);
 }
 
 

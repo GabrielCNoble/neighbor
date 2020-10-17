@@ -1,7 +1,7 @@
 #ifndef MDL_H
 #define MDL_H
 
-#include "r_common.h"
+#include "r_defs.h"
 #include <stdint.h>
 
 struct mdl_batch_t
