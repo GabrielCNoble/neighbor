@@ -67,6 +67,12 @@ struct r_light_t
     uint32_t type;
 };
 
+struct r_light_data_t
+{
+    vec4_t position_radius;
+    vec4_t color;
+};
+
 struct r_light_h
 {
     uint32_t index;
@@ -80,8 +86,8 @@ struct r_light_h
 struct r_material_t
 {
     char *name;
-    struct r_texture_h diffuse_texture;
-    struct r_texture_h normal_texture;
+    struct r_texture_t *diffuse_texture;
+    struct r_texture_t *normal_texture;
 };
 
 struct r_material_h
@@ -140,11 +146,11 @@ struct r_material_t *r_GetDefaultMaterialPointer();
 
 void r_CreateDefaultTexture();
 
-struct r_texture_h r_LoadTexture(char *file_name, char *texture_name);
+struct r_texture_t *r_LoadTexture(char *file_name, char *texture_name);
 
-struct r_texture_t *r_GetDefaultTexturePointer();
+struct r_texture_t *r_GetDefaultTexture();
 
-struct r_texture_h r_GetDefaultTextureHandle();
+//struct r_texture_h r_GetDefaultTextureHandle();
 
 /*
 =================================================================

@@ -13,7 +13,10 @@ uint32_t *ui_indices = NULL;
 
 mat4_t ui_projection_matrix;
 mat4_t ui_inv_view_matrix;
-struct r_texture_h ui_font_texture;
+mat4_t ui_view_projection_matrix;
+struct r_texture_t *ui_font_texture;
+extern struct r_shader_handle_t r_flat_vertex_shader;
+extern struct r_shader_handle_t r_flat_fragment_shader;
 
 void ui_Init()
 {
@@ -89,10 +92,21 @@ void ui_Init()
     texture_description.sampler_params.mag_filter = VK_FILTER_NEAREST;
     
     ui_font_texture = r_CreateTexture(&texture_description);
-    struct r_texture_t *texture = r_GetTexturePointer(ui_font_texture);
-    r_FillImageChunk(texture->image, pixels, NULL);
-    r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    ImTextureID font_texture_id = (void *)ui_font_texture.index;
+    r_FillImageChunk(ui_font_texture->image, pixels, NULL);
+    
+    
+//    union r_command_buffer_h command_buffer;
+//    VkImageMemoryBarrier memory_barrier = {};
+//    
+//    memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+//    memory_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+//    memory_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    
+    
+    
+    
+//    r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    ImTextureID font_texture_id = (void *)ui_font_texture;
     ImFontAtlas_SetTexID(io->Fonts, font_texture_id);
 }
 
@@ -141,6 +155,8 @@ void ui_BeginFrame()
     ui_inv_view_matrix.rows[3].x = -view->viewport.width / 2.0;
     ui_inv_view_matrix.rows[3].y = view->viewport.height / 2.0;
     
+    mat4_t_mul(&ui_view_projection_matrix, &ui_inv_view_matrix, &ui_projection_matrix);
+    
     igNewFrame();
     
 //    igShowDemoWindow(NULL);
@@ -151,8 +167,10 @@ void ui_EndFrame()
     igRender();
     ImDrawData *draw_data = igGetDrawData();
     struct r_view_t *view = r_GetViewPointer();
-    struct r_begin_submission_info_t begin_info;
-    struct r_i_draw_state_t draw_state = {};
+    union r_command_buffer_h command_buffer;
+//    struct r_begin_submission_info_t begin_info;
+    struct r_draw_state_t draw_state = {};
+    struct r_submit_info_t submit_info = {};
 
     if(draw_data->TotalVtxCount > ui_vertice_count)
     {
@@ -166,26 +184,34 @@ void ui_EndFrame()
         ui_indices = mem_Realloc(ui_indices, sizeof(uint32_t ) * ui_indices_count);
     }
     
-    begin_info.inv_view_matrix = ui_inv_view_matrix;
-    begin_info.projection_matrix = ui_projection_matrix;
-    begin_info.framebuffer = r_GetBackbufferHandle();
-    begin_info.viewport = view->viewport;
-    begin_info.scissor = view->scissor;
+//    begin_info.inv_view_matrix = ui_inv_view_matrix;
+//    begin_info.projection_matrix = ui_projection_matrix;
+//    begin_info.framebuffer = r_GetBackbufferHandle();
+//    begin_info.viewport = view->viewport;
+//    begin_info.scissor = view->scissor;
     
     draw_state.scissor = view->scissor;
     draw_state.line_width = 1.0;
     draw_state.point_size = 1.0;
-    draw_state.texture = R_INVALID_TEXTURE_HANDLE;
-    draw_state.pipeline_state.input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    draw_state.pipeline_state.rasterizer_state.cull_mode = VK_CULL_MODE_NONE;
-    draw_state.pipeline_state.rasterizer_state.polygon_mode = VK_POLYGON_MODE_FILL;
-    draw_state.pipeline_state.rasterizer_state.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    draw_state.pipeline_state.depth_state.compare_op = VK_COMPARE_OP_LESS;
-    draw_state.pipeline_state.depth_state.test_enable = VK_FALSE;
-    draw_state.pipeline_state.depth_state.write_enable = VK_TRUE;
-
-    struct r_draw_cmd_list_h draw_cmd_list = r_BeginDrawCmdList(&begin_info);
-    r_i_SetDrawState(draw_cmd_list, &draw_state);
+    draw_state.pipeline_state = &(struct r_pipeline_state_t)
+    {
+        .input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .rasterizer_state.cull_mode = VK_CULL_MODE_NONE,
+        .rasterizer_state.polygon_mode = VK_POLYGON_MODE_FILL,
+        .rasterizer_state.front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depth_state.compare_op = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depth_state.test_enable = VK_TRUE,
+        .depth_state.write_enable = VK_TRUE,
+        .vertex_shader = r_flat_vertex_shader,
+        .fragment_shader = r_flat_fragment_shader,
+    };
+    
+    command_buffer = r_AllocateCommandBuffer();
+    r_BeginCommandBuffer(command_buffer, view);
+    r_BeginRenderPass(command_buffer, &view->scissor, r_GetBackbufferHandle());
+    
+    r_SetDrawState(command_buffer, &draw_state);
+    r_PushConstants(command_buffer, VK_SHADER_STAGE_VERTEX_BIT, sizeof(mat4_t), 0, &ui_view_projection_matrix);
     
     for(uint32_t cmd_list_index = 0; cmd_list_index < draw_data->CmdListsCount; cmd_list_index++)
     {
@@ -214,31 +240,46 @@ void ui_EndFrame()
             ui_vertices[vertex_offset].color.w = (float)((verts[vert_index].col >> 24) & 0xff) / 255.0;
         }
         
-        vertex_offset = r_i_UploadVertices(draw_cmd_list, ui_vertices, vertex_offset);
+        vertex_offset = r_FillTempVertices(ui_vertices, sizeof(struct r_i_vertex_t), vertex_offset);
         
         for(uint32_t index = 0; index < cmd_list->IdxBuffer.Size; index++, index_offset++)
         {
             ui_indices[index_offset] = indices[index];
         }
         
-        index_offset = r_i_UploadIndices(draw_cmd_list, ui_indices, index_offset);
+        index_offset = r_FillTempIndices(ui_indices, sizeof(uint32_t), index_offset);
         
         for(uint32_t cmd_index = 0; cmd_index < cmd_list->CmdBuffer.Size; cmd_index++)
         {
             ImDrawCmd *draw_cmd = cmd_list->CmdBuffer.Data + cmd_index;
-            struct r_texture_h handle = R_TEXTURE_HANDLE((uint32_t)draw_cmd->TextureId);
+            struct r_texture_t *texture = (struct r_texture_t *)draw_cmd->TextureId;
             
             draw_state.scissor.offset.x = draw_cmd->ClipRect.x;
             draw_state.scissor.offset.y = draw_cmd->ClipRect.y;
             draw_state.scissor.extent.width = draw_cmd->ClipRect.z - draw_cmd->ClipRect.x;
             draw_state.scissor.extent.height = draw_cmd->ClipRect.w - draw_cmd->ClipRect.y;
-            draw_state.texture = handle;
-            r_i_SetDrawState(draw_cmd_list, &draw_state);
+            
+            draw_state.texture_state = &(struct r_texture_state_t)
+            {
+                .texture_count = 1,
+                .textures = (struct r_texture_state_binding_t [])
+                {
+                    [0] = {.binding_index = 0, .texture = texture}
+                }
+            };
+            
+            r_SetDrawState(command_buffer, &draw_state);
+            r_PushConstants(command_buffer, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(uint32_t), sizeof(mat4_t) + sizeof(float), &(uint32_t){1});
 
-            r_i_Draw(draw_cmd_list, vertex_offset, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, 1, NULL);
+            r_DrawIndexed(command_buffer, index_offset + draw_cmd->IdxOffset, draw_cmd->ElemCount, vertex_offset);
         }
     }
-    r_EndDrawCmdList(draw_cmd_list);
+    
+    r_EndRenderPass(command_buffer);
+    r_EndCommandBuffer(command_buffer);
+    struct r_fence_h fence = r_AllocFence();
+    r_SubmitCommandBuffers(1, &command_buffer, fence);
+    r_vkWaitForFences(1, &fence, VK_TRUE, 0xffffffffffffffff);
 }
 
 uint32_t ui_MouseOverUi()

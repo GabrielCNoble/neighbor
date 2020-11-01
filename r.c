@@ -7,6 +7,8 @@
 struct stack_list_t r_materials;
 struct stack_list_t r_lights;
 
+struct r_texture_t *r_default_texture;
+
 void r_Init()
 {
     r_materials = create_stack_list(sizeof(struct r_material_t), 128);
@@ -30,8 +32,8 @@ struct r_material_h r_CreateMaterial()
     handle.index = add_stack_list_element(&r_materials, NULL);
     material = get_stack_list_element(&r_materials, handle.index);
     
-    material->diffuse_texture = r_GetDefaultTextureHandle();
-    material->normal_texture = R_INVALID_TEXTURE_HANDLE;
+    material->diffuse_texture = r_GetDefaultTexture();
+    material->normal_texture = NULL;
     
     return handle;
 }
@@ -46,8 +48,8 @@ void r_DestroyMaterial(struct r_material_h handle)
         material = r_GetMaterialPointer(handle);
         if(material)
         {
-            material->diffuse_texture = R_INVALID_TEXTURE_HANDLE;
-            material->normal_texture = R_INVALID_TEXTURE_HANDLE;
+            material->diffuse_texture = NULL;
+            material->normal_texture = NULL;
             remove_stack_list_element(&r_materials, handle.index);
         }        
     }
@@ -59,7 +61,7 @@ struct r_material_t *r_GetMaterialPointer(struct r_material_h handle)
 //    static struct r_material_t default_material;
     
     material = get_stack_list_element(&r_materials, handle.index);
-    if(material && material->diffuse_texture.index == R_INVALID_TEXTURE_INDEX)
+    if(material && !material->diffuse_texture)
     {
         material = NULL;
     }
@@ -107,7 +109,7 @@ struct r_material_t *r_GetDefaultMaterialPointer()
 
 void r_CreateDefaultTexture()
 {
-    struct r_texture_h default_texture;
+    struct r_texture_t *default_texture;
     struct r_texture_description_t description = {};;
     struct r_texture_t *texture;
     uint32_t *default_texture_pixels;
@@ -127,11 +129,11 @@ void r_CreateDefaultTexture()
     description.sampler_params.addr_mode_v = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     description.sampler_params.addr_mode_w = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
-    default_texture = r_CreateTexture(&description);
+    r_default_texture = r_CreateTexture(&description);
     pixel_pitch = r_GetFormatPixelPitch(description.format);
 //    row_pitch = pixel_pitch * description.extent.width;
     default_texture_pixels = mem_Calloc(pixel_pitch, description.extent.width * description.extent.height);
-    texture = r_GetTexturePointer(default_texture);
+//    texture = r_GetTexturePointer(default_texture);
     for(uint32_t y = 0; y < description.extent.height; y++)
     {
         for(uint32_t x = 0; x < description.extent.width; x++)
@@ -140,19 +142,19 @@ void r_CreateDefaultTexture()
         }
     }
 
-    r_FillImageChunk(texture->image, default_texture_pixels, NULL);
-    r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    r_FillImageChunk(r_default_texture->image, default_texture_pixels, NULL);
+//    r_SetImageLayout(texture->image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     mem_Free(default_texture_pixels);
 }
 
-struct r_texture_h r_LoadTexture(char *file_name, char *texture_name)
+struct r_texture_t *r_LoadTexture(char *file_name, char *texture_name)
 {
     unsigned char *pixels;
     int width;
     int height;
     int channels;
-    struct r_texture_h handle = R_INVALID_TEXTURE_HANDLE;
-    struct r_texture_t *texture;
+//    struct r_texture_h handle = R_INVALID_TEXTURE_HANDLE;
+    struct r_texture_t *texture = NULL;
     struct r_texture_description_t description = {};
 
     file_name = ds_path_FormatPath(file_name);
@@ -173,8 +175,7 @@ struct r_texture_h r_LoadTexture(char *file_name, char *texture_name)
         description.sampler_params.min_filter = VK_FILTER_LINEAR;
         description.sampler_params.mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-        handle = r_CreateTexture(&description);
-        texture = r_GetTexturePointer(handle);
+        texture = r_CreateTexture(&description);
 
         if(texture_name)
         {
@@ -189,18 +190,19 @@ struct r_texture_h r_LoadTexture(char *file_name, char *texture_name)
         printf("texture %s loaded!\n", texture->name);
     }
 
-    return handle;
+    return texture;
 }
 
-struct r_texture_t *r_GetDefaultTexturePointer()
+struct r_texture_t *r_GetDefaultTexture()
 {
-    return r_GetTexturePointer(R_DEFAULT_TEXTURE_HANDLE);
+    return r_default_texture;
+//    return r_GetTexturePointer(R_DEFAULT_TEXTURE_HANDLE);
 }
 
-struct r_texture_h r_GetDefaultTextureHandle()
-{
-    return R_DEFAULT_TEXTURE_HANDLE;
-}
+//struct r_texture_h r_GetDefaultTextureHandle()
+//{
+//    return R_DEFAULT_TEXTURE_HANDLE;
+//}
 
 /*
 =================================================================

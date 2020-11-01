@@ -90,7 +90,8 @@ struct mdl_model_h mdl_LoadModel(char *file_name, char *model_name)
     struct batch_data_t *batch;
     struct r_vertex_t *vertices;
     struct r_material_h material_handle;
-    struct r_texture_h texture_handle;
+//    struct r_texture_h texture_handle;
+    struct r_texture_t *texture;
     struct r_material_t *material;
     struct mdl_model_h handle = MDL_INVALID_MODEL_HANDLE;
     struct mdl_model_t *model;
@@ -142,33 +143,33 @@ struct mdl_model_h mdl_LoadModel(char *file_name, char *model_name)
 
                 if(batch->diffuse_texture[0] != '\0')
                 {
-                    texture_handle = r_GetTextureHandle(batch->diffuse_texture);
+                    texture = r_GetTexture(batch->diffuse_texture);
 
-                    if(texture_handle.index == R_INVALID_TEXTURE_INDEX)
+                    if(!texture)
                     {
                         texture_name = ds_path_GetFileName(batch->diffuse_texture);
-                        texture_handle = r_LoadTexture(batch->diffuse_texture, texture_name);
+                        texture = r_LoadTexture(batch->diffuse_texture, texture_name);
                     }
 
-                    material->diffuse_texture = texture_handle;
+                    material->diffuse_texture = texture;
                 }
 
-                if(material->diffuse_texture.index == R_INVALID_TEXTURE_INDEX)
+                if(!material->diffuse_texture)
                 {
-                    material->diffuse_texture = r_GetDefaultTextureHandle();
+                    material->diffuse_texture = r_GetDefaultTexture();
                 }
 
                 if(batch->normal_texture[0] != '\0')
                 {
-                    texture_handle = r_GetTextureHandle(batch->normal_texture);
+                    texture = r_GetTexture(batch->normal_texture);
 
-                    if(texture_handle.index == R_INVALID_TEXTURE_INDEX)
+                    if(!texture)
                     {
                         texture_name = ds_path_GetFileName(batch->normal_texture);
-                        texture_handle = r_LoadTexture(batch->normal_texture, texture_name);
+                        texture = r_LoadTexture(batch->normal_texture, texture_name);
                     }
 
-                    material->normal_texture = texture_handle;
+                    material->normal_texture = texture;
                 }
             }
 

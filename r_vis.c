@@ -11,61 +11,26 @@ extern struct stack_list_t ent_entities;
 #define R_CLUSTER_HEIGHT 32
 #define R_CLUSTER_DEPTH 16
 
-void r_VisibleEntities(struct r_view_t *view, struct stack_list_t *entities, struct list_t *visible_entities)
-{
-    visible_entities->cursor = 0;
-    
-    if(!entities)
-    {
-        entities = &ent_entities;
-    }
-    
-    for(uint32_t entity_index = 0; entity_index < entities->cursor; entity_index++)
-    {
-        struct ent_entity_t *entity = get_stack_list_element(entities, entity_index);
-        if(entity && entity->type != ENT_ENTITY_TYPE_NONE)
-        {
-            add_list_element(visible_entities, &ENT_ENTITY_HANDLE(entity_index));
-        }
-    }
-
-//    struct r_view_t *view;
-//    struct stack_list_t *entities;
-//    struct r_begin_submission_info_t begin_info;
-    
-//    view = r_GetViewPointer();
-//    entities = ent_GetEntityList();
+//void r_VisibleEntities(struct r_view_t *view, struct r_draw_cmd_list_h draw_cmd_list)
+//{
+//    visible_entities->cursor = 0;
 //    
-//    begin_info.inv_view_matrix = view->inv_view_matrix;
-//    begin_info.projection_matrix = view->projection_matrix;
-//    begin_info.framebuffer = R_INVALID_FRAMEBUFFER_HANDLE;
-//    begin_info.viewport = view->viewport;
-//    begin_info.scissor = view->scissor;
-//    begin_info.clear_framebuffer = 0;
+//    if(!entities)
+//    {
+//        entities = &ent_entities;
+//    }
 //    
-//    r_BeginSubmission(&begin_info);
 //    for(uint32_t entity_index = 0; entity_index < entities->cursor; entity_index++)
 //    {
-//        struct ent_entity_t *entity = ent_GetEntityPointer(ENT_ENTITY_HANDLE(entity_index));
-//        struct mdl_model_t *model;
-//        if(entity)
+//        struct ent_entity_t *entity = get_stack_list_element(entities, entity_index);
+//        if(entity && entity->type != ENT_ENTITY_TYPE_NONE)
 //        {
-//            model = mdl_GetModelPointer(entity->model);
-//            if(model)
-//            {
-//                struct mdl_batch_t *batches = mdl_GetModelLod(model, 0);
-//                for(uint32_t batch_index = 0; batch_index < model->batch_count; batch_index++)
-//                {
-//                    struct mdl_batch_t *batch = batches + batch_index;
-//                    r_Draw(batch->start, batch->count, batch->material, &entity->transform);
-//                }
-//            }
+//            add_list_element(visible_entities, &ENT_ENTITY_HANDLE(entity_index));
 //        }
 //    }
-//    r_EndSubmission();
-}
-
-void r_VisibleLights(struct r_view_t *view, struct list_t *lights, struct r_cluster_list_t *cluster_list)
+//}
+//
+void r_VisibleLights(struct r_view_t *view, struct r_cluster_list_t *cluster_list)
 {    
     uint32_t cluster_columns = view->viewport.width / R_CLUSTER_WIDTH;
     uint32_t cluster_rows = view->viewport.height / R_CLUSTER_HEIGHT;
@@ -111,21 +76,21 @@ void r_VisibleLights(struct r_view_t *view, struct list_t *lights, struct r_clus
         }
     }
 }
-
-void r_VisiblePortals(struct r_view_t *view)
-{
-    
-}
-
-void r_VisibleWorld(struct r_view_t *view)
-{
-    
-}
-
-void r_DrawVisibleWorld(struct r_begin_submission_info_t *begin_info)
-{
-    
-}
+//
+//void r_VisiblePortals(struct r_view_t *view, struct r_draw_cmd_list_h draw_cmd_list)
+//{
+//    
+//}
+//
+//void r_VisibleWorld(struct r_view_t *view, struct r_draw_cmd_list_h draw_cmd_list)
+//{
+//    
+//}
+//
+//void r_DrawVisibleWorld(struct r_view_t *view, struct r_framebuffer_h framebuffer)
+//{
+//    
+//}
 
 
 

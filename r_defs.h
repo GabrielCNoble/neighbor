@@ -84,18 +84,6 @@ struct r_buffer_h
 #define R_INVALID_BUFFER_HANDLE R_BUFFER_HANDLE(R_INVALID_BUFFER_INDEX)
 
 
-struct r_texture_h
-{
-    uint32_t index;
-};
-
-#define R_INVALID_TEXTURE_INDEX 0xffffffff
-#define R_TEXTURE_HANDLE(index) (struct r_texture_h){index}
-#define R_INVALID_TEXTURE_HANDLE R_TEXTURE_HANDLE(R_INVALID_TEXTURE_INDEX)
-#define R_DIFFUSE_TEXTURE_BINDING 0
-#define R_NORMAL_TEXTURE_BINDING 1
-
-
 struct r_pipeline_h
 {
     uint32_t index;
@@ -237,25 +225,6 @@ struct r_chunk_move_t
     uint32_t new_start;
 };
 
-//
-//struct r_alloc_t
-//{
-//    uint32_t size;
-//    uint32_t start;
-//    uint32_t align;
-//};
-//
-//struct r_alloc_handle_t
-//{
-//    unsigned alloc_index : 31;
-//    unsigned is_index : 1;
-//};
-//
-//#define R_INVALID_ALLOC_INDEX 0x7fffffff
-//#define R_ALLOC_HANDLE(alloc_index, is_index_alloc) (struct r_alloc_handle_t){alloc_index, is_index_alloc}
-//#define R_INVALID_ALLOC_HANDLE R_ALLOC_HANDLE(R_INVALID_ALLOC_INDEX, 1)
-
-
 /*
 =================================================================
 =================================================================
@@ -354,24 +323,10 @@ struct r_image_t
     VkImage image;
     struct r_chunk_h memory;
     uint32_t current_layout;
+    uint32_t index;
+    VkImageCreateInfo *description;
     uint8_t aspect_mask;
 };
-
-struct r_image_handle_t
-{
-    uint32_t index;
-};
-
-struct r_staging_image_t
-{
-    struct r_image_handle_t image;
-    VkFormat format;
-};
-
-#define R_INVALID_IMAGE_INDEX 0xffffffff
-#define R_IMAGE_HANDLE(index) (struct r_image_handle_t){index}
-#define R_INVALID_IMAGE_HANDLE R_IMAGE_HANDLE(R_INVALID_IMAGE_INDEX)
-#define R_IS_VALID_IMAGE_HANDLE(handle) (handle.index != R_INVALID_IMAGE_INDEX)
 
 struct r_sampler_params_t
 {
@@ -415,7 +370,8 @@ struct r_texture_t
 {
     VkSampler sampler;
     VkImageView image_view;
-    struct r_image_handle_t image;
+    struct r_image_t *image;
+    uint32_t index;
     VkEvent event;
     char *name;
 };
@@ -461,7 +417,8 @@ struct r_pipeline_description_t
 {
     /* the const qualifier got dropped here because it was being
     a pain in the ass. We know what we're doing with those pointers.  */
-    struct r_shader_t **shaders;
+//    struct r_shader_t **shaders;
+    struct r_shader_handle_t *shaders;
     uint32_t shader_count;
     VkPipelineVertexInputStateCreateInfo *vertex_input_state;
     VkPipelineInputAssemblyStateCreateInfo *input_assembly_state;
@@ -522,6 +479,9 @@ struct r_pipeline_state_t
         uint32_t color_write_mask: 4;
         float blend_constants[4];
     }color_blend_state;
+    
+    struct r_shader_handle_t vertex_shader;
+    struct r_shader_handle_t fragment_shader;
 };
 
 /* each pipeline will have a list of command pools,
@@ -535,8 +495,8 @@ it's signaled, the command pool gets reset and added to the free
 list once more. */
 struct r_pipeline_t
 {
-    struct r_shader_t *vertex_shader;
-    struct r_shader_t *fragment_shader;
+//    struct r_shader_t *vertex_shader;
+//    struct r_shader_t *fragment_shader;
 
     VkPipeline pipeline;
     VkPipelineLayout layout;
@@ -621,7 +581,7 @@ struct r_render_pass_begin_info_t
 */
 
 
-struct r_framebuffer_description_t
+struct r_framebuffer_d
 {
 //    VkAttachmentDescription *attachments;
     struct r_attachment_d *attachments;
@@ -636,7 +596,8 @@ struct r_framebuffer_t
 {
     VkFramebuffer *buffers; /* struct r_framebuffer_t object will group several VkFramebuffer objects.
     This is to allow handling several VkFramebuffer objects with a single higher level object. */
-    struct r_texture_h *textures;
+    struct r_texture_t **textures;
+    struct r_framebuffer_d *description;
     uint8_t texture_count;
     uint8_t current_buffer;
 };
@@ -674,7 +635,9 @@ struct r_command_buffer_t
 {
     VkCommandBuffer command_buffer;
     struct r_fence_h submit_fence;
-    struct r_render_pass_handle_t render_pass;
+    struct r_render_pass_handle_t current_render_pass;
+    struct r_pipeline_h current_pipeline;
+    uint32_t current_subpass;
     struct r_framebuffer_h framebuffer;
     struct list_t events;
 };
@@ -700,6 +663,26 @@ struct r_submit_info_t
     union r_command_buffer_h *command_buffers;
     uint32_t signal_semaphore_count;
     const VkSemaphore *signal_semaphores;
+};
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+struct r_image_memory_barrier_t
+{
+    VkStructureType s_type;
+    const void* next;
+    VkAccessFlags src_access_mask;
+    VkAccessFlags dst_access_mask;
+    VkImageLayout old_layout;
+    VkImageLayout new_layout;
+    uint32_t src_queue_family_index;
+    uint32_t dst_queue_family_index;
+    struct r_image_t *image;
+    VkImageSubresourceRange subresource_range;
 };
 
 /*

@@ -89,19 +89,35 @@ struct r_i_upload_buffer_data_t
     void *data;
 };
 
-struct r_i_draw_state_t
+struct r_texture_state_binding_t
+{
+    uint32_t binding_index;
+    struct r_texture_t *texture;
+};
+
+struct r_texture_state_t
+{
+    uint32_t texture_count;
+    struct r_texture_state_binding_t *textures;
+};
+
+struct r_draw_state_t
 {
     float point_size;
     float line_width;
-    struct r_pipeline_state_t pipeline_state;
-    struct r_texture_h texture;
     VkRect2D scissor;
+    
+    struct r_pipeline_state_t *pipeline_state;
+    struct r_texture_state_t *texture_state;
 };
 
-struct r_i_set_draw_state_data_t
-{
-    struct r_i_draw_state_t draw_state;
-};
+
+
+
+//struct r_i_set_draw_state_data_t
+//{
+//    struct r_i_draw_state_t draw_state;
+//};
 
 struct r_i_submission_state_t
 {
@@ -153,14 +169,14 @@ struct r_uniform_buffer_t
     VkEvent event;
 };
 
-struct r_draw_call_data_t
-{
-    uint32_t first;
-    uint32_t count;
-    uint32_t first_instance;
-    uint32_t instance_count;
-    struct r_texture_h texture;
-};
+//struct r_draw_call_data_t
+//{
+//    uint32_t first;
+//    uint32_t count;
+//    uint32_t first_instance;
+//    uint32_t instance_count;
+//    struct r_texture_t *texture;
+//};
 
 
 
@@ -213,25 +229,45 @@ struct r_framebuffer_h r_GetBackbufferHandle();
 
 
 
-struct r_draw_cmd_list_t *r_GetDrawCmdListPointer(struct r_draw_cmd_list_h handle);
+//struct r_draw_cmd_list_t *r_GetDrawCmdListPointer(struct r_draw_cmd_list_h handle);
+//
+//struct r_draw_cmd_list_h r_BeginDrawCmdList(struct r_begin_submission_info_t *begin_info);
 
-struct r_draw_cmd_list_h r_BeginDrawCmdList(struct r_begin_submission_info_t *begin_info);
+//void r_EndDrawCmdList(struct r_draw_cmd_list_h handle);
 
-void r_EndDrawCmdList(struct r_draw_cmd_list_h handle);
+//void r_ResetDrawCmdList(struct r_draw_cmd_list_h handle);
 
-void r_ResetDrawCmdList(struct r_draw_cmd_list_h handle);
+void r_BeginCommandBuffer(union r_command_buffer_h command_buffer, struct r_view_t *view);
 
-void r_Draw(struct r_draw_cmd_list_h handle, uint32_t start, uint32_t count, struct r_material_t *material, mat4_t *transform);
+void r_EndCommandBuffer(union r_command_buffer_h command_buffer);
 
-void r_DrawIndexed(struct r_draw_cmd_list_h handle, uint32_t start, uint32_t count, uint32_t vertex_offset, struct r_material_t *material, mat4_t *transform);
+void r_BeginRenderPass(union r_command_buffer_h command_buffer, VkRect2D *render_area, struct r_framebuffer_h framebuffer);
 
-//void r_DrawCmdSetDrawState(struct r_i_draw_state_t *draw_state, union r_command_buffer_h command_buffer);
+void r_EndRenderPass(union r_command_buffer_h command_buffer);
 
-//void r_DrawCmdFlush(struct r_render_pass_begin_info_t *begin_info, struct r_submit_info_t *submit_info, union r_command_buffer_h command_buffer);
+void r_SubmitCommandBuffers(uint32_t command_buffer_count, union r_command_buffer_h *command_buffers, struct r_fence_h fence);
 
-void r_DispatchPending();
+void r_ClearAttachments(union r_command_buffer_h command_buffer, uint32_t clear_color, uint32_t clear_depth);
 
-struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer);
+void r_Draw(union r_command_buffer_h command_buffer, uint32_t start, uint32_t count);
+
+void r_DrawIndexed(union r_command_buffer_h command_buffer, uint32_t start, uint32_t count, uint32_t vertex_offset);
+
+//void r_BindTexture(union r_command_buffer_h command_buffer, uint32_t index, struct r_texture_h texture);
+
+void r_PushConstants(union r_command_buffer_h command_buffer, VkShaderStageFlagBits stage, uint32_t size, uint32_t offset, void *data);
+
+void r_ImageBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage);
+
+uint32_t r_FillTempVertices(void *data, uint32_t size, uint32_t count);
+
+uint32_t r_FillTempIndices(void *data, uint32_t size, uint32_t count);
+
+void r_SetDrawState(union r_command_buffer_h command_buffer, struct r_draw_state_t *draw_state);
+
+//void r_DispatchPending();
+
+//struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h command_buffer);
 
 /*
 =================================================================
@@ -246,23 +282,37 @@ struct r_uniform_buffer_t *r_AllocateUniformBuffer(union r_command_buffer_h comm
 //
 //void r_i_DispatchPending();
 
-void r_i_SetDrawState(struct r_draw_cmd_list_h handle, struct r_i_draw_state_t *draw_state);
+//struct ds_chunk_h r_i_AllocateDrawCmdData(uint32_t size);
 
-struct ds_chunk_h r_i_AllocateDrawCmdData(uint32_t size);
+//void r_i_SubmitCmd(struct r_draw_cmd_list_h handle, uint32_t type, struct ds_chunk_h data);
 
-void r_i_SubmitCmd(struct r_draw_cmd_list_h handle, uint32_t type, struct ds_chunk_h data);
+//uint32_t r_i_UploadVertices(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t vert_count);
 
-uint32_t r_i_UploadVertices(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t vert_count);
+//uint32_t r_i_UploadIndices(struct r_draw_cmd_list_h handle, uint32_t *indices, uint32_t count);
 
-uint32_t r_i_UploadIndices(struct r_draw_cmd_list_h handle, uint32_t *indices, uint32_t count);
+//uint32_t r_i_UploadBufferData(struct r_draw_cmd_list_h handle, void *data, uint32_t size, uint32_t count, uint32_t index_data);
 
-uint32_t r_i_UploadBufferData(struct r_draw_cmd_list_h handle, void *data, uint32_t size, uint32_t count, uint32_t index_data);
+//void r_i_Draw(struct r_draw_cmd_list_h handle, uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform);
 
-void r_i_Draw(struct r_draw_cmd_list_h handle, uint32_t vertex_start, uint32_t index_start, uint32_t count, uint32_t indexed, mat4_t *transform);
-
-void r_i_DrawImmediate(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform);
+//void r_i_DrawImmediate(struct r_draw_cmd_list_h handle, struct r_i_vertex_t *vertices, uint32_t vertex_count, uint32_t *indices, uint32_t index_count, mat4_t *transform);
 
 
+
+/*
+=================================================================
+=================================================================
+=================================================================
+*/
+
+void r_DrawVisibleEntities(struct r_view_t *view, struct r_draw_cmd_list_h draw_cmd_list);
+
+void r_DrawVisibleLights(struct r_view_t *view, struct r_draw_cmd_list_h draw_cmd_list);
+
+void r_DrawVisiblePortals(struct r_view_t *view, struct r_draw_cmd_list_h draw_cmd_list);
+
+void r_DrawVisibleWorld(struct r_view_t *view, struct r_draw_cmd_list_h draw_cmd_list);
+
+void r_DrawVisible(struct r_view_t *view, struct r_framebuffer_h framebuffer);
 
 
 
