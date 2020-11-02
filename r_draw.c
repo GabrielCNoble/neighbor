@@ -75,6 +75,53 @@ VkInstance r_instance;
 
 extern struct stack_list_t ed_entities;
 
+
+
+struct 
+{
+    VkPipelineStageFlags src_stage;
+    VkPipelineStageFlags dst_stage;
+    VkAccessFlags src_access;
+    VkAccessFlags dst_access;
+}r_sync_data[] = {
+    [R_LAYOUT_TRANSITION_SYNC_RENDERPASS_RENDERPASS] = {
+        .src_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .src_access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dst_access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT
+    },
+    [R_LAYOUT_TRANSITION_SYNC_RENDERPASS_RENDERPASS + 1] = {
+        .src_stage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .dst_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .src_access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .dst_access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+    },
+    [R_LAYOUT_TRANSITION_SYNC_RENDERPASS_SHADER] = {
+        .src_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .src_access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dst_access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+    },
+    [R_LAYOUT_TRANSITION_SYNC_RENDERPASS_SHADER + 1] = {
+        .src_stage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .dst_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .src_access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .dst_access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+    },
+    [R_LAYOUT_TRANSITION_SYNC_SHADER_RENDERPASS] = {
+        .src_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .src_access = 0,
+        .dst_access = 0,
+    },
+    [R_LAYOUT_TRANSITION_SYNC_SHADER_RENDERPASS + 1] = {
+        .src_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .dst_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .src_access = 0,
+        .dst_access = 0
+    }
+};
+
 void r_DrawInit()
 {
     r_window_width = R_DEFAULT_WIDTH;
@@ -610,11 +657,90 @@ void r_PushConstants(union r_command_buffer_h command_buffer, VkShaderStageFlagB
     r_vkCmdPushConstants(command_buffer, pipeline->layout, stage, offset, size, data);
 }
 
-void r_ImageBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage)
+void r_TransitionLayout(union r_command_buffer_h command_buffer, uint32_t layout_transition_sync, uint32_t new_layout, struct r_texture_t *texture)
 {
-//    VkImageMemoryBarrier memory_barrier = {};
-//    memory_barrier.
-//    vkCmdPipelineBarrier()
+    struct r_image_memory_barrier_t memory_barrier = {};
+    VkPipelineStageFlags src_stage;
+    VkPipelineStageFlags dst_stage;
+    
+    if(texture->image->current_layout == new_layout)
+    {
+        return;
+    }
+    
+    memory_barrier.src_queue_family_index = VK_QUEUE_FAMILY_IGNORED;
+    memory_barrier.dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED;
+    memory_barrier.old_layout = texture->image->current_layout;
+    memory_barrier.new_layout = new_layout;
+    memory_barrier.subresource_range.aspectMask = texture->image->aspect_mask;
+    memory_barrier.subresource_range.baseArrayLayer = 0;
+    memory_barrier.subresource_range.baseMipLevel = 0;
+    memory_barrier.subresource_range.layerCount = 1;
+    memory_barrier.subresource_range.levelCount = 1;
+    memory_barrier.image = texture->image;
+    
+    uint32_t is_depth_stencil_format = r_IsDepthStencilFormat(texture->image->description->format);
+    
+    memory_barrier.src_access_mask = r_sync_data[layout_transition_sync + is_depth_stencil_format].src_access;
+    memory_barrier.dst_access_mask = r_sync_data[layout_transition_sync + is_depth_stencil_format].dst_access;
+    src_stage = r_sync_data[layout_transition_sync + is_depth_stencil_format].src_stage;
+    dst_stage = r_sync_data[layout_transition_sync + is_depth_stencil_format].dst_stage;
+    
+//    switch(layout_transition_sync)
+//    {
+//        case R_LAYOUT_TRANSITION_SYNC_RENDERPASS_RENDERPASS:
+//            if(is_depth_stencil_format)
+//            {
+//                memory_barrier.src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+//                memory_barrier.dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+//                src_stage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+//                dst_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+//            }
+//            else
+//            {
+//                memory_barrier.src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+//                memory_barrier.dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+//                src_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+//                dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+//            }
+//        break;
+//        
+//        case R_LAYOUT_TRANSITION_SYNC_RENDERPASS_SHADER:
+//            if(is_depth_stencil_format)
+//            {
+//                memory_barrier.src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+//                memory_barrier.dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+//                src_stage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+//                dst_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+//            }
+//            else
+//            {
+//                memory_barrier.src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+//                memory_barrier.dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+//                src_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+//                dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+//            }
+//        break;
+//        
+//        case R_LAYOUT_TRANSITION_SYNC_SHADER_RENDERPASS:
+//            
+//            /* write after read, only execution barrier is necessary */
+//            memory_barrier.src_access_mask = 0;
+//            memory_barrier.dst_access_mask = 0;
+//            src_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+//            
+//            if(is_depth_stencil_format)
+//            {
+//                dst_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+//            }
+//            else
+//            {
+//                dst_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+//            }
+//        break;
+//    }
+    
+    r_vkCmdPipelineImageBarrier(command_buffer, src_stage, dst_stage, 1, &memory_barrier);
 }
 
 uint32_t r_FillTempVertices(void *data, uint32_t size, uint32_t count)

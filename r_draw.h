@@ -180,6 +180,16 @@ struct r_uniform_buffer_t
 
 
 
+enum R_LAYOUT_TRANSITION_SYNC
+{
+    /* sync between render pass store and render pass load */
+    R_LAYOUT_TRANSITION_SYNC_RENDERPASS_RENDERPASS = 0,
+    /* sync between a render pass store and shader read */
+    R_LAYOUT_TRANSITION_SYNC_RENDERPASS_SHADER = 2,
+    /* sync between shader read and render pass write */
+    R_LAYOUT_TRANSITION_SYNC_SHADER_RENDERPASS = 4
+};
+
 
 /*
 =================================================================
@@ -257,7 +267,7 @@ void r_DrawIndexed(union r_command_buffer_h command_buffer, uint32_t start, uint
 
 void r_PushConstants(union r_command_buffer_h command_buffer, VkShaderStageFlagBits stage, uint32_t size, uint32_t offset, void *data);
 
-void r_ImageBarrier(union r_command_buffer_h command_buffer, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage);
+void r_TransitionLayout(union r_command_buffer_h command_buffer, uint32_t layout_transition_sync, uint32_t new_layout, struct r_texture_t *texture);
 
 uint32_t r_FillTempVertices(void *data, uint32_t size, uint32_t count);
 
